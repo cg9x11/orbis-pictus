@@ -1,0 +1,28 @@
+node_modules/
+dist/
+build/
+.env
+*.local
+
+# reference-only asset used during reverse-engineering, not part of the build
+ParisExampleVideo.mp4
+
+# sqlite
+apps/server/data/*.db
+apps/server/data/*.db-journal
+apps/server/data/*.db-shm
+apps/server/data/*.db-wal
+
+# generated images (keep dir via .gitkeep)
+apps/server/data/images/*
+!apps/server/data/images/.gitkeep
+
+# logs
+npm-debug.log*
+*.log
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
