@@ -11,6 +11,7 @@
     "db:migrate": "tsx src/storage/migrate.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.65.0",
     "@flipbook/shared": "*",
     "@hono/node-server": "^1.13.7",
     "dotenv": "^16.4.5",
