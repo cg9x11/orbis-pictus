@@ -16,7 +16,6 @@ export class MockLlmProvider implements LlmProvider {
     const parentNote = input.parentTitle ? ` Continuing from the parent page "${input.parentTitle}".` : "";
     const authoredPrompt =
       `An educational infographic titled "${pageTitle}".${parentNote} ` +
-      `Clean modern vector illustration, warm palette, cream background. ` +
       `Layout: a bold title banner reading "${pageTitle}" at the top, ` +
       `four labeled panels below covering distinct facets of ${input.topic}, ` +
       `each with a short caption. Footer strip with one fact about ${input.topic}. [mock]`;

@@ -58,7 +58,7 @@ export class GeminiLlmProvider implements LlmProvider {
   async authorPrompt(input: AuthorPromptInput): Promise<AuthorPromptOutput> {
     const contextLines: string[] = [`Topic: ${input.topic}`];
     if (input.parentTitle) contextLines.push(`Parent page title: ${input.parentTitle}`);
-    if (input.parentAuthoredPrompt) contextLines.push(`Parent page image prompt (match this style): ${input.parentAuthoredPrompt}`);
+    if (input.parentAuthoredPrompt) contextLines.push(`Parent page content prompt (for thematic continuity, not style): ${input.parentAuthoredPrompt}`);
     if (input.webSearchSummary) contextLines.push(`Web search summary: ${input.webSearchSummary}`);
 
     const result = (await callGemini(this.apiKey, this.modelId, PAGE_AUTHOR_SYSTEM, [
