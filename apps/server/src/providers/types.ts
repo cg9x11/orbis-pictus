@@ -29,6 +29,8 @@ export interface LlmProvider {
 export interface ImageGenInput {
   prompt: string;
   aspectRatio: AspectRatio;
+  /** Current page image (data: URL) to use as an editing/reference input. Providers without image-input support may ignore it. */
+  referenceImageDataUrl?: string;
 }
 
 export interface ImageGenResult {

@@ -1,11 +1,20 @@
+import { z } from "zod";
 import { MockLlmProvider } from "./llm/mock.js";
 import { GeminiLlmProvider } from "./llm/gemini.js";
 import { AnthropicLlmProvider } from "./llm/anthropic.js";
 import { MockImageProvider } from "./image/mock.js";
 import { FalImageProvider } from "./image/fal.js";
+import { ArkImageProvider } from "./image/ark.js";
 import { NoneSearchProvider } from "./search/none.js";
 import { LlmSearchProvider } from "./search/llm.js";
 import type { ImageProvider, LlmProvider, SearchProvider } from "./types.js";
+
+const ArkConfigSchema = z.object({
+  ARK_API_KEY: z.string().min(1),
+  ARK_BASE_URL: z.string().url(),
+  ARK_IMAGE_MODEL: z.string().min(1),
+  ARK_IMAGE_MODEL_FALLBACK: z.string().min(1).optional(),
+});
 
 export interface Providers {
   llm: LlmProvider;
@@ -43,6 +52,21 @@ function buildLlmProvider(): LlmProvider {
 function buildImageProvider(): ImageProvider {
   const provider = process.env.IMAGE_PROVIDER ?? "fal";
   if (provider === "mock") return new MockImageProvider();
+
+  if (provider === "ark") {
+    const parsed = ArkConfigSchema.safeParse({
+      ARK_API_KEY: process.env.ARK_API_KEY,
+      ARK_BASE_URL: process.env.ARK_BASE_URL || "https://ark.ap-southeast.bytepluses.com",
+      ARK_IMAGE_MODEL: process.env.ARK_IMAGE_MODEL || "seedream-4-5-251128",
+      ARK_IMAGE_MODEL_FALLBACK: process.env.ARK_IMAGE_MODEL_FALLBACK || "seedream-4-0-250828",
+    });
+    if (!parsed.success) {
+      missingKeys.push(`ARK_API_KEY/config (${parsed.error.issues.map((i) => i.path.join(".")).join(", ")})`);
+      return new MockImageProvider();
+    }
+    const { ARK_API_KEY, ARK_BASE_URL, ARK_IMAGE_MODEL, ARK_IMAGE_MODEL_FALLBACK } = parsed.data;
+    return new ArkImageProvider(ARK_API_KEY, ARK_BASE_URL, ARK_IMAGE_MODEL, ARK_IMAGE_MODEL_FALLBACK);
+  }
 
   const apiKey = process.env.FAL_KEY;
   if (!apiKey) {
