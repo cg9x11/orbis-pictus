@@ -1,21 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { AspectRatio, Node } from "@flipbook/shared";
+import type { AspectRatio, GenerateRequest, Node } from "@flipbook/shared";
 import { BrowserFrame } from "./components/BrowserFrame";
 import { AddressBar } from "./components/AddressBar";
 import { PageImage } from "./components/PageImage";
 import { AspectRatioPicker } from "./components/AspectRatioPicker";
 import { UploadButton } from "./components/UploadButton";
 import { WebSearchToggle } from "./components/WebSearchToggle";
+import { Landing } from "./components/Landing";
 import { useGenerationStream } from "./hooks/useGenerationStream";
 import { useSessionTrail } from "./hooks/useSessionTrail";
 import { useTapMarker } from "./hooks/useTapMarker";
+import { useDelayedFlag } from "./hooks/useDelayedFlag";
+import { usePageAnalytics } from "./hooks/usePageAnalytics";
 import { fetchConfig, fetchNode, fetchVariant } from "./lib/api";
 import { captureCurrentImage } from "./lib/imageCapture";
 
 function newSessionId(): string {
   return `session_${crypto.randomUUID()}`;
 }
+
+const QUOTA_ERROR_PATTERN = /quota/i;
 
 export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   const navigate = useNavigate();
@@ -25,10 +30,12 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   const { trail, currentIndex, current, append, navigateTo, reset, updateNode } = useSessionTrail();
   const { state, start, reset: resetGeneration } = useGenerationStream();
   const { captureTap } = useTapMarker();
+  const { milestone, recordPage, dismissMilestone } = usePageAnalytics();
   const [ripple, setRipple] = useState<{ xRatio: number; yRatio: number } | null>(null);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
   const [variantLoading, setVariantLoading] = useState(false);
   const [webSearch, setWebSearch] = useState(false);
+  const [lastRequest, setLastRequest] = useState<GenerateRequest | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
@@ -58,9 +65,18 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   }, [initialNodeId, reset]);
 
   const isStreaming = state.status === "streaming";
+  // Real generations and cache-hit instant navigations both count as a "page" (PLAN §1.4).
+  const showLoadingIndicator = useDelayedFlag(isStreaming || variantLoading, 150);
 
-  const handleSearch = async (query: string) => {
-    const node = await start({
+  const runRequest = async (request: GenerateRequest) => {
+    setLastRequest(request);
+    const node = await start(request);
+    append(node);
+    recordPage();
+  };
+
+  const handleSearch = (query: string) =>
+    runRequest({
       mode: "search",
       query,
       aspect_ratio: aspectRatio,
@@ -68,14 +84,12 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
       session_id: sessionId,
       current_node_id: current?.id ?? "",
     });
-    append(node);
-  };
 
-  const handleTap = async (imageEl: HTMLImageElement, clientX: number, clientY: number) => {
+  const handleTap = (imageEl: HTMLImageElement, clientX: number, clientY: number) => {
     if (!current || isStreaming) return;
     const { dataUrl, xRatio, yRatio } = captureTap(imageEl, clientX, clientY);
     setRipple({ xRatio, yRatio });
-    const node = await start({
+    return runRequest({
       mode: "tap",
       image: dataUrl,
       x: xRatio,
@@ -87,13 +101,12 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
       session_id: sessionId,
       current_node_id: current.id,
     });
-    append(node);
   };
 
-  const handleEdit = async (command: string) => {
+  const handleEdit = (command: string) => {
     if (!current || !imgRef.current || isStreaming) return;
     const dataUrl = captureCurrentImage(imgRef.current);
-    const node = await start({
+    return runRequest({
       mode: "edit",
       prompt: command,
       image: dataUrl,
@@ -104,10 +117,14 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
       session_id: sessionId,
       current_node_id: current.id,
     });
-    append(node);
   };
 
   const handleAddressSubmit = current ? handleEdit : handleSearch;
+
+  const handleRetry = () => {
+    if (!lastRequest || isStreaming) return;
+    runRequest(lastRequest).catch((err: unknown) => console.error(err));
+  };
 
   const handleNavigate = (index: number) => {
     resetGeneration();
@@ -139,12 +156,17 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     reset([]);
     setSessionId(newSessionId());
     setAspectRatio("16:9");
+    setLastRequest(null);
     navigate("/");
   };
 
   // previewImageUrl only wins while a generation is actively in flight; once it's done
   // (or the user has navigated elsewhere via breadcrumbs), the selected node's own image applies.
   const imageUrl = (isStreaming && state.previewImageUrl) || current?.image_variants[aspectRatio];
+  // Landing state: nothing in the trail yet and nothing currently generating. Once the very
+  // first search starts streaming, this flips to the normal PageImage loading view.
+  const showLanding = trail.length === 0 && !isStreaming;
+  const isQuotaError = state.status === "error" && QUOTA_ERROR_PATTERN.test(state.error ?? "");
 
   if (hydrating) return <div className="loading-screen">Loading…</div>;
   if (hydrateError) return <div className="loading-screen">Couldn't load that page: {hydrateError}</div>;
@@ -173,17 +195,36 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
         </>
       }
     >
-      <PageImage
-        imageUrl={imageUrl}
-        loading={isStreaming || variantLoading}
-        onTap={handleTap}
-        ripple={ripple}
-        onRippleDone={() => setRipple(null)}
-        imgRef={imgRef}
-        aspectRatio={aspectRatio}
-      />
+      {showLanding ? (
+        <Landing onSuggestion={handleSearch} />
+      ) : (
+        <PageImage
+          imageUrl={imageUrl}
+          loading={showLoadingIndicator}
+          onTap={handleTap}
+          ripple={ripple}
+          onRippleDone={() => setRipple(null)}
+          imgRef={imgRef}
+          aspectRatio={aspectRatio}
+        />
+      )}
       {isStreaming && state.tapSubject && <div className="tap-subject-banner">{state.tapSubject}</div>}
-      {state.status === "error" && <div className="error-banner">{state.error}</div>}
+      {state.status === "error" && (
+        <div className={`error-banner${isQuotaError ? " error-banner-quota" : ""}`}>
+          <span className="error-banner-icon">{isQuotaError ? "⚠️" : "✕"}</span>
+          <span className="error-banner-message">{state.error}</span>
+          {lastRequest && (
+            <button type="button" className="error-banner-retry" onClick={handleRetry}>
+              Retry
+            </button>
+          )}
+        </div>
+      )}
+      {milestone !== null && (
+        <div key={milestone} className="milestone-toast" onAnimationEnd={dismissMilestone}>
+          🎉 You've explored {milestone} pages this session
+        </div>
+      )}
     </BrowserFrame>
   );
 }

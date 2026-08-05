@@ -1,4 +1,12 @@
-import type { AspectRatio, ConfigResponse, GenerateEvent, GenerateRequest, Node, NodesGetResponse } from "@flipbook/shared";
+import type {
+  AspectRatio,
+  ConfigResponse,
+  GenerateEvent,
+  GenerateRequest,
+  Node,
+  NodesGetResponse,
+  NodesListResponse,
+} from "@flipbook/shared";
 import { GenerateEventSchema } from "@flipbook/shared";
 import { parseSSEStream } from "./sse";
 
@@ -35,6 +43,14 @@ export async function fetchVariant(id: string, ratio: AspectRatio): Promise<Node
   if (!res.ok) throw new Error(`Failed to fetch ${ratio} variant for node ${id}`);
   const { node } = (await res.json()) as { node: Node };
   return node;
+}
+
+/** Already-generated nodes for the landing-page example gallery — zero new generations (PLAN §3 Phase 3). */
+export async function fetchGallery(limit = 8): Promise<Node[]> {
+  const res = await fetch(`/api/nodes?limit=${limit}`);
+  if (!res.ok) throw new Error("Failed to fetch gallery");
+  const { nodes } = (await res.json()) as NodesListResponse;
+  return nodes;
 }
 
 export async function fetchConfig(): Promise<ConfigResponse> {
