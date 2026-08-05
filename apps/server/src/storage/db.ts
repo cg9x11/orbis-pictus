@@ -27,3 +27,7 @@ export function migrate(): void {
     CREATE INDEX IF NOT EXISTS nodes_session_id_idx ON nodes(session_id);
   `);
 }
+
+// Run eagerly so the table exists before any module that imports `db` from here
+// prepares statements at its own top level (ESM evaluates this module fully first).
+migrate();

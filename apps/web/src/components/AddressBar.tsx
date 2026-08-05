@@ -1,0 +1,50 @@
+import { useState } from "react";
+import type { Node } from "@flipbook/shared";
+
+interface AddressBarProps {
+  trail: Node[];
+  currentIndex: number;
+  onNavigate: (index: number) => void;
+  onSubmit: (query: string) => void;
+  disabled: boolean;
+}
+
+export function AddressBar({ trail, currentIndex, onNavigate, onSubmit, disabled }: AddressBarProps) {
+  const [value, setValue] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const query = value.trim();
+    if (!query || disabled) return;
+    onSubmit(query);
+    setValue("");
+  };
+
+  return (
+    <form className="address-bar" onSubmit={handleSubmit}>
+      {trail.length > 0 && (
+        <div className="breadcrumbs">
+          {trail.map((node, i) => (
+            <span key={node.id} className="crumb-wrap">
+              <button
+                type="button"
+                className={`crumb${i === currentIndex ? " crumb-current" : ""}`}
+                onClick={() => onNavigate(i)}
+              >
+                {node.page_title}
+              </button>
+              {i < trail.length - 1 && <span className="crumb-sep">/</span>}
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        className="address-input"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={trail.length > 0 ? "Continue this session" : "Type anything…"}
+        disabled={disabled}
+      />
+    </form>
+  );
+}
