@@ -3,13 +3,12 @@ import type { AspectRatio } from "@flipbook/shared";
 import { BrowserFrame } from "./components/BrowserFrame";
 import { AddressBar } from "./components/AddressBar";
 import { PageImage } from "./components/PageImage";
+import { AspectRatioPicker } from "./components/AspectRatioPicker";
 import { useGenerationStream } from "./hooks/useGenerationStream";
 import { useSessionTrail } from "./hooks/useSessionTrail";
 import { useTapMarker } from "./hooks/useTapMarker";
-import { fetchNode } from "./lib/api";
+import { fetchNode, fetchVariant } from "./lib/api";
 import { captureCurrentImage } from "./lib/imageCapture";
-
-const ASPECT_RATIO: AspectRatio = "16:9";
 
 function newSessionId(): string {
   return `session_${crypto.randomUUID()}`;
@@ -19,10 +18,12 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   const [sessionId, setSessionId] = useState<string>(newSessionId);
   const [hydrating, setHydrating] = useState(!!initialNodeId);
   const [hydrateError, setHydrateError] = useState<string | null>(null);
-  const { trail, currentIndex, current, append, navigateTo, reset } = useSessionTrail();
+  const { trail, currentIndex, current, append, navigateTo, reset, updateNode } = useSessionTrail();
   const { state, start, reset: resetGeneration } = useGenerationStream();
   const { captureTap } = useTapMarker();
   const [ripple, setRipple] = useState<{ xRatio: number; yRatio: number } | null>(null);
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
+  const [variantLoading, setVariantLoading] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     const node = await start({
       mode: "search",
       query,
-      aspect_ratio: ASPECT_RATIO,
+      aspect_ratio: aspectRatio,
       web_search: false,
       session_id: sessionId,
       current_node_id: current?.id ?? "",
@@ -66,7 +67,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     const node = await start({
       mode: "tap",
       image: dataUrl,
-      aspect_ratio: ASPECT_RATIO,
+      aspect_ratio: aspectRatio,
       web_search: false,
       parent_query: current.query,
       parent_title: current.page_title,
@@ -83,7 +84,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
       mode: "edit",
       prompt: command,
       image: dataUrl,
-      aspect_ratio: ASPECT_RATIO,
+      aspect_ratio: aspectRatio,
       web_search: false,
       parent_query: current.query,
       parent_title: current.page_title,
@@ -100,9 +101,23 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     navigateTo(index);
   };
 
+  const handleRatioChange = async (ratio: AspectRatio) => {
+    setAspectRatio(ratio);
+    if (!current || current.image_variants[ratio]) return;
+    setVariantLoading(true);
+    try {
+      const node = await fetchVariant(current.id, ratio);
+      updateNode(node);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setVariantLoading(false);
+    }
+  };
+
   // previewImageUrl only wins while a generation is actively in flight; once it's done
   // (or the user has navigated elsewhere via breadcrumbs), the selected node's own image applies.
-  const imageUrl = (isStreaming && state.previewImageUrl) || current?.image_variants[ASPECT_RATIO];
+  const imageUrl = (isStreaming && state.previewImageUrl) || current?.image_variants[aspectRatio];
 
   if (hydrating) return <div className="loading-screen">Loading…</div>;
   if (hydrateError) return <div className="loading-screen">Couldn't load that page: {hydrateError}</div>;
@@ -120,14 +135,16 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
           editMode={!!current}
         />
       }
+      toolbar={<AspectRatioPicker value={aspectRatio} onChange={handleRatioChange} disabled={isStreaming || variantLoading} />}
     >
       <PageImage
         imageUrl={imageUrl}
-        loading={isStreaming}
+        loading={isStreaming || variantLoading}
         onTap={handleTap}
         ripple={ripple}
         onRippleDone={() => setRipple(null)}
         imgRef={imgRef}
+        aspectRatio={aspectRatio}
       />
       {isStreaming && state.tapSubject && <div className="tap-subject-banner">{state.tapSubject}</div>}
       {state.status === "error" && <div className="error-banner">{state.error}</div>}

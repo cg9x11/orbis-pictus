@@ -29,7 +29,7 @@ const app = new Hono();
 app.use("/api/*", cors());
 
 app.route("/api/generate", generateRoute(providers, imagesDir));
-app.route("/api/nodes", nodesRoute());
+app.route("/api/nodes", nodesRoute(providers, imagesDir));
 app.get("/api/waitroom", (c) => c.json({ enabled: false, admitted: true }));
 
 app.use("/images/*", serveStatic({ root: path.relative(process.cwd(), path.dirname(imagesDir)) }));

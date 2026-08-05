@@ -29,6 +29,14 @@ export function useSessionTrail(initial: Node[] = []) {
     setState({ trail: nodes, currentIndex: nodes.length - 1 });
   }, []);
 
+  /** Replaces a node already in the trail with an updated copy (e.g. after fetching a new image variant). */
+  const updateNode = useCallback((updated: Node) => {
+    setState((prev) => ({
+      ...prev,
+      trail: prev.trail.map((n) => (n.id === updated.id ? updated : n)),
+    }));
+  }, []);
+
   return {
     trail: state.trail,
     currentIndex: state.currentIndex,
@@ -36,5 +44,6 @@ export function useSessionTrail(initial: Node[] = []) {
     append,
     navigateTo,
     reset,
+    updateNode,
   };
 }

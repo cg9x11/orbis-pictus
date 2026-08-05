@@ -1,9 +1,11 @@
 import crypto from "node:crypto";
 import { Hono } from "hono";
-import { NodesCreateRequestSchema, type Node } from "@flipbook/shared";
-import { getHistory, getNode, insertNode } from "../storage/nodes.js";
+import { AspectRatioSchema, NodesCreateRequestSchema, type Node } from "@flipbook/shared";
+import { getHistory, getNode, insertNode, updateImageVariants } from "../storage/nodes.js";
+import { saveImageVariant } from "../pipeline/imageStorage.js";
+import type { Providers } from "../providers/index.js";
 
-export function nodesRoute(): Hono {
+export function nodesRoute(providers: Providers, imagesDir: string): Hono {
   const app = new Hono();
 
   app.post("/", async (c) => {
@@ -34,6 +36,26 @@ export function nodesRoute(): Hono {
     if (!node) return c.json({ error: "Not found" }, 404);
     const history = getHistory(id);
     return c.json({ node, history });
+  });
+
+  // Lazily generates and caches a missing aspect-ratio variant of an existing node (PLAN §3 Phase 2).
+  app.get("/:id/variant", async (c) => {
+    const id = c.req.param("id");
+    const ratioParsed = AspectRatioSchema.safeParse(c.req.query("ratio"));
+    if (!ratioParsed.success) return c.json({ error: "Invalid or missing ratio query param" }, 400);
+    const ratio = ratioParsed.data;
+
+    const node = getNode(id);
+    if (!node) return c.json({ error: "Not found" }, 404);
+    if (node.image_variants[ratio]) return c.json({ node });
+
+    const { bytes, contentType } = await providers.image.generate({
+      prompt: node.authored_prompt,
+      aspectRatio: ratio,
+    });
+    const imageUrl = saveImageVariant(imagesDir, id, ratio, bytes, contentType);
+    const updated = updateImageVariants(id, { ...node.image_variants, [ratio]: imageUrl });
+    return c.json({ node: updated });
   });
 
   return app;

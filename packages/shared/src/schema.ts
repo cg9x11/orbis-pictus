@@ -123,3 +123,6 @@ export const NodesGetResponseSchema = z.object({
   history: z.array(NodeSchema),
 });
 export type NodesGetResponse = z.infer<typeof NodesGetResponseSchema>;
+
+export const NodeVariantResponseSchema = z.object({ node: NodeSchema });
+export type NodeVariantResponse = z.infer<typeof NodeVariantResponseSchema>;

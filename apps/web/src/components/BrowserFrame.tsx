@@ -2,10 +2,11 @@ import type { ReactNode } from "react";
 
 interface BrowserFrameProps {
   addressBar: ReactNode;
+  toolbar?: ReactNode;
   children: ReactNode;
 }
 
-export function BrowserFrame({ addressBar, children }: BrowserFrameProps) {
+export function BrowserFrame({ addressBar, toolbar, children }: BrowserFrameProps) {
   return (
     <div className="browser-frame">
       <div className="browser-titlebar">
@@ -16,6 +17,7 @@ export function BrowserFrame({ addressBar, children }: BrowserFrameProps) {
         </div>
         {addressBar}
       </div>
+      {toolbar && <div className="browser-toolbar">{toolbar}</div>}
       <div className="browser-content">{children}</div>
     </div>
   );

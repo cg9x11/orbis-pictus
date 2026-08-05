@@ -1,4 +1,5 @@
 import type { RefObject } from "react";
+import type { AspectRatio } from "@flipbook/shared";
 import { TapRipple } from "./TapRipple";
 
 interface PageImageProps {
@@ -8,16 +9,17 @@ interface PageImageProps {
   ripple: { xRatio: number; yRatio: number } | null;
   onRippleDone: () => void;
   imgRef: RefObject<HTMLImageElement>;
+  aspectRatio: AspectRatio;
 }
 
-export function PageImage({ imageUrl, loading, onTap, ripple, onRippleDone, imgRef }: PageImageProps) {
+export function PageImage({ imageUrl, loading, onTap, ripple, onRippleDone, imgRef, aspectRatio }: PageImageProps) {
   const handleClick = (e: React.MouseEvent<HTMLImageElement>) => {
     if (!imgRef.current || loading) return;
     onTap(imgRef.current, e.clientX, e.clientY);
   };
 
   return (
-    <div className="page-image-container">
+    <div className="page-image-container" style={{ aspectRatio: aspectRatio.replace(":", "/") }}>
       {imageUrl ? (
         <img
           ref={imgRef}

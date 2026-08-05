@@ -1,4 +1,4 @@
-import type { Node } from "@flipbook/shared";
+import type { ImageVariants, Node } from "@flipbook/shared";
 import { db } from "./db.js";
 import type { NodeRow } from "./schema.js";
 
@@ -40,6 +40,14 @@ export function insertNode(node: Node): Node {
     node.version,
   );
   return node;
+}
+
+const updateImageVariantsStmt = db.prepare(`UPDATE nodes SET image_variants = ? WHERE id = ?`);
+
+/** Merges a newly-generated variant into a node's stored image_variants and returns the updated node. */
+export function updateImageVariants(id: string, variants: ImageVariants): Node | null {
+  updateImageVariantsStmt.run(JSON.stringify(variants), id);
+  return getNode(id);
 }
 
 const getStmt = db.prepare(`SELECT * FROM nodes WHERE id = ?`);

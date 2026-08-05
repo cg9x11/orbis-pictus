@@ -1,4 +1,4 @@
-import type { GenerateEvent, GenerateRequest, NodesGetResponse } from "@flipbook/shared";
+import type { AspectRatio, GenerateEvent, GenerateRequest, Node, NodesGetResponse } from "@flipbook/shared";
 import { GenerateEventSchema } from "@flipbook/shared";
 import { parseSSEStream } from "./sse";
 
@@ -28,4 +28,11 @@ export async function fetchNode(id: string): Promise<NodesGetResponse> {
   const res = await fetch(`/api/nodes/${id}`);
   if (!res.ok) throw new Error(`Node ${id} not found`);
   return res.json();
+}
+
+export async function fetchVariant(id: string, ratio: AspectRatio): Promise<Node> {
+  const res = await fetch(`/api/nodes/${id}/variant?ratio=${encodeURIComponent(ratio)}`);
+  if (!res.ok) throw new Error(`Failed to fetch ${ratio} variant for node ${id}`);
+  const { node } = (await res.json()) as { node: Node };
+  return node;
 }
