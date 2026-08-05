@@ -3,10 +3,11 @@ import type { GenerateEvent, GenerateRequest, Node } from "@flipbook/shared";
 import type { Providers } from "../providers/index.js";
 import { getNode, insertNode, findChildBySubject, findNodeByPromptHash } from "../storage/nodes.js";
 import { findTapCacheHit, recordTapCache } from "../storage/tapCache.js";
-import { saveImageVariant } from "./imageStorage.js";
+import { loadReferenceImageDataUrl, saveImageVariant } from "./imageStorage.js";
 import { normalizeSubject } from "./normalize.js";
 import { computePromptHash } from "./promptHash.js";
 import { getTapDedupMode } from "./config.js";
+import { buildImagePrompt } from "./houseStyle.js";
 import { withRetry } from "../lib/retry.js";
 
 export interface GenerateContext {
@@ -26,6 +27,10 @@ export async function runGenerate(
   let parentNodeId: string | null;
   let parentTitle: string | undefined;
   let parentAuthoredPrompt: string | undefined;
+  // Tap-mode scene continuity (PLAN §4 tap mode): the parent page's own rendered image, passed to
+  // the image provider as a reference the same way edit mode passes the current page's image —
+  // verified against the real flipbook.page, whose tap child reuses the parent's exact scene.
+  let tapReferenceImageDataUrl: string | undefined;
 
   if (req.mode === "tap") {
     parentNodeId = req.current_node_id;
@@ -53,7 +58,9 @@ export async function runGenerate(
 
     topic = subject;
     parentTitle = req.parent_title;
-    parentAuthoredPrompt = getNode(parentNodeId)?.authored_prompt;
+    const parentNode = getNode(parentNodeId);
+    parentAuthoredPrompt = parentNode?.authored_prompt;
+    tapReferenceImageDataUrl = parentNode ? loadReferenceImageDataUrl(ctx.imagesDir, parentNode, req.aspect_ratio) : undefined;
   } else if (req.mode === "edit") {
     parentNodeId = req.current_node_id;
     const parent = getNode(parentNodeId);
@@ -90,11 +97,17 @@ export async function runGenerate(
 
   const nodeId = crypto.randomUUID().replace(/-/g, "");
 
-  // Layer 3 (PLAN §2.3): prompt-hash image cache. Excluded for edit mode — edits are conditioned
-  // on the current page's actual pixels (referenceImageDataUrl), so two edits that happen to
-  // author byte-identical prompt text can still need genuinely different output images.
+  // PLAN §2 VISUAL IDENTITY: authoredPrompt is content-only (title, layout, exact text) — the
+  // house style (materials/palette/lighting/composition) is a fixed constant appended here, never
+  // authored by the LLM, so every page shares one house look regardless of topic.
+  const imagePrompt = buildImagePrompt(authoredPrompt);
+
+  // Layer 3 (PLAN §2.3): prompt-hash image cache, keyed on the full built prompt so a HOUSE_STYLE
+  // change invalidates it too. Excluded for edit mode — edits are conditioned on the current
+  // page's actual pixels (referenceImageDataUrl), so two edits that happen to author byte-identical
+  // prompt text can still need genuinely different output images.
   const canReuseImage = req.mode !== "edit";
-  const promptHash = computePromptHash(authoredPrompt, req.aspect_ratio, ctx.providers.image.modelId, ctx.providers.image.providerId);
+  const promptHash = computePromptHash(imagePrompt, req.aspect_ratio, ctx.providers.image.modelId, ctx.providers.image.providerId);
   const cachedImageNode = canReuseImage ? findNodeByPromptHash(promptHash) : null;
   const cachedImageUrl = cachedImageNode?.image_variants[req.aspect_ratio];
 
@@ -103,9 +116,9 @@ export async function runGenerate(
     imageUrl = cachedImageUrl;
   } else {
     const { bytes, contentType } = await ctx.providers.image.generate({
-      prompt: authoredPrompt,
+      prompt: imagePrompt,
       aspectRatio: req.aspect_ratio,
-      referenceImageDataUrl: req.mode === "edit" ? req.image : undefined,
+      referenceImageDataUrl: req.mode === "edit" ? req.image : tapReferenceImageDataUrl,
     });
     imageUrl = saveImageVariant(ctx.imagesDir, nodeId, req.aspect_ratio, bytes, contentType);
   }
