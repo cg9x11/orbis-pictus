@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import type { AspectRatio } from "@flipbook/shared";
+import type { AspectRatio, Node } from "@flipbook/shared";
 import { BrowserFrame } from "./components/BrowserFrame";
 import { AddressBar } from "./components/AddressBar";
 import { PageImage } from "./components/PageImage";
 import { AspectRatioPicker } from "./components/AspectRatioPicker";
+import { UploadButton } from "./components/UploadButton";
 import { useGenerationStream } from "./hooks/useGenerationStream";
 import { useSessionTrail } from "./hooks/useSessionTrail";
 import { useTapMarker } from "./hooks/useTapMarker";
@@ -115,6 +116,12 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     }
   };
 
+  const handleUploaded = (node: Node) => {
+    const ratio = (Object.keys(node.image_variants)[0] as AspectRatio | undefined) ?? "16:9";
+    setAspectRatio(ratio);
+    reset([node]);
+  };
+
   // previewImageUrl only wins while a generation is actively in flight; once it's done
   // (or the user has navigated elsewhere via breadcrumbs), the selected node's own image applies.
   const imageUrl = (isStreaming && state.previewImageUrl) || current?.image_variants[aspectRatio];
@@ -135,7 +142,12 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
           editMode={!!current}
         />
       }
-      toolbar={<AspectRatioPicker value={aspectRatio} onChange={handleRatioChange} disabled={isStreaming || variantLoading} />}
+      toolbar={
+        <>
+          <AspectRatioPicker value={aspectRatio} onChange={handleRatioChange} disabled={isStreaming || variantLoading} />
+          <UploadButton sessionId={sessionId} disabled={isStreaming || variantLoading} onUploaded={handleUploaded} />
+        </>
+      }
     >
       <PageImage
         imageUrl={imageUrl}

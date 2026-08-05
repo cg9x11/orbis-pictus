@@ -126,3 +126,11 @@ export type NodesGetResponse = z.infer<typeof NodesGetResponseSchema>;
 
 export const NodeVariantResponseSchema = z.object({ node: NodeSchema });
 export type NodeVariantResponse = z.infer<typeof NodeVariantResponseSchema>;
+
+// --- Upload entry point ---
+export const NodesUploadRequestSchema = z.object({
+  image: z.string().startsWith("data:image/"),
+  aspect_ratio: AspectRatioSchema,
+  session_id: z.string(),
+});
+export type NodesUploadRequest = z.infer<typeof NodesUploadRequestSchema>;

@@ -182,6 +182,27 @@ body {
   cursor: not-allowed;
 }
 
+.toolbar-button {
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border: 2px solid #2b2620;
+  border-radius: 6px;
+  background: #fffdf6;
+  color: #2b2620;
+  cursor: pointer;
+}
+
+.toolbar-button:hover:not(:disabled) {
+  background: #efe3c6;
+}
+
+.toolbar-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .browser-content {
   position: relative;
   background: #f5ecd9;

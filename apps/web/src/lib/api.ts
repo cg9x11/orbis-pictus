@@ -36,3 +36,17 @@ export async function fetchVariant(id: string, ratio: AspectRatio): Promise<Node
   const { node } = (await res.json()) as { node: Node };
   return node;
 }
+
+export async function uploadImage(image: string, aspectRatio: AspectRatio, sessionId: string): Promise<Node> {
+  const res = await fetch("/api/nodes/upload", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ image, aspect_ratio: aspectRatio, session_id: sessionId }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Upload failed (${res.status}): ${body}`);
+  }
+  const { node } = (await res.json()) as { node: Node };
+  return node;
+}
