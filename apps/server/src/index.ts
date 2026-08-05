@@ -1,4 +1,5 @@
 import "./env.js";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
@@ -9,6 +10,7 @@ import { migrate } from "./storage/db.js";
 import { createProviders, getMissingKeys } from "./providers/index.js";
 import { generateRoute } from "./routes/generate.js";
 import { nodesRoute } from "./routes/nodes.js";
+import { getNode } from "./storage/nodes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -35,8 +37,46 @@ app.get("/api/config", (c) => c.json({ searchAvailable: providers.search.availab
 
 app.use("/images/*", serveStatic({ root: path.relative(process.cwd(), path.dirname(imagesDir)) }));
 
-// In production, serve the built SPA for everything else.
 const webDist = path.resolve(__dirname, "../../web/dist");
+const webDistIndexHtml = path.join(webDist, "index.html");
+// In dev, dist/ doesn't exist yet — fall back to the raw source index.html, which still works
+// because the browser reaches this route through the Vite dev proxy (see vite.config.ts), so
+// its relative `/src/main.tsx` script src resolves against Vite's own origin.
+const webSrcIndexHtml = path.resolve(__dirname, "../../web/index.html");
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}
+
+// Server-rendered so link-unfurling bots (which don't run JS) see the right title + image.
+app.get("/n/:id", (c) => {
+  const id = c.req.param("id");
+  const indexPath = fs.existsSync(webDistIndexHtml) ? webDistIndexHtml : webSrcIndexHtml;
+  let html = fs.readFileSync(indexPath, "utf-8");
+
+  const node = getNode(id);
+  if (node) {
+    const origin = new URL(c.req.url).origin;
+    const imagePath = node.image_variants["16:9"] ?? Object.values(node.image_variants)[0];
+    const title = escapeHtml(`${node.page_title} — flipbook`);
+    const ogTags = [
+      `<meta property="og:title" content="${title}" />`,
+      imagePath ? `<meta property="og:image" content="${origin}${imagePath}" />` : "",
+      `<meta property="og:type" content="website" />`,
+      `<meta name="twitter:card" content="summary_large_image" />`,
+    ]
+      .filter(Boolean)
+      .join("\n    ");
+    html = html.includes("<title>")
+      ? html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`)
+      : html.replace("</head>", `<title>${title}</title>\n  </head>`);
+    html = html.replace("</head>", `${ogTags}\n  </head>`);
+  }
+
+  return c.html(html);
+});
+
+// In production, serve the built SPA for everything else.
 app.use("/*", serveStatic({ root: path.relative(process.cwd(), webDist) }));
 app.get("*", serveStatic({ path: path.join(path.relative(process.cwd(), webDist), "index.html") }));
 

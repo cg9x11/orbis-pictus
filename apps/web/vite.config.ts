@@ -14,6 +14,11 @@ export default defineConfig({
         target: "http://localhost:8787",
         changeOrigin: true,
       },
+      // Server-rendered so it can inject OG meta tags for link unfurling (see index.ts).
+      "/n": {
+        target: "http://localhost:8787",
+        changeOrigin: true,
+      },
     },
   },
 });
