@@ -44,6 +44,11 @@ export type GenerateSearchRequest = z.infer<typeof GenerateSearchRequestSchema>;
 export const GenerateTapRequestSchema = z.object({
   mode: z.literal("tap"),
   image: z.string().startsWith("data:image/"),
+  // Click point as a fraction (0..1) of the displayed image's width/height — same coordinate
+  // space as the marker drawn into `image`. Used server-side for the tap-cache lookup (PLAN
+  // §2.3): the VLM never sees these, it still resolves the subject visually from the marker.
+  x: z.number().min(0).max(1).default(0.5),
+  y: z.number().min(0).max(1).default(0.5),
   aspect_ratio: AspectRatioSchema.default("16:9"),
   web_search: z.boolean().default(false),
   parent_query: z.string(),
@@ -126,6 +131,10 @@ export type NodesGetResponse = z.infer<typeof NodesGetResponseSchema>;
 
 export const NodeVariantResponseSchema = z.object({ node: NodeSchema });
 export type NodeVariantResponse = z.infer<typeof NodeVariantResponseSchema>;
+
+// --- Gallery listing (landing page, PLAN §3 Phase 3) — reuses already-generated nodes, zero new generations ---
+export const NodesListResponseSchema = z.object({ nodes: z.array(NodeSchema) });
+export type NodesListResponse = z.infer<typeof NodesListResponseSchema>;
 
 // --- Upload entry point ---
 export const NodesUploadRequestSchema = z.object({

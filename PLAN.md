@@ -228,10 +228,10 @@ The core loop, single quality tier (draft model only):
 - Progressive `preview` events (fal streaming or draft-then-HQ two-pass).
 - OG tags on `/n/:id`, image variants on demand.
 
-### Phase 3 — Two-tier quality + polish (2 days)
-- Draft tier (flux/schnell, low res, ~1–2 s) → `draft_complete` with "continue with draft" UI; final tier (nano-banana, full res) swaps in via `complete`; 90 s timeout → keep draft.
-- Tap caching & reuse (§2.3): coordinate-grid VLM cache, subject-level child dedup, prompt-hash image cache.
-- Landing page with intro copy + example gallery; error toasts; retry/backoff for persistence; page-generated analytics counter (sessionStorage, no external service).
+### Phase 3 — Caching + polish (2 days)
+DECIDED 2026-08-06: **two-tier draft/final quality is DROPPED** (not deferred). Rationale: Ark's 3.69MP size floor makes the single tier already 2K-class, there is no cheaper/faster draft model on the account, and two-tier doubles per-page quota burn under Free Credit Only mode. The SSE contract keeps the `preview`/`draft_complete` event names for protocol compatibility with the original, but the pipeline emits only the single-tier flow (`start → [tap events] → complete`). Do not reintroduce a second generation pass.
+- Tap caching & reuse (§2.3): coordinate-grid VLM cache, subject-level child dedup, prompt-hash image cache — now the headline feature of this phase (real quota savings).
+- Landing page with intro copy + example gallery (reuse already-generated nodes as the gallery — no new generations needed); error toasts; retry/backoff for persistence; page-generated analytics counter (sessionStorage, no external service).
 
 ### Phase 4 — Operational hardening (1–2 days, optional for OSS)
 - Waitroom with real queue (in-memory token bucket → Redis optional), per-IP rate limits, cost guardrails (max pages/session), S3/R2 storage driver, Dockerfile + fly.io/Render deploy docs.

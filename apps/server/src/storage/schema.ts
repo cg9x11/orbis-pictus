@@ -11,4 +11,20 @@ export interface NodeRow {
   authored_prompt: string;
   created_at: string;
   version: number;
+  // Internal cache-layer metadata (PLAN §2.3) — never exposed via the public Node zod schema.
+  normalized_subject: string;
+  prompt_hash: string | null;
+}
+
+/** Row shape of the `tap_cache` table (see db.ts for DDL) — layer 1 of PLAN §2.3. */
+export interface TapCacheRow {
+  id: number;
+  node_id: string;
+  cell_x: number;
+  cell_y: number;
+  x: number;
+  y: number;
+  subject: string;
+  aspect_ratio: string;
+  created_at: string;
 }
