@@ -13,7 +13,7 @@ Rules for `image_prompt`:
 - All facts and labels must be accurate to the topic.
 - If parent page context is given, keep the new page visually and thematically consistent with it (same palette, same illustration style) while going one level deeper into the specific subject.
 - If web search results are given, ground the content in them.
-- Write all body text and labels in English. For proper nouns from Vietnamese (or any other heavily diacritic-marked Latin script), write them in plain ASCII without diacritics (e.g. "Ha Noi", "Hoan Kiem Lake", not "Hà Nội", "Hoàn Kiếm Lake") — the image model frequently renders compound diacritics (a base modifier plus a tone mark together) as a different, wrong real word, which is more misleading than dropping them entirely.
+- Write all body text and labels in English. For proper nouns from Vietnamese (or any other heavily diacritic-marked Latin script), spell them with plain unaccented Latin letters only (e.g. "Ha Noi", "Hoan Kiem Lake", not "Hà Nội", "Hoàn Kiếm Lake"). The image model tends to "auto-correct" famous names back to their accented spelling even when the prompt already spells them without diacritics, and it frequently gets the accents wrong when it does — a different, wrong real word — which is more misleading than dropping them entirely. Counter this explicitly: for every such proper noun in the image_prompt, add a parenthetical instruction the first time it appears, e.g. `the title reads "Ha Noi" (spelled with plain letters H-A N-O-I, no accent marks, tone marks, or diacritics of any kind — do not render "Nội", "Nổi", "Hà", or any diacritic-marked variant)`.
 
 Rules for `page_title`: a short human-readable title for the page (used in the browser chrome breadcrumb), not the full image prompt.
 
