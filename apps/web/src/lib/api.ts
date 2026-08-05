@@ -1,4 +1,4 @@
-import type { AspectRatio, GenerateEvent, GenerateRequest, Node, NodesGetResponse } from "@flipbook/shared";
+import type { AspectRatio, ConfigResponse, GenerateEvent, GenerateRequest, Node, NodesGetResponse } from "@flipbook/shared";
 import { GenerateEventSchema } from "@flipbook/shared";
 import { parseSSEStream } from "./sse";
 
@@ -35,6 +35,12 @@ export async function fetchVariant(id: string, ratio: AspectRatio): Promise<Node
   if (!res.ok) throw new Error(`Failed to fetch ${ratio} variant for node ${id}`);
   const { node } = (await res.json()) as { node: Node };
   return node;
+}
+
+export async function fetchConfig(): Promise<ConfigResponse> {
+  const res = await fetch("/api/config");
+  if (!res.ok) throw new Error("Failed to fetch config");
+  return res.json();
 }
 
 export async function uploadImage(image: string, aspectRatio: AspectRatio, sessionId: string): Promise<Node> {

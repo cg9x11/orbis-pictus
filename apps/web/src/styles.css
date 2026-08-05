@@ -203,6 +203,12 @@ body {
   cursor: not-allowed;
 }
 
+.toolbar-button-active {
+  background: #28c840;
+  color: #fff;
+  border-color: #1a8a2c;
+}
+
 .browser-content {
   position: relative;
   background: #f5ecd9;

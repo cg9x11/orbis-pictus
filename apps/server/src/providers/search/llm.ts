@@ -17,6 +17,7 @@ const SEARCH_SYSTEM =
 const WEB_SEARCH_TOOL_TYPES = ["web_search_20260209", "web_search_20250305"] as const;
 
 export class LlmSearchProvider implements SearchProvider {
+  readonly available = true;
   private readonly client: Anthropic;
   private readonly model: string;
   private workingToolType: (typeof WEB_SEARCH_TOOL_TYPES)[number] | null = null;

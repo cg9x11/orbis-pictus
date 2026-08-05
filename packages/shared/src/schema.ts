@@ -134,3 +134,7 @@ export const NodesUploadRequestSchema = z.object({
   session_id: z.string(),
 });
 export type NodesUploadRequest = z.infer<typeof NodesUploadRequestSchema>;
+
+// --- Server config, for feature-availability toggles in the UI ---
+export const ConfigResponseSchema = z.object({ searchAvailable: z.boolean() });
+export type ConfigResponse = z.infer<typeof ConfigResponseSchema>;

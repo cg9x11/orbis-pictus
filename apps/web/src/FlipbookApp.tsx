@@ -5,10 +5,11 @@ import { AddressBar } from "./components/AddressBar";
 import { PageImage } from "./components/PageImage";
 import { AspectRatioPicker } from "./components/AspectRatioPicker";
 import { UploadButton } from "./components/UploadButton";
+import { WebSearchToggle } from "./components/WebSearchToggle";
 import { useGenerationStream } from "./hooks/useGenerationStream";
 import { useSessionTrail } from "./hooks/useSessionTrail";
 import { useTapMarker } from "./hooks/useTapMarker";
-import { fetchNode, fetchVariant } from "./lib/api";
+import { fetchConfig, fetchNode, fetchVariant } from "./lib/api";
 import { captureCurrentImage } from "./lib/imageCapture";
 
 function newSessionId(): string {
@@ -25,7 +26,14 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   const [ripple, setRipple] = useState<{ xRatio: number; yRatio: number } | null>(null);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
   const [variantLoading, setVariantLoading] = useState(false);
+  const [webSearch, setWebSearch] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    fetchConfig()
+      .then((config) => setWebSearch(config.searchAvailable))
+      .catch((err: unknown) => console.error(err));
+  }, []);
 
   useEffect(() => {
     if (!initialNodeId) return;
@@ -54,7 +62,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
       mode: "search",
       query,
       aspect_ratio: aspectRatio,
-      web_search: false,
+      web_search: webSearch,
       session_id: sessionId,
       current_node_id: current?.id ?? "",
     });
@@ -69,7 +77,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
       mode: "tap",
       image: dataUrl,
       aspect_ratio: aspectRatio,
-      web_search: false,
+      web_search: webSearch,
       parent_query: current.query,
       parent_title: current.page_title,
       session_id: sessionId,
@@ -86,7 +94,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
       prompt: command,
       image: dataUrl,
       aspect_ratio: aspectRatio,
-      web_search: false,
+      web_search: webSearch,
       parent_query: current.query,
       parent_title: current.page_title,
       session_id: sessionId,
@@ -145,6 +153,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
       toolbar={
         <>
           <AspectRatioPicker value={aspectRatio} onChange={handleRatioChange} disabled={isStreaming || variantLoading} />
+          <WebSearchToggle enabled={webSearch} onChange={setWebSearch} disabled={isStreaming} />
           <UploadButton sessionId={sessionId} disabled={isStreaming || variantLoading} onUploaded={handleUploaded} />
         </>
       }

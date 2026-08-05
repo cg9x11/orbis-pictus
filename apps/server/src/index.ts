@@ -31,6 +31,7 @@ app.use("/api/*", cors());
 app.route("/api/generate", generateRoute(providers, imagesDir));
 app.route("/api/nodes", nodesRoute(providers, imagesDir));
 app.get("/api/waitroom", (c) => c.json({ enabled: false, admitted: true }));
+app.get("/api/config", (c) => c.json({ searchAvailable: providers.search.available }));
 
 app.use("/images/*", serveStatic({ root: path.relative(process.cwd(), path.dirname(imagesDir)) }));
 

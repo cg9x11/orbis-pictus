@@ -68,5 +68,7 @@ export interface SearchResult {
 }
 
 export interface SearchProvider {
+  /** Whether this provider can actually perform a search (vs. the no-key `none` stub). */
+  readonly available: boolean;
   search(query: string): Promise<SearchResult | null>;
 }
