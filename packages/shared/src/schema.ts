@@ -53,9 +53,24 @@ export const GenerateTapRequestSchema = z.object({
 });
 export type GenerateTapRequest = z.infer<typeof GenerateTapRequestSchema>;
 
+// mode "edit": user typed a command while a page is open (re-render the current page)
+export const GenerateEditRequestSchema = z.object({
+  mode: z.literal("edit"),
+  prompt: z.string().min(1),
+  image: z.string().startsWith("data:image/"),
+  aspect_ratio: AspectRatioSchema.default("16:9"),
+  web_search: z.boolean().default(false),
+  parent_query: z.string(),
+  parent_title: z.string(),
+  session_id: z.string(),
+  current_node_id: z.string(),
+});
+export type GenerateEditRequest = z.infer<typeof GenerateEditRequestSchema>;
+
 export const GenerateRequestSchema = z.discriminatedUnion("mode", [
   GenerateSearchRequestSchema,
   GenerateTapRequestSchema,
+  GenerateEditRequestSchema,
 ]);
 export type GenerateRequest = z.infer<typeof GenerateRequestSchema>;
 

@@ -2,13 +2,32 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Anthropic from "@anthropic-ai/sdk";
-import type { AuthorPromptInput, AuthorPromptOutput, DescribeTapOutput, LlmProvider } from "../types.js";
+import type {
+  AuthorEditInput,
+  AuthorPromptInput,
+  AuthorPromptOutput,
+  DescribeTapOutput,
+  LlmProvider,
+  TitleImageOutput,
+} from "../types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const promptsDir = path.resolve(__dirname, "../../prompts");
 
 const PAGE_AUTHOR_SYSTEM = fs.readFileSync(path.join(promptsDir, "page-author.md"), "utf-8");
+const EDIT_AUTHOR_SYSTEM = fs.readFileSync(path.join(promptsDir, "edit-author.md"), "utf-8");
 const TAP_SUBJECT_SYSTEM = fs.readFileSync(path.join(promptsDir, "tap-subject.md"), "utf-8");
+const IMAGE_TITLE_SYSTEM = fs.readFileSync(path.join(promptsDir, "image-title.md"), "utf-8");
+
+function imageContentBlock(dataUrl: string): Anthropic.ImageBlockParam {
+  const match = /^data:(image\/\w+);base64,(.*)$/.exec(dataUrl);
+  if (!match) throw new Error("expected a data: URL");
+  const [, mimeType, data] = match;
+  return {
+    type: "image",
+    source: { type: "base64", media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp", data: data! },
+  };
+}
 
 /** Strip ```json ... ``` / ``` ... ``` fences some models wrap JSON in despite instructions not to. */
 function parseJsonLoose(text: string): unknown {
@@ -55,11 +74,24 @@ export class AnthropicLlmProvider implements LlmProvider {
     return { pageTitle: result.page_title, authoredPrompt: result.image_prompt };
   }
 
-  async describeTap(markedImageDataUrl: string): Promise<DescribeTapOutput> {
-    const match = /^data:(image\/\w+);base64,(.*)$/.exec(markedImageDataUrl);
-    if (!match) throw new Error("describeTap: expected a data: URL");
-    const [, mimeType, data] = match;
+  async authorEdit(input: AuthorEditInput): Promise<AuthorPromptOutput> {
+    const contextLines: string[] = [`Command: ${input.command}`];
+    if (input.parentTitle) contextLines.push(`Parent page title: ${input.parentTitle}`);
+    contextLines.push(`Parent page image prompt: ${input.parentAuthoredPrompt}`);
+    if (input.webSearchSummary) contextLines.push(`Web search summary: ${input.webSearchSummary}`);
 
+    const message = await this.client.messages.create({
+      model: this.modelId,
+      max_tokens: 2048,
+      system: EDIT_AUTHOR_SYSTEM,
+      messages: [{ role: "user", content: contextLines.join("\n") }],
+    });
+
+    const result = parseJsonLoose(textFromMessage(message)) as { page_title: string; image_prompt: string };
+    return { pageTitle: result.page_title, authoredPrompt: result.image_prompt };
+  }
+
+  async describeTap(markedImageDataUrl: string): Promise<DescribeTapOutput> {
     const message = await this.client.messages.create({
       model: this.tapModelId,
       max_tokens: 256,
@@ -67,18 +99,29 @@ export class AnthropicLlmProvider implements LlmProvider {
       messages: [
         {
           role: "user",
-          content: [
-            {
-              type: "image",
-              source: { type: "base64", media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp", data: data! },
-            },
-            { type: "text", text: "What is under the marker?" },
-          ],
+          content: [imageContentBlock(markedImageDataUrl), { type: "text", text: "What is under the marker?" }],
         },
       ],
     });
 
     const result = parseJsonLoose(textFromMessage(message)) as { subject: string };
     return { subject: result.subject };
+  }
+
+  async titleImage(imageDataUrl: string): Promise<TitleImageOutput> {
+    const message = await this.client.messages.create({
+      model: this.tapModelId,
+      max_tokens: 256,
+      system: IMAGE_TITLE_SYSTEM,
+      messages: [
+        {
+          role: "user",
+          content: [imageContentBlock(imageDataUrl), { type: "text", text: "Title this image." }],
+        },
+      ],
+    });
+
+    const result = parseJsonLoose(textFromMessage(message)) as { title: string; description: string };
+    return { title: result.title, description: result.description };
   }
 }

@@ -1,4 +1,11 @@
-import type { AuthorPromptInput, AuthorPromptOutput, DescribeTapOutput, LlmProvider } from "../types.js";
+import type {
+  AuthorEditInput,
+  AuthorPromptInput,
+  AuthorPromptOutput,
+  DescribeTapOutput,
+  LlmProvider,
+  TitleImageOutput,
+} from "../types.js";
 
 /** Deterministic canned responses — no network calls. Used when GEMINI_API_KEY is absent. */
 export class MockLlmProvider implements LlmProvider {
@@ -16,8 +23,18 @@ export class MockLlmProvider implements LlmProvider {
     return { pageTitle, authoredPrompt };
   }
 
+  async authorEdit(input: AuthorEditInput): Promise<AuthorPromptOutput> {
+    const pageTitle = input.parentTitle ?? "Edited Page";
+    const authoredPrompt = `${input.parentAuthoredPrompt} [edited: ${input.command}] [mock]`;
+    return { pageTitle, authoredPrompt };
+  }
+
   async describeTap(_markedImageDataUrl: string): Promise<DescribeTapOutput> {
     return { subject: "Mock Subject" };
+  }
+
+  async titleImage(_imageDataUrl: string): Promise<TitleImageOutput> {
+    return { title: "Uploaded Photo", description: "A user-uploaded photograph. [mock]" };
   }
 }
 

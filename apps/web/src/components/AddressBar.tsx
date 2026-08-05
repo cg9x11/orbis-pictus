@@ -7,9 +7,12 @@ interface AddressBarProps {
   onNavigate: (index: number) => void;
   onSubmit: (query: string) => void;
   disabled: boolean;
+  /** Shown in place of the input while a tap generation is streaming, before the image arrives. */
+  pendingLabel?: string;
+  editMode: boolean;
 }
 
-export function AddressBar({ trail, currentIndex, onNavigate, onSubmit, disabled }: AddressBarProps) {
+export function AddressBar({ trail, currentIndex, onNavigate, onSubmit, disabled, pendingLabel, editMode }: AddressBarProps) {
   const [value, setValue] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -38,13 +41,17 @@ export function AddressBar({ trail, currentIndex, onNavigate, onSubmit, disabled
           ))}
         </div>
       )}
-      <input
-        className="address-input"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder={trail.length > 0 ? "Continue this session" : "Type anything…"}
-        disabled={disabled}
-      />
+      {pendingLabel ? (
+        <div className="address-pending">Loading: {pendingLabel}…</div>
+      ) : (
+        <input
+          className="address-input"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={editMode ? "Type a command to edit this page…" : trail.length > 0 ? "Continue this session" : "Type anything…"}
+          disabled={disabled}
+        />
+      )}
     </form>
   );
 }

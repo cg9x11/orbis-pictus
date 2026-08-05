@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import type { RefObject } from "react";
 import { TapRipple } from "./TapRipple";
 
 interface PageImageProps {
@@ -7,11 +7,10 @@ interface PageImageProps {
   onTap: (image: HTMLImageElement, clientX: number, clientY: number) => void;
   ripple: { xRatio: number; yRatio: number } | null;
   onRippleDone: () => void;
+  imgRef: RefObject<HTMLImageElement>;
 }
 
-export function PageImage({ imageUrl, loading, onTap, ripple, onRippleDone }: PageImageProps) {
-  const imgRef = useRef<HTMLImageElement>(null);
-
+export function PageImage({ imageUrl, loading, onTap, ripple, onRippleDone, imgRef }: PageImageProps) {
   const handleClick = (e: React.MouseEvent<HTMLImageElement>) => {
     if (!imgRef.current || loading) return;
     onTap(imgRef.current, e.clientX, e.clientY);

@@ -14,15 +14,34 @@ export interface AuthorPromptOutput {
   authoredPrompt: string;
 }
 
+export interface AuthorEditInput {
+  /** The user's typed command, e.g. "make it night time". */
+  command: string;
+  /** The image prompt that produced the page being edited — the edit rewrites this. */
+  parentAuthoredPrompt: string;
+  parentTitle?: string;
+  webSearchSummary?: string;
+}
+
 export interface DescribeTapOutput {
   subject: string;
+}
+
+export interface TitleImageOutput {
+  title: string;
+  /** Short description usable as authored_prompt for style continuity on future child pages. */
+  description: string;
 }
 
 export interface LlmProvider {
   readonly modelId: string;
   authorPrompt(input: AuthorPromptInput): Promise<AuthorPromptOutput>;
+  /** Rewrites a parent page's authored_prompt per an edit command (PLAN §4 edit-author.md). */
+  authorEdit(input: AuthorEditInput): Promise<AuthorPromptOutput>;
   /** markedImageDataUrl: the current page image with the red tap marker drawn on it. */
   describeTap(markedImageDataUrl: string): Promise<DescribeTapOutput>;
+  /** imageDataUrl: a user-uploaded photo with no marker. */
+  titleImage(imageDataUrl: string): Promise<TitleImageOutput>;
 }
 
 // --- Image provider (PLAN §2.2 [C]/[D]) ---

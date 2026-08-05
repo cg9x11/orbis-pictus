@@ -129,6 +129,17 @@ body {
   opacity: 0.6;
 }
 
+.address-pending {
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 8px 12px;
+  border: 2px dashed #ff3b30;
+  border-radius: 8px;
+  background: #fffdf6;
+  color: #a3160a;
+  font-weight: 700;
+}
+
 .browser-content {
   position: relative;
   background: #f5ecd9;

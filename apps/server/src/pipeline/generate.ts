@@ -1,25 +1,12 @@
 import crypto from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
-import type { AspectRatio, GenerateEvent, GenerateRequest, Node } from "@flipbook/shared";
+import type { GenerateEvent, GenerateRequest, Node } from "@flipbook/shared";
 import type { Providers } from "../providers/index.js";
 import { getNode, insertNode } from "../storage/nodes.js";
+import { saveImageVariant } from "./imageStorage.js";
 
 export interface GenerateContext {
   providers: Providers;
   imagesDir: string;
-}
-
-const VARIANT_NAME: Record<AspectRatio, string> = {
-  "3:4": "portrait",
-  "1:1": "square",
-  "16:9": "landscape",
-};
-
-function extFromContentType(contentType: string): string {
-  if (contentType.includes("png")) return "png";
-  if (contentType.includes("webp")) return "webp";
-  return "jpg";
 }
 
 /** Runs the full generation pipeline (PLAN §2.2), calling `emit` for each SSE event, and persists the resulting node. */
@@ -42,6 +29,13 @@ export async function runGenerate(
     topic = subject;
     parentTitle = req.parent_title;
     parentAuthoredPrompt = getNode(parentNodeId)?.authored_prompt;
+  } else if (req.mode === "edit") {
+    parentNodeId = req.current_node_id;
+    const parent = getNode(parentNodeId);
+    if (!parent) throw new Error(`Cannot edit: parent node ${parentNodeId} not found`);
+    topic = req.prompt;
+    parentTitle = req.parent_title || parent.page_title;
+    parentAuthoredPrompt = parent.authored_prompt;
   } else {
     topic = req.query;
     parentNodeId = req.current_node_id || null;
@@ -54,26 +48,30 @@ export async function runGenerate(
 
   const webSearchSummary = req.web_search ? (await ctx.providers.search.search(topic))?.summary : undefined;
 
-  const { pageTitle, authoredPrompt } = await ctx.providers.llm.authorPrompt({
-    topic,
-    parentTitle,
-    parentAuthoredPrompt,
-    webSearchSummary,
-  });
+  const { pageTitle, authoredPrompt } =
+    req.mode === "edit"
+      ? await ctx.providers.llm.authorEdit({
+          command: req.prompt,
+          parentAuthoredPrompt: parentAuthoredPrompt!,
+          parentTitle,
+          webSearchSummary,
+        })
+      : await ctx.providers.llm.authorPrompt({
+          topic,
+          parentTitle,
+          parentAuthoredPrompt,
+          webSearchSummary,
+        });
 
   const nodeId = crypto.randomUUID().replace(/-/g, "");
 
   const { bytes, contentType } = await ctx.providers.image.generate({
     prompt: authoredPrompt,
     aspectRatio: req.aspect_ratio,
+    referenceImageDataUrl: req.mode === "edit" ? req.image : undefined,
   });
 
-  const variant = VARIANT_NAME[req.aspect_ratio];
-  const ext = extFromContentType(contentType);
-  const nodeDir = path.join(ctx.imagesDir, nodeId);
-  fs.mkdirSync(nodeDir, { recursive: true });
-  fs.writeFileSync(path.join(nodeDir, `${variant}.${ext}`), bytes);
-  const imageUrl = `/images/${nodeId}/${variant}.${ext}`;
+  const imageUrl = saveImageVariant(ctx.imagesDir, nodeId, req.aspect_ratio, bytes, contentType);
 
   await emit({ event: "preview", data: { aspectRatio: req.aspect_ratio, imageUrl } });
 

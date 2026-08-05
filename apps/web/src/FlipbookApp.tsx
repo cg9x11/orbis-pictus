@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AspectRatio } from "@flipbook/shared";
 import { BrowserFrame } from "./components/BrowserFrame";
 import { AddressBar } from "./components/AddressBar";
@@ -7,6 +7,7 @@ import { useGenerationStream } from "./hooks/useGenerationStream";
 import { useSessionTrail } from "./hooks/useSessionTrail";
 import { useTapMarker } from "./hooks/useTapMarker";
 import { fetchNode } from "./lib/api";
+import { captureCurrentImage } from "./lib/imageCapture";
 
 const ASPECT_RATIO: AspectRatio = "16:9";
 
@@ -22,6 +23,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   const { state, start, reset: resetGeneration } = useGenerationStream();
   const { captureTap } = useTapMarker();
   const [ripple, setRipple] = useState<{ xRatio: number; yRatio: number } | null>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     if (!initialNodeId) return;
@@ -74,6 +76,25 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     append(node);
   };
 
+  const handleEdit = async (command: string) => {
+    if (!current || !imgRef.current || isStreaming) return;
+    const dataUrl = captureCurrentImage(imgRef.current);
+    const node = await start({
+      mode: "edit",
+      prompt: command,
+      image: dataUrl,
+      aspect_ratio: ASPECT_RATIO,
+      web_search: false,
+      parent_query: current.query,
+      parent_title: current.page_title,
+      session_id: sessionId,
+      current_node_id: current.id,
+    });
+    append(node);
+  };
+
+  const handleAddressSubmit = current ? handleEdit : handleSearch;
+
   const handleNavigate = (index: number) => {
     resetGeneration();
     navigateTo(index);
@@ -93,8 +114,10 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
           trail={trail}
           currentIndex={currentIndex}
           onNavigate={handleNavigate}
-          onSubmit={handleSearch}
+          onSubmit={handleAddressSubmit}
           disabled={isStreaming}
+          pendingLabel={isStreaming ? state.tapSubject : undefined}
+          editMode={!!current}
         />
       }
     >
@@ -104,6 +127,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
         onTap={handleTap}
         ripple={ripple}
         onRippleDone={() => setRipple(null)}
+        imgRef={imgRef}
       />
       {isStreaming && state.tapSubject && <div className="tap-subject-banner">{state.tapSubject}</div>}
       {state.status === "error" && <div className="error-banner">{state.error}</div>}
