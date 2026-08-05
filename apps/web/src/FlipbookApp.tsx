@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { AspectRatio, Node } from "@flipbook/shared";
 import { BrowserFrame } from "./components/BrowserFrame";
 import { AddressBar } from "./components/AddressBar";
@@ -17,6 +18,7 @@ function newSessionId(): string {
 }
 
 export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
+  const navigate = useNavigate();
   const [sessionId, setSessionId] = useState<string>(newSessionId);
   const [hydrating, setHydrating] = useState(!!initialNodeId);
   const [hydrateError, setHydrateError] = useState<string | null>(null);
@@ -130,6 +132,14 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     reset([node]);
   };
 
+  const handleClear = () => {
+    resetGeneration();
+    reset([]);
+    setSessionId(newSessionId());
+    setAspectRatio("16:9");
+    navigate("/");
+  };
+
   // previewImageUrl only wins while a generation is actively in flight; once it's done
   // (or the user has navigated elsewhere via breadcrumbs), the selected node's own image applies.
   const imageUrl = (isStreaming && state.previewImageUrl) || current?.image_variants[aspectRatio];
@@ -155,6 +165,9 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
           <AspectRatioPicker value={aspectRatio} onChange={handleRatioChange} disabled={isStreaming || variantLoading} />
           <WebSearchToggle enabled={webSearch} onChange={setWebSearch} disabled={isStreaming} />
           <UploadButton sessionId={sessionId} disabled={isStreaming || variantLoading} onUploaded={handleUploaded} />
+          <button type="button" className="toolbar-button" onClick={handleClear} disabled={isStreaming || trail.length === 0}>
+            Clear
+          </button>
         </>
       }
     >
