@@ -1,9 +1,13 @@
 import crypto from "node:crypto";
 import { Hono } from "hono";
 import { AspectRatioSchema, NodesCreateRequestSchema, NodesUploadRequestSchema, type Node } from "@flipbook/shared";
-import { getHistory, getNode, insertNode, updateImageVariants } from "../storage/nodes.js";
+import { getHistory, getNode, insertNode, listGalleryNodes, updateImageVariants } from "../storage/nodes.js";
 import { saveImageVariant } from "../pipeline/imageStorage.js";
+import { normalizeSubject } from "../pipeline/normalize.js";
 import type { Providers } from "../providers/index.js";
+
+const DEFAULT_GALLERY_LIMIT = 8;
+const MAX_GALLERY_LIMIT = 24;
 
 export function nodesRoute(providers: Providers, imagesDir: string): Hono {
   const app = new Hono();
@@ -26,8 +30,19 @@ export function nodesRoute(providers: Providers, imagesDir: string): Hono {
       created_at: new Date().toISOString(),
       version: 1,
     };
-    insertNode(node);
+    // No providerId available on this generic persistence request, so this node is never
+    // offered for prompt-hash reuse (PLAN §2.3 layer 3) — only the generate pipeline populates it.
+    insertNode(node, { normalizedSubject: normalizeSubject(node.query), promptHash: null });
     return c.json({ node }, 201);
+  });
+
+  // Landing-page example gallery (PLAN §3 Phase 3) — a random sample of already-generated
+  // nodes, zero new generations.
+  app.get("/", (c) => {
+    const limitParam = Number(c.req.query("limit"));
+    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, MAX_GALLERY_LIMIT) : DEFAULT_GALLERY_LIMIT;
+    const nodes = listGalleryNodes(limit);
+    return c.json({ nodes });
   });
 
   // User-uploaded photo becomes a root node (parent_id null), titled by the VLM (PLAN §3 Phase 2).
@@ -62,7 +77,7 @@ export function nodesRoute(providers: Providers, imagesDir: string): Hono {
       created_at: new Date().toISOString(),
       version: 1,
     };
-    insertNode(node);
+    insertNode(node, { normalizedSubject: normalizeSubject(title), promptHash: null });
     return c.json({ node }, 201);
   });
 

@@ -59,6 +59,8 @@ export interface ImageGenResult {
 
 export interface ImageProvider {
   readonly modelId: string;
+  /** Short provider identifier (e.g. "ark", "fal", "mock") — part of the prompt-hash cache key (PLAN §2.3 layer 3), distinct from modelId so a provider swap invalidates the cache even if a model id string happens to collide. */
+  readonly providerId: string;
   generate(input: ImageGenInput): Promise<ImageGenResult>;
 }
 

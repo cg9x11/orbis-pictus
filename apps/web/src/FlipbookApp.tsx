@@ -78,6 +78,8 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     const node = await start({
       mode: "tap",
       image: dataUrl,
+      x: xRatio,
+      y: yRatio,
       aspect_ratio: aspectRatio,
       web_search: webSearch,
       parent_query: current.query,

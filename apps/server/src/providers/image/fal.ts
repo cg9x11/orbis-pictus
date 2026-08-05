@@ -9,6 +9,7 @@ const IMAGE_SIZE_BY_ASPECT: Record<AspectRatio, string> = {
 
 export class FalImageProvider implements ImageProvider {
   readonly modelId: string;
+  readonly providerId = "fal";
   private readonly apiKey: string;
 
   constructor(apiKey: string, model = "fal-ai/flux/schnell") {

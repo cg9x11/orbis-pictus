@@ -1,8 +1,13 @@
 import crypto from "node:crypto";
 import type { GenerateEvent, GenerateRequest, Node } from "@flipbook/shared";
 import type { Providers } from "../providers/index.js";
-import { getNode, insertNode } from "../storage/nodes.js";
+import { getNode, insertNode, findChildBySubject, findNodeByPromptHash } from "../storage/nodes.js";
+import { findTapCacheHit, recordTapCache } from "../storage/tapCache.js";
 import { saveImageVariant } from "./imageStorage.js";
+import { normalizeSubject } from "./normalize.js";
+import { computePromptHash } from "./promptHash.js";
+import { getTapDedupMode } from "./config.js";
+import { withRetry } from "../lib/retry.js";
 
 export interface GenerateContext {
   providers: Providers;
@@ -24,8 +29,28 @@ export async function runGenerate(
 
   if (req.mode === "tap") {
     parentNodeId = req.current_node_id;
-    const { subject } = await ctx.providers.llm.describeTap(req.image);
+    const tapDedup = getTapDedupMode();
+
+    // Layer 1 (PLAN §2.3): coordinate-quantization VLM cache — skip the VLM call entirely on a hit.
+    const cacheHit = tapDedup !== "off" ? findTapCacheHit(parentNodeId, req.aspect_ratio, req.x, req.y) : null;
+    let subject: string;
+    if (cacheHit) {
+      subject = cacheHit.subject;
+    } else {
+      subject = (await ctx.providers.llm.describeTap(req.image)).subject;
+      if (tapDedup !== "off") recordTapCache(parentNodeId, req.aspect_ratio, req.x, req.y, subject);
+    }
     await emit({ event: "tap_subject", data: { subject } });
+
+    // Layer 2: subject-level child dedup — instant navigation to an existing child, zero generation.
+    if (tapDedup === "reuse") {
+      const existingChild = findChildBySubject(parentNodeId, normalizeSubject(subject));
+      if (existingChild) {
+        await emit({ event: "complete", data: existingChild });
+        return existingChild;
+      }
+    }
+
     topic = subject;
     parentTitle = req.parent_title;
     parentAuthoredPrompt = getNode(parentNodeId)?.authored_prompt;
@@ -65,13 +90,25 @@ export async function runGenerate(
 
   const nodeId = crypto.randomUUID().replace(/-/g, "");
 
-  const { bytes, contentType } = await ctx.providers.image.generate({
-    prompt: authoredPrompt,
-    aspectRatio: req.aspect_ratio,
-    referenceImageDataUrl: req.mode === "edit" ? req.image : undefined,
-  });
+  // Layer 3 (PLAN §2.3): prompt-hash image cache. Excluded for edit mode — edits are conditioned
+  // on the current page's actual pixels (referenceImageDataUrl), so two edits that happen to
+  // author byte-identical prompt text can still need genuinely different output images.
+  const canReuseImage = req.mode !== "edit";
+  const promptHash = computePromptHash(authoredPrompt, req.aspect_ratio, ctx.providers.image.modelId, ctx.providers.image.providerId);
+  const cachedImageNode = canReuseImage ? findNodeByPromptHash(promptHash) : null;
+  const cachedImageUrl = cachedImageNode?.image_variants[req.aspect_ratio];
 
-  const imageUrl = saveImageVariant(ctx.imagesDir, nodeId, req.aspect_ratio, bytes, contentType);
+  let imageUrl: string;
+  if (cachedImageUrl) {
+    imageUrl = cachedImageUrl;
+  } else {
+    const { bytes, contentType } = await ctx.providers.image.generate({
+      prompt: authoredPrompt,
+      aspectRatio: req.aspect_ratio,
+      referenceImageDataUrl: req.mode === "edit" ? req.image : undefined,
+    });
+    imageUrl = saveImageVariant(ctx.imagesDir, nodeId, req.aspect_ratio, bytes, contentType);
+  }
 
   await emit({ event: "preview", data: { aspectRatio: req.aspect_ratio, imageUrl } });
 
@@ -88,7 +125,10 @@ export async function runGenerate(
     created_at: new Date().toISOString(),
     version: 1,
   };
-  insertNode(node);
+
+  await withRetry(() =>
+    insertNode(node, { normalizedSubject: normalizeSubject(topic), promptHash: canReuseImage ? promptHash : null }),
+  );
 
   await emit({ event: "complete", data: node });
 

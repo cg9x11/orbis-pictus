@@ -20,12 +20,19 @@ function rowToNode(row: NodeRow): Node {
 
 const insertStmt = db.prepare(`
   INSERT INTO nodes
-    (id, parent_id, session_id, query, page_title, image_variants, image_model, prompt_author_model, authored_prompt, created_at, version)
+    (id, parent_id, session_id, query, page_title, image_variants, image_model, prompt_author_model, authored_prompt, created_at, version, normalized_subject, prompt_hash)
   VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
-export function insertNode(node: Node): Node {
+/** Internal cache-layer metadata (PLAN §2.3), stored alongside the node but not part of the public Node schema. */
+export interface NodeCacheMeta {
+  normalizedSubject: string;
+  /** Null when the node's image shouldn't be offered for prompt-hash reuse (e.g. edit mode — see generate.ts). */
+  promptHash?: string | null;
+}
+
+export function insertNode(node: Node, meta: NodeCacheMeta): Node {
   insertStmt.run(
     node.id,
     node.parent_id,
@@ -38,6 +45,8 @@ export function insertNode(node: Node): Node {
     node.authored_prompt,
     node.created_at,
     node.version,
+    meta.normalizedSubject,
+    meta.promptHash ?? null,
   );
   return node;
 }
@@ -68,4 +77,31 @@ export function getHistory(nodeId: string): Node[] {
     cursor = parent;
   }
   return chain.reverse();
+}
+
+const findChildBySubjectStmt = db.prepare(`
+  SELECT * FROM nodes WHERE parent_id = ? AND normalized_subject = ? ORDER BY created_at ASC LIMIT 1
+`);
+
+/** PLAN §2.3 layer 2: an existing child of `parentId` already covering this normalized subject. */
+export function findChildBySubject(parentId: string, normalizedSubject: string): Node | null {
+  const row = findChildBySubjectStmt.get(parentId, normalizedSubject) as NodeRow | undefined;
+  return row ? rowToNode(row) : null;
+}
+
+const findByPromptHashStmt = db.prepare(`
+  SELECT * FROM nodes WHERE prompt_hash = ? ORDER BY created_at ASC LIMIT 1
+`);
+
+/** PLAN §2.3 layer 3: any earlier node whose authored_prompt (+ ratio/model/provider) matches exactly. */
+export function findNodeByPromptHash(hash: string): Node | null {
+  const row = findByPromptHashStmt.get(hash) as NodeRow | undefined;
+  return row ? rowToNode(row) : null;
+}
+
+const listGalleryStmt = db.prepare(`SELECT * FROM nodes ORDER BY RANDOM() LIMIT ?`);
+
+/** Random sample of already-generated nodes for the landing-page example gallery — no new generations. */
+export function listGalleryNodes(limit: number): Node[] {
+  return (listGalleryStmt.all(limit) as unknown as NodeRow[]).map(rowToNode);
 }

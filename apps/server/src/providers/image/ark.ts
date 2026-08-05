@@ -46,6 +46,7 @@ class ArkRequestError extends Error {
 
 export class ArkImageProvider implements ImageProvider {
   readonly modelId: string;
+  readonly providerId = "ark";
   private readonly fallbackModelId: string | undefined;
   private readonly apiKey: string;
   private readonly baseUrl: string;
