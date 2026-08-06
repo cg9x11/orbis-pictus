@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { AspectRatio, CachedTap, GenerateRequest, Node } from "@flipbook/shared";
+import type { AspectRatio, CachedTap, GenerateRequest, HouseStyleOption, Node } from "@flipbook/shared";
 import { BrowserFrame } from "./components/BrowserFrame";
 import { AddressBar } from "./components/AddressBar";
 import { PageImage } from "./components/PageImage";
 import { AspectRatioPicker } from "./components/AspectRatioPicker";
 import { UploadButton } from "./components/UploadButton";
 import { WebSearchToggle } from "./components/WebSearchToggle";
+import { HouseStylePicker } from "./components/HouseStylePicker";
 import { VideoLoopToggle } from "./components/VideoLoopToggle";
 import { GenerationProgress } from "./components/GenerationProgress";
 import { CachedTapMarkers } from "./components/CachedTapMarkers";
@@ -45,6 +46,8 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   const [videoLoopEnabled, setVideoLoopEnabled] = useState(false);
   const [morphAvailable, setMorphAvailable] = useState(false);
   const [lastRequest, setLastRequest] = useState<GenerateRequest | null>(null);
+  const [houseStyles, setHouseStyles] = useState<HouseStyleOption[]>([]);
+  const [houseStyle, setHouseStyle] = useState<string>("");
   const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
@@ -53,6 +56,8 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
         setWebSearch(config.searchAvailable);
         setVideoAvailable(config.videoEnabled);
         setMorphAvailable(config.morphEnabled);
+        setHouseStyles(config.houseStyles);
+        setHouseStyle(config.houseStyle);
       })
       .catch((err: unknown) => console.error(err));
   }, []);
@@ -83,15 +88,31 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   // PLAN §3 Phase 5: purely additive — polls for a background idle-loop clip once the page is
   // settled (never while still streaming in a new one) and the experimental toggle is on.
   const idleLoopVideoUrl = useIdleLoopVideo(current?.id, videoLoopEnabled && !isStreaming, current?.video_status);
+  // PLAN §3 Phase 5: the parent page is already shown, but its idle-loop clip is still rendering in
+  // the background (video_status "pending", not yet fetched). Mirror the toggle's own "generating"
+  // state onto the image so the wait is visible there too — this stops right when the clip either
+  // arrives (idleLoopVideoUrl set) or the page is left. It never blocks tapping; see PageImage.
+  const videoGenerating = videoLoopEnabled && !isStreaming && !idleLoopVideoUrl && current?.video_status === "pending";
   // PLAN §3 Phase 5: a single non-blocking check per navigation, never gates the page render.
   const [morphUrl, clearMorph] = useMorphTransition(current?.id, current?.parent_id, morphAvailable);
   // PLAN §2.3: spots on this page already explored, shown as markers so a free tap is visible
   // before it is made.
   const cachedTaps = useCachedTaps(current?.id, aspectRatio);
 
+  // A deep-linked page arrives with its title already rendered into the HTML by the server (for
+  // link unfurling), and nothing updated it afterwards — so going Home, or opening any other page,
+  // left the browser tab still naming the page you had left.
+  useEffect(() => {
+    document.title = current ? `${current.page_title} — flipbook` : "flipbook";
+  }, [current]);
+
   const runRequest = async (request: GenerateRequest) => {
-    setLastRequest(request);
-    const node = await start(request);
+    // Injected in one place rather than at each call site, so no generation path can silently fall
+    // back to the server's default style. Empty until /api/config has answered, and omitted rather
+    // than sent blank so the server keeps its own default in that window.
+    const withStyle = { ...request, house_style: houseStyle || undefined };
+    setLastRequest(withStyle);
+    const node = await start(withStyle);
     append(node);
     recordPage();
   };
@@ -210,6 +231,8 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
 
   return (
     <BrowserFrame
+      onHome={handleClear}
+      homeDisabled={isStreaming || showLanding}
       addressBar={
         <AddressBar
           trail={trail}
@@ -225,6 +248,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
         <>
           <AspectRatioPicker value={aspectRatio} onChange={handleRatioChange} disabled={isStreaming || variantLoading} />
           <WebSearchToggle enabled={webSearch} onChange={setWebSearch} disabled={isStreaming} />
+          <HouseStylePicker styles={houseStyles} value={houseStyle} onChange={setHouseStyle} disabled={isStreaming} />
           {videoAvailable && (
             <VideoLoopToggle
               enabled={videoLoopEnabled}
@@ -252,6 +276,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
           morphUrl={morphUrl}
           onMorphEnded={clearMorph}
           markers={<CachedTapMarkers taps={cachedTaps} onOpen={handleOpenCachedTap} hidden={isStreaming} />}
+          videoGenerating={videoGenerating}
           loading={showLoadingIndicator}
           loadingContent={
             isStreaming ? (

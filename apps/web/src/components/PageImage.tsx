@@ -16,6 +16,10 @@ interface PageImageProps {
   loadingContent?: ReactNode;
   /** Overlay pinned to the image's own coordinate space — the already-explored tap markers. */
   markers?: ReactNode;
+  /** PLAN §3 Phase 5: a background idle-loop clip is being generated for this page. Unlike
+   *  `loading`, the page is already finished and stays fully interactive — the indicator only says
+   *  "a clip is coming", it must never block a tap. */
+  videoGenerating?: boolean;
   onTap: (image: HTMLImageElement, clientX: number, clientY: number) => void;
   ripple: { xRatio: number; yRatio: number } | null;
   onRippleDone: () => void;
@@ -31,6 +35,7 @@ export function PageImage({
   loading,
   loadingContent,
   markers,
+  videoGenerating,
   onTap,
   ripple,
   onRippleDone,
@@ -105,8 +110,15 @@ export function PageImage({
       )}
       {imageUrl && markers}
       {ripple && <TapRipple xRatio={ripple.xRatio} yRatio={ripple.yRatio} onDone={onRippleDone} />}
-      {loading && <div className="page-loading-sheen" />}
+      {(loading || videoGenerating) && <div className="page-loading-sheen" />}
       {loading && <div className="page-loading-overlay">{loadingContent ?? "Generating…"}</div>}
+      {!loading && videoGenerating && (
+        // Passive: the page is done and clickable, so this pill sits over it without swallowing taps.
+        <div className="page-loading-overlay page-loading-overlay-passive">
+          <span className="generation-progress-spinner" aria-hidden="true" />
+          <span>Generating video…</span>
+        </div>
+      )}
     </div>
   );
 }

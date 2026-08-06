@@ -129,6 +129,70 @@ body {
   opacity: 0.6;
 }
 
+.home-button {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: 2px solid #2b2620;
+  border-radius: 8px;
+  background: #fffdf6;
+  color: #2b2620;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.home-button:hover:not(:disabled) {
+  background: #f0e9d8;
+}
+
+.home-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* The glyph alone carries the meaning once space is tight; the word is what makes it obvious on
+   first sight, which is the entire reason this button was added. */
+@media (max-width: 640px) {
+  .home-button-text {
+    display: none;
+  }
+}
+
+.style-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.style-picker-caption {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.65;
+}
+
+.style-picker-select {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 5px 8px;
+  border: 2px solid #2b2620;
+  border-radius: 8px;
+  background: #fffdf6;
+  color: #2b2620;
+  cursor: pointer;
+}
+
+.style-picker-select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .address-pending {
   font-family: inherit;
   font-size: 1rem;
@@ -378,6 +442,15 @@ body {
   border-radius: 999px;
   font-size: 0.9rem;
   max-width: calc(100% - 32px);
+}
+
+/* The idle-loop-video-generating pill sits over a page that is already finished and clickable, so
+   it must not intercept taps the way the blocking generation overlay does. */
+.page-loading-overlay-passive {
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .generation-progress {
