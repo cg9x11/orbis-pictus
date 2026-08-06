@@ -1,4 +1,4 @@
-import type { VideoGenInput, VideoGenResult, VideoProvider } from "../types.js";
+import { QuotaExhaustedError, type VideoGenInput, type VideoGenResult, type VideoProvider } from "../types.js";
 import { pollUntilDone, type PollOutcome } from "../../lib/poll.js";
 import { fetchWithRetry, isTransientStatus } from "../../lib/retry.js";
 import { toArkRequestError } from "../ark/errors.js";
@@ -124,6 +124,6 @@ export class ArkVideoProvider implements VideoProvider {
 
   private async toRequestError(res: Response): Promise<Error> {
     const err = await toArkRequestError(res, "Ark video request failed");
-    return err.isQuotaOrRateError ? new Error(`Video quota exhausted: ${err.message}`) : err;
+    return err.isQuotaOrRateError ? new QuotaExhaustedError(`Video quota exhausted: ${err.message}`) : err;
   }
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GenerateRequest, GenerationStage, Node } from "@flipbook/shared";
+import type { GenerateErrorCode, GenerateRequest, GenerationStage, Node } from "@flipbook/shared";
 import { streamGenerate } from "../lib/api";
 
 export interface GenerationState {
@@ -14,6 +14,10 @@ export interface GenerationState {
   previewImageUrl?: string;
   node?: Node;
   error?: string;
+  /** Machine-readable reason for `error`, when the server's `error` event carried one — e.g. "quota"
+   *  drives the quota-specific error banner. Unset for a network-level failure (the stream's own
+   *  .catch below), since those never reach the server's structured error event at all. */
+  errorCode?: GenerateErrorCode;
 }
 
 export function useGenerationStream() {
@@ -45,7 +49,7 @@ export function useGenerationStream() {
               resolve(event.data);
               break;
             case "error":
-              setState((s) => ({ ...s, status: "error", error: event.data.message }));
+              setState((s) => ({ ...s, status: "error", error: event.data.message, errorCode: event.data.code }));
               reject(new Error(event.data.message));
               break;
           }
@@ -54,7 +58,7 @@ export function useGenerationStream() {
       ).catch((err) => {
         if (controller.signal.aborted) return;
         const message = err instanceof Error ? err.message : "Unknown error";
-        setState((s) => ({ ...s, status: "error", error: message }));
+        setState((s) => ({ ...s, status: "error", error: message, errorCode: undefined }));
         reject(err instanceof Error ? err : new Error(message));
       });
     });

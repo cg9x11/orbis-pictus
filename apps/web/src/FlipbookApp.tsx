@@ -29,8 +29,6 @@ function newSessionId(): string {
   return `session_${crypto.randomUUID()}`;
 }
 
-const QUOTA_ERROR_PATTERN = /quota/i;
-
 // Fetched (and, for webSearch/houseStyle, later user-adjusted) as one unit — grouped into a single
 // state object rather than one useState per field, matching useGenerationStream's GenerationState
 // and useSessionTrail's TrailState.
@@ -264,7 +262,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   // Landing state: nothing in the trail yet and nothing currently generating. Once the very
   // first search starts streaming, this flips to the normal PageImage loading view.
   const showLanding = trail.length === 0 && !isStreaming;
-  const isQuotaError = state.status === "error" && QUOTA_ERROR_PATTERN.test(state.error ?? "");
+  const isQuotaError = state.status === "error" && state.errorCode === "quota";
   const bannerMessage = state.status === "error" ? state.error : actionError;
 
   if (hydrating) return <div className="loading-screen">Loading…</div>;

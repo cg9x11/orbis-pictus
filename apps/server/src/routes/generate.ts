@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { GenerateRequestSchema } from "@flipbook/shared";
+import { GenerateRequestSchema, type GenerateErrorCode } from "@flipbook/shared";
 import type { Providers } from "../providers/index.js";
 import { runGenerate } from "../pipeline/generate.js";
 import type { VideoPipeline } from "../pipeline/video.js";
 import type { MorphPipeline } from "../pipeline/morph.js";
+import { QuotaExhaustedError } from "../providers/types.js";
 
 export function generateRoute(providers: Providers, imagesDir: string, video: VideoPipeline, morph: MorphPipeline): Hono {
   const app = new Hono();
@@ -26,7 +27,8 @@ export function generateRoute(providers: Providers, imagesDir: string, video: Vi
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
-        await stream.writeSSE({ event: "error", data: JSON.stringify({ message }) });
+        const code: GenerateErrorCode | undefined = err instanceof QuotaExhaustedError ? "quota" : undefined;
+        await stream.writeSSE({ event: "error", data: JSON.stringify({ message, code }) });
       }
     });
   });

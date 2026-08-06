@@ -1,5 +1,10 @@
 import type { AspectRatio } from "@flipbook/shared";
 
+/** Thrown when a provider call fails specifically because of quota/rate-limit exhaustion, so
+ *  callers (routes/generate.ts) can flag it on the SSE `error` event's `code` field for the
+ *  client to react to directly, instead of pattern-matching the error message text. */
+export class QuotaExhaustedError extends Error {}
+
 // --- LLM provider: prompt author + tap VLM (PLAN §2.2 [A]/[B]) ---
 export interface AuthorPromptInput {
   /** The query text (search mode) or the tapped subject name (tap mode). */

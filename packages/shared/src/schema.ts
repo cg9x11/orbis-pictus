@@ -163,9 +163,15 @@ export const CompleteEventSchema = z.object({
   data: NodeSchema,
 });
 
+/** A machine-readable reason for the error, alongside its human-readable message, so the client
+ *  can react to specific failure modes (e.g. showing a distinct quota-exhausted banner) without
+ *  pattern-matching the message text — which is free-form and provider-dependent. */
+export const GenerateErrorCodeSchema = z.enum(["quota"]);
+export type GenerateErrorCode = z.infer<typeof GenerateErrorCodeSchema>;
+
 export const ErrorEventSchema = z.object({
   event: z.literal("error"),
-  data: z.object({ message: z.string() }),
+  data: z.object({ message: z.string(), code: GenerateErrorCodeSchema.optional() }),
 });
 
 export const GenerateEventSchema = z.discriminatedUnion("event", [

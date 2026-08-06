@@ -1,5 +1,5 @@
 import type { AspectRatio } from "@flipbook/shared";
-import type { ImageGenInput, ImageGenResult, ImageProvider } from "../types.js";
+import { QuotaExhaustedError, type ImageGenInput, type ImageGenResult, type ImageProvider } from "../types.js";
 import { ArkRequestError, toArkRequestError } from "../ark/errors.js";
 import { fetchWithRetry } from "../../lib/retry.js";
 
@@ -42,13 +42,16 @@ export class ArkImageProvider implements ImageProvider {
     try {
       return await this.generateWithModel(this.modelId, input);
     } catch (err) {
-      if (!(err instanceof ArkRequestError) || !err.isQuotaOrRateError || !this.fallbackModelId) {
+      if (!(err instanceof ArkRequestError) || !err.isQuotaOrRateError) {
         throw err;
+      }
+      if (!this.fallbackModelId) {
+        throw new QuotaExhaustedError(`Image quota exhausted: "${this.modelId}" was rejected (${err.code ?? err.message}).`);
       }
       try {
         return await this.generateWithModel(this.fallbackModelId, input);
       } catch (fallbackErr) {
-        throw new Error(
+        throw new QuotaExhaustedError(
           `Image quota exhausted: both "${this.modelId}" and fallback "${this.fallbackModelId}" ` +
             `were rejected (${err.code ?? err.message}; ${
               fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)
