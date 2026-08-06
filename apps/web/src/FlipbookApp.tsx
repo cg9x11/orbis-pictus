@@ -51,6 +51,9 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   const [lastRequest, setLastRequest] = useState<GenerateRequest | null>(null);
   const [houseStyles, setHouseStyles] = useState<HouseStyleOption[]>([]);
   const [houseStyle, setHouseStyle] = useState<string>("");
+  // Surfaces a non-generation failure (open a cached tap, switch ratio, upload) in the same error
+  // banner the generation flow uses, instead of the spinner just stopping with no explanation.
+  const [actionError, setActionError] = useState<string | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
   useCancellableEffect((cancelled) => {
@@ -116,9 +119,18 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     // than sent blank so the server keeps its own default in that window.
     const withStyle = { ...request, house_style: houseStyle || undefined };
     setLastRequest(withStyle);
-    const node = await start(withStyle);
-    append(node);
-    recordPage();
+    setActionError(null);
+    try {
+      const node = await start(withStyle);
+      append(node);
+      recordPage();
+    } catch (err) {
+      // useGenerationStream already set state.error/status before rejecting, so the error banner
+      // is already showing — this only stops the rejection from reaching handleTap/handleEdit/
+      // handleSearch's callers (PageImage's onClick, AddressBar's onSubmit, a suggestion chip's
+      // onClick) as an unhandled promise rejection.
+      console.error(err);
+    }
   };
 
   const handleSearch = (query: string) =>
@@ -155,12 +167,14 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
    */
   const handleOpenCachedTap = async (tap: CachedTap) => {
     if (isStreaming) return;
+    setActionError(null);
     try {
       const { node } = await fetchNode(tap.child_id);
       append(node);
       recordPage();
     } catch (err) {
       console.error(err);
+      setActionError(err instanceof Error ? err.message : "Couldn't open that page");
     }
   };
 
@@ -183,11 +197,12 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
 
   const handleRetry = () => {
     if (!lastRequest || isStreaming) return;
-    runRequest(lastRequest).catch((err) => console.error(err));
+    runRequest(lastRequest);
   };
 
   const handleNavigate = (index: number) => {
     resetGeneration();
+    setActionError(null);
     navigateTo(index);
   };
 
@@ -195,11 +210,13 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     setAspectRatio(ratio);
     if (!current || current.image_variants[ratio]) return;
     setVariantLoading(true);
+    setActionError(null);
     try {
       const node = await fetchVariant(current.id, ratio);
       updateNode(node);
     } catch (err) {
       console.error(err);
+      setActionError(err instanceof Error ? err.message : "Couldn't switch aspect ratio");
     } finally {
       setVariantLoading(false);
     }
@@ -217,6 +234,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     setSessionId(newSessionId());
     setAspectRatio("16:9");
     setLastRequest(null);
+    setActionError(null);
     navigate("/");
   };
 
@@ -227,6 +245,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   // first search starts streaming, this flips to the normal PageImage loading view.
   const showLanding = trail.length === 0 && !isStreaming;
   const isQuotaError = state.status === "error" && QUOTA_ERROR_PATTERN.test(state.error ?? "");
+  const bannerMessage = state.status === "error" ? state.error : actionError;
 
   if (hydrating) return <div className="loading-screen">Loading…</div>;
   if (hydrateError) return <div className="loading-screen">Couldn't load that page: {hydrateError}</div>;
@@ -263,7 +282,12 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
             />
           )}
           {uploadAvailable && (
-            <UploadButton sessionId={sessionId} disabled={isStreaming || variantLoading} onUploaded={handleUploaded} />
+            <UploadButton
+              sessionId={sessionId}
+              disabled={isStreaming || variantLoading}
+              onUploaded={handleUploaded}
+              onError={setActionError}
+            />
           )}
           <button type="button" className="toolbar-button" onClick={handleClear} disabled={isStreaming || trail.length === 0}>
             Clear
@@ -300,11 +324,11 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
         />
       )}
       {isStreaming && state.tapSubject && <div className="tap-subject-banner">{state.tapSubject}</div>}
-      {state.status === "error" && (
+      {bannerMessage && (
         <div className={classNames("error-banner", { "error-banner-quota": isQuotaError })}>
           <span className="error-banner-icon">{isQuotaError ? "⚠️" : "✕"}</span>
-          <span className="error-banner-message">{state.error}</span>
-          {lastRequest && (
+          <span className="error-banner-message">{bannerMessage}</span>
+          {state.status === "error" && lastRequest && (
             <button type="button" className="error-banner-retry" onClick={handleRetry}>
               Retry
             </button>

@@ -7,9 +7,10 @@ interface UploadButtonProps {
   sessionId: string;
   disabled: boolean;
   onUploaded: (node: Node) => void;
+  onError: (message: string) => void;
 }
 
-export function UploadButton({ sessionId, disabled, onUploaded }: UploadButtonProps) {
+export function UploadButton({ sessionId, disabled, onUploaded, onError }: UploadButtonProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -26,6 +27,7 @@ export function UploadButton({ sessionId, disabled, onUploaded }: UploadButtonPr
       onUploaded(node);
     } catch (err) {
       console.error(err);
+      onError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
     }
