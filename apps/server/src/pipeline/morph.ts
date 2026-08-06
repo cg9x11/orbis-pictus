@@ -1,11 +1,10 @@
 import type { AspectRatio, Node } from "@flipbook/shared";
 import type { Providers } from "../providers/index.js";
 import { getMorphInfo, getNode, markMorphFailed, markMorphPending, markMorphReady } from "../storage/nodes.js";
-import { loadImageAsDataUrl } from "./imageStorage.js";
 import { saveMorph } from "./morphStorage.js";
-import { getVideoDurationSeconds, getVideoResolution } from "./videoConfig.js";
 import { getMorphMaxPerSession, isMorphEnabled } from "./morphConfig.js";
 import { MORPH_TRANSITION_MOTION_PROMPT } from "./videoPrompt.js";
+import { createBackgroundClipPipeline } from "./backgroundClip.js";
 
 const RATIO_PREFERENCE: AspectRatio[] = ["16:9", "3:4", "1:1"];
 
@@ -29,55 +28,33 @@ export interface MorphPipeline {
 
 /** Factory (not a bare singleton) so tests can get isolated in-flight/session-cap state — see morph.test.ts. */
 export function createMorphPipeline(): MorphPipeline {
-  const inFlight = new Set<string>();
-  const sessionCounts = new Map<string, number>();
+  const pipeline = createBackgroundClipPipeline({
+    label: "morph generation",
+    isEnabled: isMorphEnabled,
+    maxPerSession: getMorphMaxPerSession,
+    getStatus: getMorphInfo,
+    buildRequest: (child) => {
+      if (!child.parent_id) return null; // only a tap/edit child has a parent to morph from
+      const parent = getNode(child.parent_id);
+      if (!parent) return null;
 
-  function maybeStartMorph(child: Node, providers: Providers, imagesDir: string): void {
-    if (!isMorphEnabled()) return;
-    if (!child.parent_id) return; // only a tap/edit child has a parent to morph from
-    if (inFlight.has(child.id)) return;
+      const ratio = pickSharedRatio(parent, child);
+      if (!ratio) return null; // no image both nodes share the same aspect ratio for — skip rather than generate one
 
-    // A child that already has a stored morph (or already failed once) must never regenerate one.
-    const info = getMorphInfo(child.id);
-    if (info?.status) return;
+      return {
+        prompt: MORPH_TRANSITION_MOTION_PROMPT,
+        aspectRatio: ratio,
+        firstFrameUrl: parent.image_variants[ratio]!,
+        lastFrameUrl: child.image_variants[ratio]!,
+      };
+    },
+    markPending: markMorphPending,
+    markReady: markMorphReady,
+    markFailed: markMorphFailed,
+    save: saveMorph,
+  });
 
-    const count = sessionCounts.get(child.session_id) ?? 0;
-    if (count >= getMorphMaxPerSession()) return;
-
-    const parent = getNode(child.parent_id);
-    if (!parent) return;
-
-    const ratio = pickSharedRatio(parent, child);
-    if (!ratio) return; // no image both nodes share the same aspect ratio for — skip rather than generate one
-
-    inFlight.add(child.id);
-    sessionCounts.set(child.session_id, count + 1);
-    markMorphPending(child.id);
-
-    void (async () => {
-      try {
-        const firstFrameDataUrl = loadImageAsDataUrl(imagesDir, parent.image_variants[ratio]!);
-        const lastFrameDataUrl = loadImageAsDataUrl(imagesDir, child.image_variants[ratio]!);
-        const { bytes } = await providers.video.generate({
-          prompt: MORPH_TRANSITION_MOTION_PROMPT,
-          aspectRatio: ratio,
-          firstFrameDataUrl,
-          lastFrameDataUrl,
-          durationSeconds: getVideoDurationSeconds(),
-          resolution: getVideoResolution(),
-        });
-        const morphUrl = saveMorph(imagesDir, child.id, bytes);
-        markMorphReady(child.id, morphUrl);
-      } catch (err) {
-        console.error(`[flipbook] morph generation failed for node ${child.id}:`, err instanceof Error ? err.message : err);
-        markMorphFailed(child.id);
-      } finally {
-        inFlight.delete(child.id);
-      }
-    })();
-  }
-
-  return { maybeStartMorph };
+  return { maybeStartMorph: pipeline.maybeStart };
 }
 
 /** The real app's single shared instance — routes import this. */
