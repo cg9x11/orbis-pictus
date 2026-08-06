@@ -9,3 +9,13 @@ export function getTapDedupMode(): TapDedupMode {
   const raw = process.env.TAP_DEDUP;
   return raw === "variant" || raw === "off" ? raw : "reuse";
 }
+
+/**
+ * Whether users may upload their own photo as a root page (PLAN §3 Phase 2). Off by default:
+ * an upload accepts an arbitrary user-supplied image and stores it verbatim, so a public
+ * deployment should opt in deliberately rather than have it open. Same explicit-"true" shape as
+ * VIDEO_ENABLED / MORPH_ENABLED.
+ */
+export function isUploadEnabled(): boolean {
+  return process.env.UPLOAD_ENABLED === "true";
+}

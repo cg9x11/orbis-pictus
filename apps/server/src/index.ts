@@ -14,6 +14,7 @@ import { getNode } from "./storage/nodes.js";
 import { isVideoEnabled } from "./pipeline/videoConfig.js";
 import { isMorphEnabled } from "./pipeline/morphConfig.js";
 import { getDefaultHouseStyleName, listHouseStyles } from "./pipeline/houseStyle.js";
+import { isUploadEnabled } from "./pipeline/config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -41,6 +42,7 @@ app.get("/api/config", (c) =>
     searchAvailable: providers.search.available,
     videoEnabled: isVideoEnabled(),
     morphEnabled: isMorphEnabled(),
+    uploadEnabled: isUploadEnabled(),
     houseStyles: listHouseStyles(),
     houseStyle: getDefaultHouseStyleName(),
   }),

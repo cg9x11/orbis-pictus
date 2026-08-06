@@ -14,7 +14,7 @@ import {
 import { listTapCache } from "../storage/tapCache.js";
 import { saveImageVariant } from "../pipeline/imageStorage.js";
 import { normalizeSubject } from "../pipeline/normalize.js";
-import { getTapDedupMode } from "../pipeline/config.js";
+import { getTapDedupMode, isUploadEnabled } from "../pipeline/config.js";
 import type { Providers } from "../providers/index.js";
 
 const DEFAULT_GALLERY_LIMIT = 8;
@@ -67,7 +67,10 @@ export function nodesRoute(providers: Providers, imagesDir: string): Hono {
   });
 
   // User-uploaded photo becomes a root node (parent_id null), titled by the VLM (PLAN §3 Phase 2).
+  // Gated behind UPLOAD_ENABLED (default off) — enforced here as well as by hiding the button, so a
+  // stale client or a direct API call can't upload when the feature is turned off.
   app.post("/upload", async (c) => {
+    if (!isUploadEnabled()) return c.json({ error: "Photo upload is disabled" }, 403);
     const body = await c.req.json().catch(() => null);
     const parsed = NodesUploadRequestSchema.safeParse(body);
     if (!parsed.success) {

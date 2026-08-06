@@ -197,6 +197,9 @@ export const ConfigResponseSchema = z.object({
   searchAvailable: z.boolean(),
   videoEnabled: z.boolean(),
   morphEnabled: z.boolean(),
+  /** Whether the Upload-photo control is offered (server UPLOAD_ENABLED). Defaults off so an
+   *  older server that doesn't send the field hides the button rather than showing a dead one. */
+  uploadEnabled: z.boolean().default(false),
   /** Every style block available in house-style.md, for the picker. */
   houseStyles: z.array(HouseStyleOptionSchema).default([]),
   /** The server's own default (the HOUSE_STYLE env), used as the picker's initial value. */

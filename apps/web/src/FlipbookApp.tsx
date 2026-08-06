@@ -45,6 +45,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   const [videoAvailable, setVideoAvailable] = useState(false);
   const [videoLoopEnabled, setVideoLoopEnabled] = useState(false);
   const [morphAvailable, setMorphAvailable] = useState(false);
+  const [uploadAvailable, setUploadAvailable] = useState(false);
   const [lastRequest, setLastRequest] = useState<GenerateRequest | null>(null);
   const [houseStyles, setHouseStyles] = useState<HouseStyleOption[]>([]);
   const [houseStyle, setHouseStyle] = useState<string>("");
@@ -56,6 +57,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
         setWebSearch(config.searchAvailable);
         setVideoAvailable(config.videoEnabled);
         setMorphAvailable(config.morphEnabled);
+        setUploadAvailable(config.uploadEnabled);
         setHouseStyles(config.houseStyles);
         setHouseStyle(config.houseStyle);
       })
@@ -260,7 +262,9 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
               status={idleLoopVideoUrl ? "ready" : current?.video_status}
             />
           )}
-          <UploadButton sessionId={sessionId} disabled={isStreaming || variantLoading} onUploaded={handleUploaded} />
+          {uploadAvailable && (
+            <UploadButton sessionId={sessionId} disabled={isStreaming || variantLoading} onUploaded={handleUploaded} />
+          )}
           <button type="button" className="toolbar-button" onClick={handleClear} disabled={isStreaming || trail.length === 0}>
             Clear
           </button>
