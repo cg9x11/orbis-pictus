@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { Node } from "@flipbook/shared";
 import { fetchGallery } from "../lib/api";
+import { useCancellableEffect } from "../hooks/useCancellableEffect";
 
 const SUGGESTIONS = [
   "A coral reef ecosystem",
@@ -17,18 +18,14 @@ function thumbnailUrl(node: Node): string | undefined {
 export function Landing({ onSuggestion }: { onSuggestion: (query: string) => void }) {
   const [gallery, setGallery] = useState<Node[] | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  useCancellableEffect((cancelled) => {
     fetchGallery("all")
       .then((nodes) => {
-        if (!cancelled) setGallery(nodes);
+        if (!cancelled()) setGallery(nodes);
       })
       .catch(() => {
-        if (!cancelled) setGallery([]);
+        if (!cancelled()) setGallery([]);
       });
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   return (

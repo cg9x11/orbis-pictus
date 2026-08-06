@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { VideoStatus } from "@flipbook/shared";
 import { fetchNodeVideo } from "../lib/api";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
+import { useCancellableEffect } from "./useCancellableEffect";
 
 // Server-side generation of a 480p/5s clip took ~32s in the verified live test (PLAN §2 Video
 // findings); this schedule starts checking a bit before that and backs off from there. Capped at
@@ -29,33 +30,32 @@ export function useIdleLoopVideo(
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const reducedMotion = usePrefersReducedMotion();
 
-  useEffect(() => {
-    setVideoUrl(null);
-    if (!enabled || !nodeId || reducedMotion) return;
-    if (status !== "pending" && status !== "ready") return;
+  useCancellableEffect(
+    (cancelled) => {
+      setVideoUrl(null);
+      if (!enabled || !nodeId || reducedMotion) return;
+      if (status !== "pending" && status !== "ready") return;
 
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout>;
+      let timer: ReturnType<typeof setTimeout>;
 
-    const poll = async (attempt: number) => {
-      const url = await fetchNodeVideo(nodeId).catch(() => null);
-      if (cancelled) return;
-      if (url) {
-        setVideoUrl(url);
-        return;
-      }
-      if (attempt >= MAX_ATTEMPTS) return;
-      const delay = BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)]!;
-      timer = setTimeout(() => poll(attempt + 1), delay);
-    };
+      const poll = async (attempt: number) => {
+        const url = await fetchNodeVideo(nodeId).catch(() => null);
+        if (cancelled()) return;
+        if (url) {
+          setVideoUrl(url);
+          return;
+        }
+        if (attempt >= MAX_ATTEMPTS) return;
+        const delay = BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)]!;
+        timer = setTimeout(() => poll(attempt + 1), delay);
+      };
 
-    // An already-ready clip needs no waiting period — fetch it straight away.
-    timer = setTimeout(() => poll(0), status === "ready" ? 0 : BACKOFF_MS[0]);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [nodeId, enabled, reducedMotion, status]);
+      // An already-ready clip needs no waiting period — fetch it straight away.
+      timer = setTimeout(() => poll(0), status === "ready" ? 0 : BACKOFF_MS[0]);
+      return () => clearTimeout(timer);
+    },
+    [nodeId, enabled, reducedMotion, status],
+  );
 
   return videoUrl;
 }

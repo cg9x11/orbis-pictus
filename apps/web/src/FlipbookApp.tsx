@@ -23,6 +23,7 @@ import { useMorphTransition } from "./hooks/useMorphTransition";
 import { fetchConfig, fetchNode, fetchVariant } from "./lib/api";
 import { captureCurrentImage } from "./lib/imageCapture";
 import { classNames } from "./lib/classNames";
+import { useCancellableEffect } from "./hooks/useCancellableEffect";
 
 function newSessionId(): string {
   return `session_${crypto.randomUUID()}`;
@@ -52,9 +53,10 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   const [houseStyle, setHouseStyle] = useState<string>("");
   const imgRef = useRef<HTMLImageElement>(null);
 
-  useEffect(() => {
+  useCancellableEffect((cancelled) => {
     fetchConfig()
       .then((config) => {
+        if (cancelled()) return;
         setWebSearch(config.searchAvailable);
         setVideoAvailable(config.videoEnabled);
         setMorphAvailable(config.morphEnabled);
@@ -65,25 +67,24 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
       .catch((err) => console.error(err));
   }, []);
 
-  useEffect(() => {
-    if (!initialNodeId) return;
-    let cancelled = false;
-    fetchNode(initialNodeId)
-      .then(({ node, history }) => {
-        if (cancelled) return;
-        reset([...history, node]);
-        setSessionId(node.session_id);
-        setHydrating(false);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setHydrateError(err instanceof Error ? err.message : "Failed to load page");
-        setHydrating(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [initialNodeId, reset]);
+  useCancellableEffect(
+    (cancelled) => {
+      if (!initialNodeId) return;
+      fetchNode(initialNodeId)
+        .then(({ node, history }) => {
+          if (cancelled()) return;
+          reset([...history, node]);
+          setSessionId(node.session_id);
+          setHydrating(false);
+        })
+        .catch((err) => {
+          if (cancelled()) return;
+          setHydrateError(err instanceof Error ? err.message : "Failed to load page");
+          setHydrating(false);
+        });
+    },
+    [initialNodeId, reset],
+  );
 
   const isStreaming = state.status === "streaming";
   // Real generations and cache-hit instant navigations both count as a "page" (PLAN §1.4).

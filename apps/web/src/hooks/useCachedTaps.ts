@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { AspectRatio, CachedTap } from "@flipbook/shared";
 import { fetchNodeTaps } from "../lib/api";
+import { useCancellableEffect } from "./useCancellableEffect";
 
 /**
  * The already-explored tap points for the current page (PLAN §2.3 layer 2). Refetched whenever the
@@ -11,22 +12,21 @@ import { fetchNodeTaps } from "../lib/api";
 export function useCachedTaps(nodeId: string | undefined, aspectRatio: AspectRatio): CachedTap[] {
   const [taps, setTaps] = useState<CachedTap[]>([]);
 
-  useEffect(() => {
-    setTaps([]);
-    if (!nodeId) return;
+  useCancellableEffect(
+    (cancelled) => {
+      setTaps([]);
+      if (!nodeId) return;
 
-    let cancelled = false;
-    fetchNodeTaps(nodeId, aspectRatio)
-      .then((next) => {
-        if (!cancelled) setTaps(next);
-      })
-      .catch(() => {
-        // Non-fatal: no markers is exactly the pre-existing behaviour, and tapping still works.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [nodeId, aspectRatio]);
+      fetchNodeTaps(nodeId, aspectRatio)
+        .then((next) => {
+          if (!cancelled()) setTaps(next);
+        })
+        .catch(() => {
+          // Non-fatal: no markers is exactly the pre-existing behaviour, and tapping still works.
+        });
+    },
+    [nodeId, aspectRatio],
+  );
 
   return taps;
 }

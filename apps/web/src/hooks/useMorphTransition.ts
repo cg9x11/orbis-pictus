@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { fetchNodeMorph } from "../lib/api";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
+import { useCancellableEffect } from "./useCancellableEffect";
 
 /**
  * PLAN §3 Phase 5 page-transition morphs: a single non-blocking check (never a poll loop, never
@@ -24,26 +25,25 @@ export function useMorphTransition(
   const previousIdRef = useRef<string | undefined>(undefined);
   const reducedMotion = usePrefersReducedMotion();
 
-  useEffect(() => {
-    const previousId = previousIdRef.current;
-    previousIdRef.current = currentId;
+  useCancellableEffect(
+    (cancelled) => {
+      const previousId = previousIdRef.current;
+      previousIdRef.current = currentId;
 
-    setMorphUrl(null);
-    if (!enabled || !currentId || reducedMotion) return;
-    if (!parentId || parentId !== previousId) return;
+      setMorphUrl(null);
+      if (!enabled || !currentId || reducedMotion) return;
+      if (!parentId || parentId !== previousId) return;
 
-    let cancelled = false;
-    fetchNodeMorph(currentId)
-      .then((url) => {
-        if (!cancelled) setMorphUrl(url);
-      })
-      .catch(() => {
-        // Non-fatal: no morph plays, same as a 404 — the page is already showing.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [currentId, parentId, enabled, reducedMotion]);
+      fetchNodeMorph(currentId)
+        .then((url) => {
+          if (!cancelled()) setMorphUrl(url);
+        })
+        .catch(() => {
+          // Non-fatal: no morph plays, same as a 404 — the page is already showing.
+        });
+    },
+    [currentId, parentId, enabled, reducedMotion],
+  );
 
   return [morphUrl, () => setMorphUrl(null)];
 }
