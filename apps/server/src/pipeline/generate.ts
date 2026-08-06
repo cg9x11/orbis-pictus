@@ -34,6 +34,10 @@ export async function runGenerate(
 ): Promise<Node> {
   await emit({ event: "start", data: {} });
 
+  // This node's topic/subject — consistently the same meaning across all three branches below
+  // (the search query, the VLM-described tap subject, or the parent's inherited topic for an
+  // edit), never the raw edit command text. Used afterwards for the web search query, node.query,
+  // and the cache-layer normalizedSubject.
   let topic: string;
   let parentNodeId: string | null;
   let parentTitle: string | undefined;
@@ -53,7 +57,7 @@ export async function runGenerate(
     if (cacheHit) {
       subject = cacheHit.subject;
     } else {
-      subject = (await ctx.providers.llm.describeTap(req.image)).subject;
+      subject = (await ctx.providers.llm.describeTap(req.markedImage)).subject;
       if (tapDedup !== "off") recordTapCache(parentNodeId, req.aspect_ratio, req.x, req.y, subject);
     }
     await emit({ event: "tap_subject", data: { subject } });
@@ -76,7 +80,11 @@ export async function runGenerate(
     parentNodeId = req.current_node_id;
     const parent = getNode(parentNodeId);
     if (!parent) throw new Error(`Cannot edit: parent node ${parentNodeId} not found`);
-    topic = req.prompt;
+    // An edit has no topic of its own — it's a re-render of the same page, so it inherits the
+    // parent's topic rather than using the edit command itself (req.prompt, e.g. "make it night
+    // time"). That command is passed separately to authorEdit() below; using it here instead would
+    // mean web-searching the edit instruction and persisting it as this node's query.
+    topic = parent.query;
     parentTitle = req.parent_title || parent.page_title;
     parentAuthoredPrompt = parent.authored_prompt;
   } else {
@@ -139,7 +147,7 @@ export async function runGenerate(
       ctx.providers.image.generate({
         prompt: imagePrompt,
         aspectRatio: req.aspect_ratio,
-        referenceImageDataUrl: req.mode === "edit" ? req.image : tapReferenceImageDataUrl,
+        referenceImageDataUrl: req.mode === "edit" ? req.currentImage : tapReferenceImageDataUrl,
       });
     // Only reusable (non-edit) generations are coalesced: an edit is conditioned on the current
     // page's actual pixels, so two edits with byte-identical prompts can still need different

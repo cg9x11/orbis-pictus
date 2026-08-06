@@ -66,13 +66,13 @@ Share URL = `/n/{nodeId}`. Node id doubles as the image folder name.
 
 // mode "tap" — user clicked a point on the current image
 { "mode": "tap",
-  "image": "data:image/jpeg;base64,...",   // current page image WITH a marker drawn at the click point
+  "markedImage": "data:image/jpeg;base64,...",   // current page image WITH a marker drawn at the click point
   "aspect_ratio": "16:9", "web_search": true,
   "parent_title": "...",
   "session_id": "...", "current_node_id": "..." }
 
 // mode "edit" — user typed a command while a page is open ("make it night time")
-{ "mode": "edit", "prompt": "...", "image": "<current image>", "aspect_ratio": "16:9",
+{ "mode": "edit", "prompt": "...", "currentImage": "<current image, no marker>", "aspect_ratio": "16:9",
   "web_search": true, "parent_title": "...",
   "session_id": "...", "current_node_id": "..." }
 ```

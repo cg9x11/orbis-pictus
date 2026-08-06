@@ -149,7 +149,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     setRipple({ xRatio, yRatio });
     return runRequest({
       mode: "tap",
-      image: dataUrl,
+      markedImage: dataUrl,
       x: xRatio,
       y: yRatio,
       aspect_ratio: aspectRatio,
@@ -184,7 +184,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     return runRequest({
       mode: "edit",
       prompt: command,
-      image: dataUrl,
+      currentImage: dataUrl,
       aspect_ratio: aspectRatio,
       web_search: webSearch,
       parent_title: current.page_title,

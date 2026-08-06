@@ -60,9 +60,11 @@ export type GenerateSearchRequest = z.infer<typeof GenerateSearchRequestSchema>;
 // mode "tap": user clicked a point on the current image (marker already drawn client-side)
 export const GenerateTapRequestSchema = z.object({
   mode: z.literal("tap"),
-  image: z.string().startsWith("data:image/"),
+  // The current page image WITH a marker drawn at the click point — never the plain image. The
+  // VLM resolves the tapped subject visually from the marker, not from x/y.
+  markedImage: z.string().startsWith("data:image/"),
   // Click point as a fraction (0..1) of the displayed image's width/height — same coordinate
-  // space as the marker drawn into `image`. Used server-side for the tap-cache lookup (PLAN
+  // space as the marker drawn into `markedImage`. Used server-side for the tap-cache lookup (PLAN
   // §2.3): the VLM never sees these, it still resolves the subject visually from the marker.
   x: z.number().min(0).max(1).default(0.5),
   y: z.number().min(0).max(1).default(0.5),
@@ -83,7 +85,9 @@ export type GenerateTapRequest = z.infer<typeof GenerateTapRequestSchema>;
 export const GenerateEditRequestSchema = z.object({
   mode: z.literal("edit"),
   prompt: z.string().min(1),
-  image: z.string().startsWith("data:image/"),
+  // The current page image, plain — unlike GenerateTapRequestSchema's markedImage, no marker is
+  // ever drawn into this one.
+  currentImage: z.string().startsWith("data:image/"),
   aspect_ratio: AspectRatioSchema.default("16:9"),
   web_search: z.boolean().default(false),
   // Which block of house-style.md to append to the image prompt. Left as a free string rather than

@@ -123,7 +123,7 @@ test("edit mode: the built image prompt includes the house style and passes the 
     {
       mode: "edit",
       prompt: "make it night time",
-      image: currentImageDataUrl,
+      currentImage: currentImageDataUrl,
       aspect_ratio: "16:9",
       web_search: false,
       parent_title: "Ha Noi Street Food",
@@ -139,6 +139,12 @@ test("edit mode: the built image prompt includes the house style and passes the 
   assert.ok(!node.authored_prompt.includes(houseStyle));
   assert.equal(image.lastInput?.referenceImageDataUrl, currentImageDataUrl);
   assert.doesNotMatch(image.lastInput!.prompt, NUMERAL_BADGE_INSTRUCTION);
+
+  // An edit has no topic of its own: the node's query/topic must inherit the parent's ("Ha Noi
+  // street food"), never the edit command itself ("make it night time") — otherwise a web search
+  // (when enabled) would search for the edit instruction, and the persisted query would be it too.
+  assert.equal(node.query, parent.query);
+  assert.notEqual(node.query, "make it night time");
 });
 
 test("tap mode: the built image prompt includes the house style and reuses the parent page image as reference", async () => {
@@ -166,7 +172,7 @@ test("tap mode: the built image prompt includes the house style and reuses the p
   const node = await runGenerate(
     {
       mode: "tap",
-      image: markedImageDataUrl,
+      markedImage: markedImageDataUrl,
       x: 0.5,
       y: 0.5,
       aspect_ratio: "16:9",
