@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { GenerateRequestSchema } from "@flipbook/shared";
+import { GenerateRequestSchema } from "./schema.js";
 
 // L1: a `mode`-less request must default to "search". The default has to be applied before the
 // discriminatedUnion resolves its branch — a `.default` on the branch's own literal never fires.

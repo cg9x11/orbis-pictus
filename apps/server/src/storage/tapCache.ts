@@ -1,6 +1,6 @@
 import type { AspectRatio } from "@flipbook/shared";
 import { db } from "./db.js";
-import type { TapCacheRow } from "./schema.js";
+import type { TapCacheRow } from "./rows.js";
 import { tapCellIndex, isWithinTapRadius } from "../pipeline/tapMath.js";
 
 const insertStmt = db.prepare(`

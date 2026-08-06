@@ -1,7 +1,7 @@
 import type { AspectRatio, ImageVariants, Node, VideoStatus } from "@flipbook/shared";
 import { VideoStatusSchema } from "@flipbook/shared";
 import { db } from "./db.js";
-import type { NodeRow } from "./schema.js";
+import type { NodeRow } from "./rows.js";
 
 /** The column is a bare TEXT field, so anything unrecognised (or NULL) reads as "no clip". */
 function toVideoStatus(raw: string | null): VideoStatus | null {
