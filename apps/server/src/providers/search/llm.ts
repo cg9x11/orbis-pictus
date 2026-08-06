@@ -68,7 +68,7 @@ export class LlmSearchProvider implements SearchProvider {
     );
     if (!lastMessage) return null;
     const summary = this.extractSummary(lastMessage);
-    return summary ? { summary } : null;
+    return summary ? { summary, degraded: true } : null;
   }
 
   private extractSummary(message: Anthropic.Message): string {

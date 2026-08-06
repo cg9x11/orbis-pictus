@@ -154,7 +154,15 @@ export async function runGenerate(
   let webSearchSummary: string | undefined;
   if (req.web_search) {
     await emit({ event: "stage", data: { stage: "searching" } });
-    webSearchSummary = (await ctx.providers.search.search(topic))?.summary;
+    const searchResult = await ctx.providers.search.search(topic);
+    webSearchSummary = searchResult?.summary;
+    if (searchResult?.degraded) {
+      // The provider already logged the underlying cause once at startup (see
+      // providers/search/llm.ts's logNoWebSearch) — this ties a specific generation's authored
+      // content to that same degradation, since authorPrompt/authorEdit below still receive this
+      // summary as if it were a real search result.
+      console.warn(`[flipbook] web search degraded to model-knowledge-only for topic "${topic}"`);
+    }
   }
 
   await emit({ event: "stage", data: { stage: "authoring" } });

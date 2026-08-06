@@ -98,6 +98,11 @@ export interface VideoProvider {
 // --- Web search provider (stub interface, `none` only in Phase 1) ---
 export interface SearchResult {
   summary: string;
+  /** True when `summary` didn't actually come from a web search — the provider fell back to
+   *  model-knowledge-only text after every search-tool attempt failed or silently produced no
+   *  results (see providers/search/llm.ts). Omitted (not just false) when the search genuinely
+   *  ran, so a caller can tell "known good" from "never checked" from "checked and degraded". */
+  degraded?: boolean;
 }
 
 export interface SearchProvider {
