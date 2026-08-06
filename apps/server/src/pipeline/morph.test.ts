@@ -51,6 +51,7 @@ function makeNode(id: string, sessionId: string, imagesDir: string, parentId: st
     authored_prompt: "content",
     created_at: new Date().toISOString(),
     version: 1,
+    video_status: null,
   };
 }
 

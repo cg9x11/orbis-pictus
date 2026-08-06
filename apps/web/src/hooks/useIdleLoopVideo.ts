@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { VideoStatus } from "@flipbook/shared";
 import { fetchNodeVideo } from "../lib/api";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
 
@@ -13,14 +14,25 @@ const MAX_ATTEMPTS = 15;
  * Polls `GET /api/nodes/:id/video` with backoff while `enabled`, returning the clip URL once
  * ready (or null while pending/disabled/reduced-motion). PLAN §3 Phase 5: never gates page
  * render — this is purely additive UI state layered on top of the already-visible static image.
+ *
+ * `status` comes from the node payload and decides whether polling happens at all. Without it this
+ * hook polled every page for ~2-3 minutes and then gave up in silence, because /video answers 404
+ * both for "still generating" and for "nothing is generating" — and the second case is the common
+ * one: video is off by default, so every page created before it was switched on has no clip and
+ * never will. Only "pending" (a clip is genuinely on its way) and "ready" are worth a request.
  */
-export function useIdleLoopVideo(nodeId: string | undefined, enabled: boolean): string | null {
+export function useIdleLoopVideo(
+  nodeId: string | undefined,
+  enabled: boolean,
+  status: VideoStatus | null | undefined,
+): string | null {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const reducedMotion = usePrefersReducedMotion();
 
   useEffect(() => {
     setVideoUrl(null);
     if (!enabled || !nodeId || reducedMotion) return;
+    if (status !== "pending" && status !== "ready") return;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
@@ -37,12 +49,13 @@ export function useIdleLoopVideo(nodeId: string | undefined, enabled: boolean): 
       timer = setTimeout(() => poll(attempt + 1), delay);
     };
 
-    timer = setTimeout(() => poll(0), BACKOFF_MS[0]);
+    // An already-ready clip needs no waiting period — fetch it straight away.
+    timer = setTimeout(() => poll(0), status === "ready" ? 0 : BACKOFF_MS[0]);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [nodeId, enabled, reducedMotion]);
+  }, [nodeId, enabled, reducedMotion, status]);
 
   return videoUrl;
 }

@@ -6,6 +6,8 @@ import { findTapCacheHit, recordTapCache } from "../storage/tapCache.js";
 import { loadReferenceImageDataUrl, saveImageVariant } from "./imageStorage.js";
 import { normalizeSubject } from "./normalize.js";
 import { computePromptHash } from "./promptHash.js";
+import { videoPipeline } from "./video.js";
+import { morphPipeline } from "./morph.js";
 import { getTapDedupMode } from "./config.js";
 import { buildImagePrompt } from "./houseStyle.js";
 import { withRetry } from "../lib/retry.js";
@@ -78,8 +80,13 @@ export async function runGenerate(
     }
   }
 
-  const webSearchSummary = req.web_search ? (await ctx.providers.search.search(topic))?.summary : undefined;
+  let webSearchSummary: string | undefined;
+  if (req.web_search) {
+    await emit({ event: "stage", data: { stage: "searching" } });
+    webSearchSummary = (await ctx.providers.search.search(topic))?.summary;
+  }
 
+  await emit({ event: "stage", data: { stage: "authoring" } });
   const { pageTitle, authoredPrompt } =
     req.mode === "edit"
       ? await ctx.providers.llm.authorEdit({
@@ -94,6 +101,10 @@ export async function runGenerate(
           parentAuthoredPrompt,
           webSearchSummary,
         });
+
+  // The authoring model has now named the page, so the longest stretch of the wait — the image
+  // model actually drawing — can at least say what it is drawing.
+  await emit({ event: "stage", data: { stage: "drawing", pageTitle } });
 
   const nodeId = crypto.randomUUID().replace(/-/g, "");
 
@@ -137,13 +148,25 @@ export async function runGenerate(
     authored_prompt: authoredPrompt,
     created_at: new Date().toISOString(),
     version: 1,
+    video_status: null,
   };
 
   await withRetry(() =>
     insertNode(node, { normalizedSubject: normalizeSubject(topic), promptHash: canReuseImage ? promptHash : null }),
   );
 
-  await emit({ event: "complete", data: node });
+  // Fire-and-forget background clips (PLAN §3 Phase 5), started BEFORE `complete` is announced.
+  // Both calls are synchronous up to the point where they mark the node pending — only the actual
+  // provider request is deferred — so re-reading the node below yields video_status "pending"
+  // whenever a clip is genuinely on its way. Emitting `complete` first would ship a payload saying
+  // null, which the client is required to read as "no clip will ever exist", and the page would
+  // never pick up the loop it is about to have. Neither call can block or fail the page: every
+  // guard is inside, and a root node simply no-ops the morph (no parent to morph from).
+  videoPipeline.maybeStartIdleLoop(node, ctx.providers, ctx.imagesDir);
+  morphPipeline.maybeStartMorph(node, ctx.providers, ctx.imagesDir);
 
-  return node;
+  const completed = getNode(nodeId) ?? node;
+  await emit({ event: "complete", data: completed });
+
+  return completed;
 }

@@ -1,10 +1,16 @@
 import { useCallback, useRef, useState } from "react";
-import type { GenerateRequest, Node } from "@flipbook/shared";
+import type { GenerateRequest, GenerationStage, Node } from "@flipbook/shared";
 import { streamGenerate } from "../lib/api";
 
 export interface GenerationState {
   status: "idle" | "streaming" | "done" | "error";
   tapSubject?: string;
+  /** Latest phase reported by the server (PLAN §1.3 `stage` event). */
+  stage?: GenerationStage;
+  /** Known from the "drawing" stage onwards, once the authoring model has named the page. */
+  pageTitle?: string;
+  /** Epoch ms the current generation began, for the elapsed-time readout. */
+  startedAt?: number;
   previewImageUrl?: string;
   node?: Node;
   error?: string;
@@ -18,7 +24,7 @@ export function useGenerationStream() {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    setState({ status: "streaming" });
+    setState({ status: "streaming", startedAt: Date.now() });
 
     return new Promise<Node>((resolve, reject) => {
       streamGenerate(
@@ -27,6 +33,9 @@ export function useGenerationStream() {
           switch (event.event) {
             case "tap_subject":
               setState((s) => ({ ...s, tapSubject: event.data.subject }));
+              break;
+            case "stage":
+              setState((s) => ({ ...s, stage: event.data.stage, pageTitle: event.data.pageTitle ?? s.pageTitle }));
               break;
             case "preview":
               setState((s) => ({ ...s, previewImageUrl: event.data.imageUrl }));

@@ -19,7 +19,7 @@ export function Landing({ onSuggestion }: { onSuggestion: (query: string) => voi
 
   useEffect(() => {
     let cancelled = false;
-    fetchGallery(8)
+    fetchGallery("all")
       .then((nodes) => {
         if (!cancelled) setGallery(nodes);
       })

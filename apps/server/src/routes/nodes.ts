@@ -1,9 +1,20 @@
 import crypto from "node:crypto";
 import { Hono } from "hono";
 import { AspectRatioSchema, NodesCreateRequestSchema, NodesUploadRequestSchema, type Node } from "@flipbook/shared";
-import { getHistory, getMorphInfo, getNode, getVideoInfo, insertNode, listGalleryNodes, updateImageVariants } from "../storage/nodes.js";
+import {
+  findChildBySubject,
+  getHistory,
+  getMorphInfo,
+  getNode,
+  getVideoInfo,
+  insertNode,
+  listGalleryNodes,
+  updateImageVariants,
+} from "../storage/nodes.js";
+import { listTapCache } from "../storage/tapCache.js";
 import { saveImageVariant } from "../pipeline/imageStorage.js";
 import { normalizeSubject } from "../pipeline/normalize.js";
+import { getTapDedupMode } from "../pipeline/config.js";
 import type { Providers } from "../providers/index.js";
 
 const DEFAULT_GALLERY_LIMIT = 8;
@@ -37,10 +48,20 @@ export function nodesRoute(providers: Providers, imagesDir: string): Hono {
   });
 
   // Landing-page example gallery (PLAN §3 Phase 3) — a random sample of already-generated
-  // nodes, zero new generations.
+  // nodes, zero new generations. `?limit=all` returns every gallery-eligible page with no cap;
+  // any other value is clamped to MAX_GALLERY_LIMIT. The uncapped form exists because the cap is
+  // a presentation choice, not a safety one, and a self-hosted instance may legitimately want the
+  // whole set — but it does read every matching row, so prefer a number for a public deployment
+  // whose database can grow without bound.
   app.get("/", (c) => {
-    const limitParam = Number(c.req.query("limit"));
-    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, MAX_GALLERY_LIMIT) : DEFAULT_GALLERY_LIMIT;
+    const raw = c.req.query("limit");
+    const limitParam = Number(raw);
+    const limit =
+      raw === "all"
+        ? null
+        : Number.isFinite(limitParam) && limitParam > 0
+          ? Math.min(limitParam, MAX_GALLERY_LIMIT)
+          : DEFAULT_GALLERY_LIMIT;
     const nodes = listGalleryNodes(limit);
     return c.json({ nodes });
   });
@@ -76,9 +97,29 @@ export function nodesRoute(providers: Providers, imagesDir: string): Hono {
       authored_prompt: description,
       created_at: new Date().toISOString(),
       version: 1,
+      // An uploaded image is not a generated page, so no idle-loop clip is ever made for it.
+      video_status: null,
     };
     insertNode(node, { normalizedSubject: normalizeSubject(title), promptHash: null });
     return c.json({ node }, 201);
+  });
+
+  // Already-explored tap points (PLAN §2.3). Returns only spots that resolve all the way to an
+  // existing child page, because those are the ones where a tap costs nothing — a tap-cache row on
+  // its own merely skips the VLM call and still generates an image, which is not what the marker
+  // promises. For the same reason the list is empty unless TAP_DEDUP is "reuse": in "variant" or
+  // "off" mode a repeat tap deliberately generates a fresh page, so nothing here would be instant.
+  app.get("/:id/taps", (c) => {
+    const id = c.req.param("id");
+    const ratio = AspectRatioSchema.safeParse(c.req.query("ratio"));
+    if (!ratio.success) return c.json({ error: "Invalid or missing ratio" }, 400);
+    if (getTapDedupMode() !== "reuse") return c.json({ taps: [] });
+
+    const taps = listTapCache(id, ratio.data).flatMap((row) => {
+      const child = findChildBySubject(id, normalizeSubject(row.subject));
+      return child ? [{ x: row.x, y: row.y, subject: row.subject, child_id: child.id }] : [];
+    });
+    return c.json({ taps });
   });
 
   // Idle-loop video polling (PLAN §3 Phase 5): 404 until the background clip is ready, whether

@@ -234,6 +234,43 @@ body {
 .page-image-loading {
   filter: brightness(0.85);
   cursor: wait;
+  /* Slow breathing dim, so the frame itself reads as working rather than stalled. */
+  animation: page-image-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes page-image-breathe {
+  0%,
+  100% {
+    filter: brightness(0.85);
+  }
+  50% {
+    filter: brightness(0.97);
+  }
+}
+
+/* A light sweep across the page while it generates — the one element that keeps moving during the
+   long stretch when the image model is drawing and there is nothing else to report. */
+.page-loading-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 253, 246, 0) 30%,
+    rgba(255, 253, 246, 0.28) 50%,
+    rgba(255, 253, 246, 0) 70%
+  );
+  background-size: 220% 100%;
+  animation: page-loading-sheen 1.9s linear infinite;
+}
+
+@keyframes page-loading-sheen {
+  from {
+    background-position: 160% 0;
+  }
+  to {
+    background-position: -60% 0;
+  }
 }
 
 .page-video {
@@ -258,6 +295,78 @@ body {
   text-align: center;
 }
 
+/* Already-explored tap points (PLAN §2.3). The container ignores pointer events so only the
+   markers themselves are clickable and the rest of the picture still taps through to a new page. */
+.cached-taps {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cached-tap {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+  cursor: pointer;
+  padding: 3px 3px 3px 4px;
+  border: 1.5px solid rgba(43, 38, 32, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 253, 246, 0.82);
+  color: #2b2620;
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1;
+  max-width: 42%;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.cached-tap-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #2e7d5b;
+  box-shadow: 0 0 0 2px rgba(255, 253, 246, 0.9);
+}
+
+/* The subject is the useful part but it must not bury the artwork, so it stays collapsed to the
+   dot until the marker is hovered or focused. */
+.cached-tap-label {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+  transition:
+    max-width 0.2s ease,
+    opacity 0.2s ease,
+    padding-right 0.2s ease;
+}
+
+.cached-tap:hover,
+.cached-tap:focus-visible {
+  background: #fffdf6;
+  border-color: #2e7d5b;
+}
+
+.cached-tap:hover .cached-tap-label,
+.cached-tap:focus-visible .cached-tap-label {
+  max-width: 220px;
+  opacity: 1;
+  padding-right: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cached-tap,
+  .cached-tap-label {
+    transition: none;
+  }
+}
+
 .page-loading-overlay {
   position: absolute;
   bottom: 16px;
@@ -268,6 +377,105 @@ body {
   padding: 8px 16px;
   border-radius: 999px;
   font-size: 0.9rem;
+  max-width: calc(100% - 32px);
+}
+
+.generation-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.generation-progress-spinner {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 253, 246, 0.28);
+  border-top-color: #fffdf6;
+  animation: generation-spin 0.8s linear infinite;
+}
+
+@keyframes generation-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.generation-progress-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.generation-progress-dots i {
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  margin-left: 2px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.25;
+  animation: generation-dot 1.2s ease-in-out infinite;
+}
+
+.generation-progress-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.generation-progress-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes generation-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+/* Tabular figures so the seconds counter doesn't jiggle the pill's width as it ticks. */
+.generation-progress-elapsed {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.6;
+  font-size: 0.8rem;
+}
+
+/* The video toggle sits in "generating…" for ~30s with nothing else to show for it. */
+.toolbar-button-working {
+  animation: toolbar-working 1.6s ease-in-out infinite;
+}
+
+@keyframes toolbar-working {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.62;
+  }
+}
+
+/* Everything above is decoration over information that is already on screen as text, so removing
+   the motion loses nothing for users who ask for less of it. */
+@media (prefers-reduced-motion: reduce) {
+  .page-image-loading,
+  .page-loading-sheen,
+  .generation-progress-spinner,
+  .generation-progress-dots i,
+  .toolbar-button-working {
+    animation: none;
+  }
+  .page-loading-sheen {
+    display: none;
+  }
 }
 
 .tap-subject-banner {

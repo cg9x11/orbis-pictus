@@ -3,8 +3,6 @@ import { streamSSE } from "hono/streaming";
 import { GenerateRequestSchema } from "@flipbook/shared";
 import type { Providers } from "../providers/index.js";
 import { runGenerate } from "../pipeline/generate.js";
-import { videoPipeline } from "../pipeline/video.js";
-import { morphPipeline } from "../pipeline/morph.js";
 
 export function generateRoute(providers: Providers, imagesDir: string): Hono {
   const app = new Hono();
@@ -19,14 +17,11 @@ export function generateRoute(providers: Providers, imagesDir: string): Hono {
 
     return streamSSE(c, async (stream) => {
       try {
-        const node = await runGenerate(req, { providers, imagesDir }, async (event) => {
+        // Background idle-loop and morph generation are kicked off inside runGenerate, just before
+        // it emits `complete`, so that event's payload already carries video_status "pending".
+        await runGenerate(req, { providers, imagesDir }, async (event) => {
           await stream.writeSSE({ event: event.event, data: JSON.stringify(event.data) });
         });
-        // Fire-and-forget (PLAN §3 Phase 5): the page has already rendered via the `complete`
-        // event above; the idle loop and transition morph both generate in the background and
-        // are polled for separately. maybeStartMorph no-ops for root nodes (no parent to morph from).
-        videoPipeline.maybeStartIdleLoop(node, providers, imagesDir);
-        morphPipeline.maybeStartMorph(node, providers, imagesDir);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
         await stream.writeSSE({ event: "error", data: JSON.stringify({ message }) });

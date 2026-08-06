@@ -55,6 +55,48 @@ test("search mode: the built image prompt includes the house style, authored_pro
   assert.doesNotMatch(image.lastInput!.prompt, NUMERAL_BADGE_INSTRUCTION);
 });
 
+// The client's progress readout is driven entirely by these events, so their presence and order is
+// a contract, not decoration: without them the UI falls back to one static word for the whole
+// 30-60 second wait, which is what made a generation look like a frozen page.
+test("emits ordered stage events, with the page title available from `drawing` onwards", async () => {
+  const events: { event: string; data: unknown }[] = [];
+  await runGenerate(
+    { mode: "search", query: "lighthouse lenses", aspect_ratio: "16:9", web_search: false, session_id: "s-stage", current_node_id: "" },
+    makeContext(new SpyImageProvider()),
+    (event) => {
+      events.push({ event: event.event, data: event.data });
+    },
+  );
+
+  const stages = events.filter((e) => e.event === "stage").map((e) => e.data as { stage: string; pageTitle?: string });
+  // No web_search on this request, so "searching" must be absent rather than reported and skipped.
+  assert.deepEqual(
+    stages.map((s) => s.stage),
+    ["authoring", "drawing"],
+  );
+  assert.equal(stages[0]?.pageTitle, undefined, "the page is not named until the authoring model has run");
+  assert.ok(stages[1]?.pageTitle, "the drawing stage should carry the authored page title");
+
+  // Every stage must land before the image does, or the readout describes work already finished.
+  const order = events.map((e) => e.event);
+  assert.ok(order.lastIndexOf("stage") < order.indexOf("preview"));
+  assert.ok(order.indexOf("preview") < order.indexOf("complete"));
+});
+
+test("a web-search generation reports the lookup as its own stage", async () => {
+  const events: string[] = [];
+  const search: SearchProvider = { available: true, search: async () => ({ summary: "some findings" }) };
+  await runGenerate(
+    { mode: "search", query: "lighthouse lenses", aspect_ratio: "16:9", web_search: true, session_id: "s-stage-search", current_node_id: "" },
+    { ...makeContext(new SpyImageProvider()), providers: { ...makeContext(new SpyImageProvider()).providers, search } },
+    (event) => {
+      if (event.event === "stage") events.push(event.data.stage);
+    },
+  );
+
+  assert.deepEqual(events, ["searching", "authoring", "drawing"]);
+});
+
 test("edit mode: the built image prompt includes the house style and passes the current image as reference", async () => {
   const ctx = makeContext(new SpyImageProvider());
   const parentImageBytes = Buffer.from("parent-page-pixels");
@@ -71,6 +113,7 @@ test("edit mode: the built image prompt includes the house style and passes the 
     authored_prompt: "content prompt for the parent page",
     created_at: new Date().toISOString(),
     version: 1,
+    video_status: null,
   };
   insertNode(parent, { normalizedSubject: "root" });
 
@@ -115,6 +158,7 @@ test("tap mode: the built image prompt includes the house style and reuses the p
     authored_prompt: "content prompt for the parent page",
     created_at: new Date().toISOString(),
     version: 1,
+    video_status: null,
   };
   insertNode(parent, { normalizedSubject: "root" });
 

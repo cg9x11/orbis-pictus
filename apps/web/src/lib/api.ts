@@ -1,11 +1,13 @@
 import type {
   AspectRatio,
+  CachedTap,
   ConfigResponse,
   GenerateEvent,
   GenerateRequest,
   Node,
   NodesGetResponse,
   NodesListResponse,
+  NodeTapsResponse,
 } from "@flipbook/shared";
 import { GenerateEventSchema } from "@flipbook/shared";
 import { parseSSEStream } from "./sse";
@@ -38,6 +40,18 @@ export async function fetchNode(id: string): Promise<NodesGetResponse> {
   return res.json();
 }
 
+/**
+ * Points on this page that have already been explored and whose child page still exists (PLAN
+ * §2.3). Tapping one opens that child immediately with no generation, so they are worth marking
+ * on the image. Empty when the server is not in TAP_DEDUP=reuse mode.
+ */
+export async function fetchNodeTaps(id: string, ratio: AspectRatio): Promise<CachedTap[]> {
+  const res = await fetch(`/api/nodes/${id}/taps?ratio=${encodeURIComponent(ratio)}`);
+  if (!res.ok) throw new Error(`Failed to fetch cached taps for node ${id}`);
+  const { taps } = (await res.json()) as NodeTapsResponse;
+  return taps;
+}
+
 export async function fetchVariant(id: string, ratio: AspectRatio): Promise<Node> {
   const res = await fetch(`/api/nodes/${id}/variant?ratio=${encodeURIComponent(ratio)}`);
   if (!res.ok) throw new Error(`Failed to fetch ${ratio} variant for node ${id}`);
@@ -45,9 +59,13 @@ export async function fetchVariant(id: string, ratio: AspectRatio): Promise<Node
   return node;
 }
 
-/** Already-generated nodes for the landing-page example gallery — zero new generations (PLAN §3 Phase 3). */
-export async function fetchGallery(limit = 8): Promise<Node[]> {
-  const res = await fetch(`/api/nodes?limit=${limit}`);
+/**
+ * Already-generated nodes for the landing-page example gallery — zero new generations
+ * (PLAN §3 Phase 3). Pass `"all"` to load the whole gallery with no cap; a number is clamped
+ * server-side to MAX_GALLERY_LIMIT (24).
+ */
+export async function fetchGallery(limit: number | "all" = 8): Promise<Node[]> {
+  const res = await fetch(`/api/nodes?limit=${encodeURIComponent(limit)}`);
   if (!res.ok) throw new Error("Failed to fetch gallery");
   const { nodes } = (await res.json()) as NodesListResponse;
   return nodes;

@@ -8,6 +8,7 @@ import type { Node } from "@flipbook/shared";
 process.env.DATABASE_URL = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-nodes-")), "test.db");
 
 const { insertNode, findChildBySubject, findNodeByPromptHash, listGalleryNodes } = await import("./nodes.js");
+const { recordTapCache, listTapCache } = await import("./tapCache.js");
 
 let counter = 0;
 function makeNode(overrides: Partial<Node> = {}): Node {
@@ -24,6 +25,7 @@ function makeNode(overrides: Partial<Node> = {}): Node {
     authored_prompt: `prompt ${counter}`,
     created_at: new Date().toISOString(),
     version: 1,
+    video_status: null,
     ...overrides,
   };
 }
@@ -87,4 +89,45 @@ test("listGalleryNodes dedups by page_title, preferring the root node over a sam
   const takoyakiCards = gallery.filter((n) => n.page_title === "Takoyaki");
   assert.equal(takoyakiCards.length, 1);
   assert.equal(takoyakiCards[0]?.id, "takoyaki-root");
+});
+
+// The gallery offers starting points, so it shows only the opening page of an exploration. A tap
+// child is a mid-exploration page with a title of its own ("Roadway Deck"), which the page_title
+// dedup above would happily let through — it has to be excluded by being a child, not by title.
+// Two taps landing under one visual marker are the same click as far as findTapCacheHit is
+// concerned, so drawing both would put two dots on one target (PLAN §2.3).
+test("listTapCache collapses points that fall under the same tap marker", () => {
+  recordTapCache("tapcache-node", "16:9", 0.5, 0.5, "Main Tower");
+  recordTapCache("tapcache-node", "16:9", 0.505, 0.502, "Main Tower");
+  recordTapCache("tapcache-node", "16:9", 0.9, 0.8, "Far Corner");
+
+  const points = listTapCache("tapcache-node", "16:9");
+  assert.equal(points.length, 2);
+  assert.deepEqual(
+    points.map((p) => p.subject),
+    ["Main Tower", "Far Corner"],
+  );
+  // Keyed per aspect ratio: the same coordinates mean a different place on a differently-shaped image.
+  assert.equal(listTapCache("tapcache-node", "3:4").length, 0);
+});
+
+test("listGalleryNodes returns every eligible node when the limit is null", () => {
+  for (let i = 0; i < 30; i++) {
+    insertNode(makeNode(), { normalizedSubject: "unlimited" });
+  }
+  // Well past MAX_GALLERY_LIMIT (24), so a lingering cap anywhere below would show up here.
+  assert.ok(listGalleryNodes(null).length >= 30);
+  assert.equal(listGalleryNodes(3).length, 3);
+});
+
+test("listGalleryNodes excludes tap children, returning only root nodes", () => {
+  const root = makeNode({ id: "bridge-root", parent_id: null, page_title: "Golden Gate Bridge" });
+  insertNode(root, { normalizedSubject: "golden gate bridge" });
+  const tapChild = makeNode({ id: "bridge-deck", parent_id: "bridge-root", page_title: "Roadway Deck" });
+  insertNode(tapChild, { normalizedSubject: "roadway deck" });
+
+  const gallery = listGalleryNodes(50);
+  assert.ok(gallery.some((n) => n.id === "bridge-root"));
+  assert.equal(gallery.some((n) => n.id === "bridge-deck"), false);
+  assert.equal(gallery.every((n) => n.parent_id === null), true);
 });

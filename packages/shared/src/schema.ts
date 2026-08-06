@@ -12,6 +12,13 @@ export const ImageVariantsSchema = z.object({
 });
 export type ImageVariants = z.infer<typeof ImageVariantsSchema>;
 
+/** Lifecycle of a node's background idle-loop clip. `null` (the default) means one was never
+ *  attempted — the usual case, since video is off by default and is only ever started for a page
+ *  generated while it was on. A client must treat `null` as "there will never be a clip here",
+ *  not as "not ready yet", or it ends up waiting forever on a page nothing is working on. */
+export const VideoStatusSchema = z.enum(["pending", "ready", "failed"]);
+export type VideoStatus = z.infer<typeof VideoStatusSchema>;
+
 // --- Node (PLAN §1.2) ---
 export const NodeSchema = z.object({
   id: z.string(),
@@ -25,6 +32,11 @@ export const NodeSchema = z.object({
   authored_prompt: z.string(),
   created_at: z.string(),
   version: z.number().int(),
+  // Exposed on every node payload (detail, gallery list, and the `complete` event) so the client
+  // can tell "a clip is coming" from "no clip will ever exist" without probing /video and reading
+  // a 404 — the two are indistinguishable at that endpoint. Defaulted so older stored payloads
+  // and create requests, which never carried the field, still parse.
+  video_status: VideoStatusSchema.nullable().default(null),
 });
 export type Node = z.infer<typeof NodeSchema>;
 
@@ -90,6 +102,23 @@ export const TapSubjectEventSchema = z.object({
   data: z.object({ subject: z.string() }),
 });
 
+/** Ordered phases of a generation, reported so the wait is legible instead of one silent minute.
+ *  A page takes tens of seconds and the slowest stretch — authoring the prompt, then drawing —
+ *  used to emit nothing at all between `start` and `preview`. */
+export const GenerationStageSchema = z.enum(["searching", "authoring", "drawing"]);
+export type GenerationStage = z.infer<typeof GenerationStageSchema>;
+
+/** One extensible event rather than a new event type per phase — adding a phase later costs a
+ *  single enum member and no protocol change. `pageTitle` is present from "drawing" onwards, as
+ *  soon as the authoring model has named the page. */
+export const StageEventSchema = z.object({
+  event: z.literal("stage"),
+  data: z.object({
+    stage: GenerationStageSchema,
+    pageTitle: z.string().optional(),
+  }),
+});
+
 export const PreviewEventSchema = z.object({
   event: z.literal("preview"),
   data: z.object({
@@ -111,6 +140,7 @@ export const ErrorEventSchema = z.object({
 export const GenerateEventSchema = z.discriminatedUnion("event", [
   StartEventSchema,
   TapSubjectEventSchema,
+  StageEventSchema,
   PreviewEventSchema,
   CompleteEventSchema,
   ErrorEventSchema,
@@ -147,6 +177,23 @@ export type NodesUploadRequest = z.infer<typeof NodesUploadRequestSchema>;
 // --- Server config, for feature-availability toggles in the UI ---
 export const ConfigResponseSchema = z.object({ searchAvailable: z.boolean(), videoEnabled: z.boolean(), morphEnabled: z.boolean() });
 export type ConfigResponse = z.infer<typeof ConfigResponseSchema>;
+
+// --- Cached tap points (PLAN §2.3) ---
+/**
+ * A spot on a page that has already been tapped and whose child page still exists, so tapping it
+ * again opens that child immediately and generates nothing. Coordinates are normalized [0,1]
+ * fractions of image width/height, matching the tap-marker geometry in pipeline/tapMath.ts.
+ */
+export const CachedTapSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  subject: z.string(),
+  child_id: z.string(),
+});
+export type CachedTap = z.infer<typeof CachedTapSchema>;
+
+export const NodeTapsResponseSchema = z.object({ taps: z.array(CachedTapSchema) });
+export type NodeTapsResponse = z.infer<typeof NodeTapsResponseSchema>;
 
 // --- Idle-loop video (PLAN §3 Phase 5) ---
 // GET /api/nodes/:id/video: 404 with { ready: false } until the background clip is ready.

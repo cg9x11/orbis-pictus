@@ -1,6 +1,13 @@
-import type { ImageVariants, Node } from "@flipbook/shared";
+import type { ImageVariants, Node, VideoStatus } from "@flipbook/shared";
+import { VideoStatusSchema } from "@flipbook/shared";
 import { db } from "./db.js";
 import type { NodeRow } from "./schema.js";
+
+/** The column is a bare TEXT field, so anything unrecognised (or NULL) reads as "no clip". */
+function toVideoStatus(raw: string | null): VideoStatus | null {
+  const parsed = VideoStatusSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
 
 function rowToNode(row: NodeRow): Node {
   return {
@@ -15,6 +22,7 @@ function rowToNode(row: NodeRow): Node {
     authored_prompt: row.authored_prompt,
     created_at: row.created_at,
     version: row.version,
+    video_status: toVideoStatus(row.video_status),
   };
 }
 
@@ -99,8 +107,11 @@ export function findNodeByPromptHash(hash: string): Node | null {
   return row ? rowToNode(row) : null;
 }
 
-// --- PLAN §3 Phase 5: idle-loop video state (internal — never exposed via the public Node schema) ---
-export type VideoStatus = "pending" | "ready" | "failed";
+// --- PLAN §3 Phase 5: idle-loop video state. `video_status` is part of the public Node schema
+// (the client needs it to tell "a clip is coming" from "none will ever exist"); `video_url` is
+// internal and reachable only through GET /api/nodes/:id/video. VideoStatus itself is defined
+// once, in @flipbook/shared, and re-exported here for the existing server-side importers.
+export type { VideoStatus };
 
 export interface VideoInfo {
   status: VideoStatus | null;
@@ -165,23 +176,30 @@ export function markMorphReady(id: string, url: string): void {
   setMorphReadyStmt.run(url, id);
 }
 
-// Dedups by page_title before sampling: an edit variant (e.g. a "make it night time" child) keeps
-// its parent's exact title, so without this two cards reading identically (e.g. two "Takoyaki"
-// cards, one the daytime root and one the night-edit child) show up side by side and read as a
-// bug even though they're different nodes. One row per title survives, preferring the root node
-// (parent_id IS NULL) as the canonical representative, tie-broken by earliest created_at.
+// Root nodes only (`parent_id IS NULL`) — the opening page of an exploration, the kind a visitor
+// gets by typing a query. Tap children and edit variants are deliberately excluded: they are
+// mid-exploration pages that make no sense as a starting point ("Roadway Deck" is a fine page but
+// a strange thing for the landing gallery to offer), and an edit variant additionally inherits its
+// parent's exact page_title, which used to surface as two identical-looking cards (two "Takoyaki").
+// The page_title dedup is kept for the remaining case this filter does not cover: two separate
+// searches that happen to land on the same title. Earliest node wins, so the gallery is stable.
 const listGalleryStmt = db.prepare(`
   SELECT * FROM nodes n
-  WHERE n.id = (
-    SELECT id FROM nodes n2
-    WHERE n2.page_title = n.page_title
-    ORDER BY (n2.parent_id IS NULL) DESC, n2.created_at ASC
-    LIMIT 1
-  )
+  WHERE n.parent_id IS NULL
+    AND n.id = (
+      SELECT id FROM nodes n2
+      WHERE n2.page_title = n.page_title AND n2.parent_id IS NULL
+      ORDER BY n2.created_at ASC
+      LIMIT 1
+    )
   ORDER BY RANDOM() LIMIT ?
 `);
 
-/** Random sample of already-generated nodes for the landing-page example gallery — no new generations. */
-export function listGalleryNodes(limit: number): Node[] {
-  return (listGalleryStmt.all(limit) as unknown as NodeRow[]).map(rowToNode);
+/**
+ * Random sample of already-generated root pages for the landing-page example gallery — no new
+ * generations. Pass `null` for no limit at all: SQLite reads any negative LIMIT as unbounded, so
+ * one prepared statement covers both cases without a second query.
+ */
+export function listGalleryNodes(limit: number | null): Node[] {
+  return (listGalleryStmt.all(limit ?? -1) as unknown as NodeRow[]).map(rowToNode);
 }

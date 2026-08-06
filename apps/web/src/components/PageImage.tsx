@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useState, type ReactNode, type RefObject } from "react";
 import type { AspectRatio } from "@flipbook/shared";
 import { TapRipple } from "./TapRipple";
 
@@ -11,6 +11,11 @@ interface PageImageProps {
   /** Called once the morph has finished playing (or its fade-out completes) so the caller can clear it. */
   onMorphEnded?: () => void;
   loading: boolean;
+  /** What the loading overlay shows. Falls back to a plain word when the caller has nothing richer
+   *  (e.g. an aspect-ratio re-render, which runs over plain HTTP with no event stream). */
+  loadingContent?: ReactNode;
+  /** Overlay pinned to the image's own coordinate space — the already-explored tap markers. */
+  markers?: ReactNode;
   onTap: (image: HTMLImageElement, clientX: number, clientY: number) => void;
   ripple: { xRatio: number; yRatio: number } | null;
   onRippleDone: () => void;
@@ -24,6 +29,8 @@ export function PageImage({
   morphUrl,
   onMorphEnded,
   loading,
+  loadingContent,
+  markers,
   onTap,
   ripple,
   onRippleDone,
@@ -96,8 +103,10 @@ export function PageImage({
       ) : (
         <div className="page-image-empty">Type something in the address bar to begin.</div>
       )}
+      {imageUrl && markers}
       {ripple && <TapRipple xRatio={ripple.xRatio} yRatio={ripple.yRatio} onDone={onRippleDone} />}
-      {loading && <div className="page-loading-overlay">Generating…</div>}
+      {loading && <div className="page-loading-sheen" />}
+      {loading && <div className="page-loading-overlay">{loadingContent ?? "Generating…"}</div>}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { AspectRatio, GenerateRequest, Node } from "@flipbook/shared";
+import type { AspectRatio, CachedTap, GenerateRequest, Node } from "@flipbook/shared";
 import { BrowserFrame } from "./components/BrowserFrame";
 import { AddressBar } from "./components/AddressBar";
 import { PageImage } from "./components/PageImage";
@@ -8,6 +8,9 @@ import { AspectRatioPicker } from "./components/AspectRatioPicker";
 import { UploadButton } from "./components/UploadButton";
 import { WebSearchToggle } from "./components/WebSearchToggle";
 import { VideoLoopToggle } from "./components/VideoLoopToggle";
+import { GenerationProgress } from "./components/GenerationProgress";
+import { CachedTapMarkers } from "./components/CachedTapMarkers";
+import { useCachedTaps } from "./hooks/useCachedTaps";
 import { Landing } from "./components/Landing";
 import { useGenerationStream } from "./hooks/useGenerationStream";
 import { useSessionTrail } from "./hooks/useSessionTrail";
@@ -79,9 +82,12 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   const showLoadingIndicator = useDelayedFlag(isStreaming || variantLoading, 150);
   // PLAN §3 Phase 5: purely additive — polls for a background idle-loop clip once the page is
   // settled (never while still streaming in a new one) and the experimental toggle is on.
-  const idleLoopVideoUrl = useIdleLoopVideo(current?.id, videoLoopEnabled && !isStreaming);
+  const idleLoopVideoUrl = useIdleLoopVideo(current?.id, videoLoopEnabled && !isStreaming, current?.video_status);
   // PLAN §3 Phase 5: a single non-blocking check per navigation, never gates the page render.
   const [morphUrl, clearMorph] = useMorphTransition(current?.id, current?.parent_id, morphAvailable);
+  // PLAN §2.3: spots on this page already explored, shown as markers so a free tap is visible
+  // before it is made.
+  const cachedTaps = useCachedTaps(current?.id, aspectRatio);
 
   const runRequest = async (request: GenerateRequest) => {
     setLastRequest(request);
@@ -116,6 +122,22 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
       session_id: sessionId,
       current_node_id: current.id,
     });
+  };
+
+  /**
+   * Opens an already-generated child from a cached-tap marker (PLAN §2.3). Deliberately does not go
+   * through runRequest: the whole point of the marker is that this path touches no provider at all,
+   * so it fetches the stored node and appends it to the trail directly.
+   */
+  const handleOpenCachedTap = async (tap: CachedTap) => {
+    if (isStreaming) return;
+    try {
+      const { node } = await fetchNode(tap.child_id);
+      append(node);
+      recordPage();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleEdit = (command: string) => {
@@ -203,7 +225,17 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
         <>
           <AspectRatioPicker value={aspectRatio} onChange={handleRatioChange} disabled={isStreaming || variantLoading} />
           <WebSearchToggle enabled={webSearch} onChange={setWebSearch} disabled={isStreaming} />
-          {videoAvailable && <VideoLoopToggle enabled={videoLoopEnabled} onChange={setVideoLoopEnabled} disabled={isStreaming} />}
+          {videoAvailable && (
+            <VideoLoopToggle
+              enabled={videoLoopEnabled}
+              onChange={setVideoLoopEnabled}
+              disabled={isStreaming}
+              // Once the poll has the clip in hand it is ready, whatever the node payload said when
+              // the page loaded — that snapshot is never refreshed, so it would otherwise read
+              // "generating…" forever on a page whose loop is already playing.
+              status={idleLoopVideoUrl ? "ready" : current?.video_status}
+            />
+          )}
           <UploadButton sessionId={sessionId} disabled={isStreaming || variantLoading} onUploaded={handleUploaded} />
           <button type="button" className="toolbar-button" onClick={handleClear} disabled={isStreaming || trail.length === 0}>
             Clear
@@ -219,7 +251,18 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
           videoUrl={idleLoopVideoUrl}
           morphUrl={morphUrl}
           onMorphEnded={clearMorph}
+          markers={<CachedTapMarkers taps={cachedTaps} onOpen={handleOpenCachedTap} hidden={isStreaming} />}
           loading={showLoadingIndicator}
+          loadingContent={
+            isStreaming ? (
+              <GenerationProgress
+                stage={state.stage}
+                tapSubject={state.tapSubject}
+                pageTitle={state.pageTitle}
+                startedAt={state.startedAt}
+              />
+            ) : undefined
+          }
           onTap={handleTap}
           ripple={ripple}
           onRippleDone={() => setRipple(null)}

@@ -51,6 +51,7 @@ function makeNode(id: string, sessionId: string, imagesDir: string): Node {
     authored_prompt: "content",
     created_at: new Date().toISOString(),
     version: 1,
+    video_status: null,
   };
 }
 
@@ -159,4 +160,28 @@ test("VIDEO_ENABLED=false disables generation entirely, synchronously", async ()
   } finally {
     process.env.VIDEO_ENABLED = originalValue;
   }
+});
+
+// The client decides whether to wait for a clip purely from the node's video_status, treating null
+// as "no clip will ever exist here". That makes the ORDER inside runGenerate load-bearing: the
+// background generation has to be kicked off, and the node re-read, before `complete` is emitted.
+// Emit first and the payload says null forever, so a page that is actively generating a clip would
+// never pick it up — the exact silent-wait bug this field was added to remove.
+test("the `complete` event already reports video_status pending when a clip is on its way", async () => {
+  const { runGenerate } = await import("./generate.js");
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-complete-"));
+  const events: { event: string; data: unknown }[] = [];
+
+  const node = await runGenerate(
+    { mode: "search", query: "a topic", aspect_ratio: "16:9", web_search: false, session_id: "s-complete", current_node_id: "" },
+    { providers: makeProviders(new SpyVideoProvider()), imagesDir },
+    (event) => {
+      events.push({ event: event.event, data: event.data });
+    },
+  );
+
+  const complete = events.find((e) => e.event === "complete");
+  assert.ok(complete, "a complete event should have been emitted");
+  assert.equal((complete.data as Node).video_status, "pending");
+  assert.equal(node.video_status, "pending");
 });

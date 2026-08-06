@@ -22,6 +22,27 @@ const candidatesStmt = db.prepare(`
   ORDER BY created_at ASC
 `);
 
+const listStmt = db.prepare(`
+  SELECT * FROM tap_cache
+  WHERE node_id = ? AND aspect_ratio = ?
+  ORDER BY created_at ASC
+`);
+
+/**
+ * Every tap already resolved on this node at this aspect ratio, oldest first, with points that
+ * would land under the same visual marker collapsed to the first one recorded. Two rows within one
+ * marker radius are by definition the same click as far as the cache is concerned (that is exactly
+ * what findTapCacheHit below matches on), so drawing both would show two dots for one target.
+ */
+export function listTapCache(nodeId: string, aspectRatio: AspectRatio): TapCacheRow[] {
+  const rows = listStmt.all(nodeId, aspectRatio) as unknown as TapCacheRow[];
+  const kept: TapCacheRow[] = [];
+  for (const row of rows) {
+    if (!kept.some((k) => isWithinTapRadius(aspectRatio, k.x, k.y, row.x, row.y))) kept.push(row);
+  }
+  return kept;
+}
+
 export function findTapCacheHit(
   nodeId: string,
   aspectRatio: AspectRatio,
