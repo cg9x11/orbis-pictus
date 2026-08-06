@@ -30,6 +30,10 @@ class SpyImageProvider implements ImageProvider {
 
 const noSearch: SearchProvider = { available: false, search: async () => null };
 
+// PLAN §2 KNOWN OPEN ISSUE: a numeral badge stamped next to each callout ("numbered 1-6") is
+// reliably duplicated/skipped by the image model. No built prompt, in any mode, should ask for one.
+const NUMERAL_BADGE_INSTRUCTION = /numbered\s+1-\d+|numeral badge|pin number|digit badge/i;
+
 function makeContext(image: ImageProvider) {
   return {
     providers: { llm: new MockLlmProvider(), image, video: new MockVideoProvider(), search: noSearch },
@@ -48,6 +52,7 @@ test("search mode: the built image prompt includes the house style, authored_pro
   const houseStyle = getHouseStyleBlock();
   assert.ok(image.lastInput?.prompt.includes(houseStyle), "image prompt sent to the provider should include the house style block");
   assert.ok(!node.authored_prompt.includes(houseStyle), "stored authored_prompt (content-only) should not include the house style block");
+  assert.doesNotMatch(image.lastInput!.prompt, NUMERAL_BADGE_INSTRUCTION);
 });
 
 test("edit mode: the built image prompt includes the house style and passes the current image as reference", async () => {
@@ -91,6 +96,7 @@ test("edit mode: the built image prompt includes the house style and passes the 
   assert.ok(image.lastInput?.prompt.includes(houseStyle));
   assert.ok(!node.authored_prompt.includes(houseStyle));
   assert.equal(image.lastInput?.referenceImageDataUrl, currentImageDataUrl);
+  assert.doesNotMatch(image.lastInput!.prompt, NUMERAL_BADGE_INSTRUCTION);
 });
 
 test("tap mode: the built image prompt includes the house style and reuses the parent page image as reference", async () => {
@@ -139,4 +145,5 @@ test("tap mode: the built image prompt includes the house style and reuses the p
   const expectedReference = `data:image/jpeg;base64,${parentImageBytes.toString("base64")}`;
   assert.equal(image.lastInput?.referenceImageDataUrl, expectedReference);
   assert.notEqual(image.lastInput?.referenceImageDataUrl, markedImageDataUrl);
+  assert.doesNotMatch(image.lastInput!.prompt, NUMERAL_BADGE_INSTRUCTION);
 });

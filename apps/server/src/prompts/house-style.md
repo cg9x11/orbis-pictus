@@ -4,13 +4,23 @@ This file is the single source of the app's visual identity. The page-author LLM
 only (title, layout, exact label strings) and must never describe style — swapping the app's
 entire look is an edit to this file alone.
 
-Two hard-won rules, verified against Seedream 4.5 on 2026-08-06 (see PLAN §2):
+Three hard-won rules, verified against Seedream 4.5 on 2026-08-06 (see PLAN §2):
 1. NEVER write hex colour codes here. Every hex code in an earlier version of this text was
    rendered as visible text inside the picture — shop signs reading "#F2EDE", a page title that
    became "Soote Many (#FF7A2)". Name colours in words.
 2. Keep the label-plaque paragraph intact regardless of which style block is active. The entire
    product is rendered text; if the scene's texture is allowed to touch the type, the page stops
    being readable. Textured styles need this exemption most, not least.
+3. This file owns which text-bearing regions exist on the page (title card, callout plaques,
+   footer bar) — it must never describe a region without also saying what fills it, and every
+   rendered string anywhere on the page must be an exact string supplied by a prompt (this file
+   or the content prompt it's appended to), never text the image model has to invent. An
+   unspecified text region is always garbled or free-invented in practice: the footer caption
+   bug and a free-invented subtitle line under the title card (never part of this layout, added
+   by the authoring LLM on its own) both traced back to exactly this. If a future style or layout
+   change adds a new text-bearing region here, it must ship with matching instructions in
+   page-author.md/edit-author.md for supplying that region's exact text — never leave one
+   implicit.
 
 The sections below are machine-parsed by `pipeline/houseStyle.ts` via the `<!-- house-style:* -->`
 anchor comments — keep them intact when editing prose. Selected by env `HOUSE_STYLE=felt|papercut|
@@ -26,9 +36,12 @@ subject rendered oversized and hero-scale inside a small believable environment 
 on a blank background. Callout labels point to their subject with thin leader lines.
 
 Each label is a flat, clean, high-contrast plaque with crisp legible type: a bold label line and a
-smaller description line underneath. The page title sits in a flat card at the top. A solid footer
-bar runs across the bottom with a short caption. A small context inset sits in the bottom-right
-corner.
+smaller description line underneath. The page title sits in a flat card at the top and carries the
+title text only — no subtitle line, no tagline, no second line of any kind under it; if a subtitle
+or byline appears in the card it is always free-invented (never asked for) and always renders as
+garbled text. A solid footer bar runs across the bottom with a short caption. A small context inset
+sits in the bottom-right corner. Do not add any other text-bearing element (a stray sign, a second
+caption, a label with no callout) beyond the title card, the callout plaques, and the footer bar.
 
 All text must be sharp, perfectly legible, correctly spelled, and must never be painted, extruded,
 embroidered, pixelated, or wrapped onto a three-dimensional surface — the plaques, the title card
