@@ -60,6 +60,12 @@ export function migrate(): void {
     );
     CREATE INDEX IF NOT EXISTS tap_cache_node_cell_idx ON tap_cache(node_id, aspect_ratio, cell_x, cell_y);
   `);
+
+  // PLAN §3 Phase 5: idle-loop video. video_status null = never attempted (only state that may
+  // start a background generation); "pending"/"ready"/"failed" all short-circuit so a node is
+  // never regenerated (a failed attempt just stays a static image, no auto-retry).
+  ensureColumn("nodes", "video_status", "video_status TEXT");
+  ensureColumn("nodes", "video_url", "video_url TEXT");
 }
 
 // Run eagerly so the table exists before any module that imports `db` from here

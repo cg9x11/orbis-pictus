@@ -59,6 +59,14 @@ export async function fetchConfig(): Promise<ConfigResponse> {
   return res.json();
 }
 
+/** Idle-loop video (PLAN §3 Phase 5): null until the background clip is ready — the caller polls with backoff. */
+export async function fetchNodeVideo(id: string): Promise<string | null> {
+  const res = await fetch(`/api/nodes/${id}/video`);
+  if (!res.ok) return null;
+  const { video_url } = (await res.json()) as { ready: true; video_url: string };
+  return video_url;
+}
+
 export async function uploadImage(image: string, aspectRatio: AspectRatio, sessionId: string): Promise<Node> {
   const res = await fetch("/api/nodes/upload", {
     method: "POST",

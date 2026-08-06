@@ -15,6 +15,7 @@ const { getHouseStyleBlock } = await import("./houseStyle.js");
 const { saveImageVariant } = await import("./imageStorage.js");
 const { insertNode } = await import("../storage/nodes.js");
 const { MockLlmProvider } = await import("../providers/llm/mock.js");
+const { MockVideoProvider } = await import("../providers/video/mock.js");
 
 class SpyImageProvider implements ImageProvider {
   readonly modelId = "spy-image";
@@ -31,7 +32,7 @@ const noSearch: SearchProvider = { available: false, search: async () => null };
 
 function makeContext(image: ImageProvider) {
   return {
-    providers: { llm: new MockLlmProvider(), image, search: noSearch },
+    providers: { llm: new MockLlmProvider(), image, video: new MockVideoProvider(), search: noSearch },
     imagesDir: fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-images-")),
   };
 }

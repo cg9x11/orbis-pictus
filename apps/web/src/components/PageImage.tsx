@@ -1,9 +1,11 @@
-import type { RefObject } from "react";
+import { useEffect, useState, type RefObject } from "react";
 import type { AspectRatio } from "@flipbook/shared";
 import { TapRipple } from "./TapRipple";
 
 interface PageImageProps {
   imageUrl?: string;
+  /** PLAN §3 Phase 5: the ready idle-loop clip, or null while none is available/enabled. */
+  videoUrl?: string | null;
   loading: boolean;
   onTap: (image: HTMLImageElement, clientX: number, clientY: number) => void;
   ripple: { xRatio: number; yRatio: number } | null;
@@ -12,7 +14,15 @@ interface PageImageProps {
   aspectRatio: AspectRatio;
 }
 
-export function PageImage({ imageUrl, loading, onTap, ripple, onRippleDone, imgRef, aspectRatio }: PageImageProps) {
+export function PageImage({ imageUrl, videoUrl, loading, onTap, ripple, onRippleDone, imgRef, aspectRatio }: PageImageProps) {
+  // Tracks whether the <video> has actually started rendering frames, so the crossfade only
+  // begins once there's something to fade to (avoids a flash of black before the first frame).
+  const [videoReady, setVideoReady] = useState(false);
+
+  useEffect(() => {
+    setVideoReady(false);
+  }, [videoUrl]);
+
   const handleClick = (e: React.MouseEvent<HTMLImageElement>) => {
     if (!imgRef.current || loading) return;
     onTap(imgRef.current, e.clientX, e.clientY);
@@ -21,13 +31,29 @@ export function PageImage({ imageUrl, loading, onTap, ripple, onRippleDone, imgR
   return (
     <div className="page-image-container" style={{ aspectRatio: aspectRatio.replace(":", "/") }}>
       {imageUrl ? (
-        <img
-          ref={imgRef}
-          src={imageUrl}
-          alt=""
-          className={`page-image${loading ? " page-image-loading" : ""}`}
-          onClick={handleClick}
-        />
+        <>
+          <img
+            ref={imgRef}
+            src={imageUrl}
+            alt=""
+            className={`page-image${loading ? " page-image-loading" : ""}`}
+            onClick={handleClick}
+          />
+          {videoUrl && (
+            // Purely decorative overlay: pointer-events none so taps always land on the <img>
+            // beneath, keeping the whole tap-marker pipeline untouched by this feature.
+            <video
+              key={videoUrl}
+              className={`page-video${videoReady ? " page-video-visible" : ""}`}
+              src={videoUrl}
+              muted
+              autoPlay
+              loop
+              playsInline
+              onCanPlay={() => setVideoReady(true)}
+            />
+          )}
+        </>
       ) : (
         <div className="page-image-empty">Type something in the address bar to begin.</div>
       )}

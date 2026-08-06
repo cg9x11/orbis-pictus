@@ -64,6 +64,32 @@ export interface ImageProvider {
   generate(input: ImageGenInput): Promise<ImageGenResult>;
 }
 
+// --- Video provider (PLAN §3 Phase 5, idle-loop background animation) ---
+export interface VideoGenInput {
+  /** Content-only motion prompt (PLAN §2 VISUAL IDENTITY content/style split applies here too — no house-style words baked in by callers). */
+  prompt: string;
+  aspectRatio: AspectRatio;
+  /** First frame — for the idle loop this is the page's own rendered image (data: URL). */
+  firstFrameDataUrl: string;
+  /** Last frame — reserved for the optional Phase 5 transition-morph task; providers without first-last-frame support may ignore it. */
+  lastFrameDataUrl?: string;
+  durationSeconds: number;
+  /** Dev default 480p (PLAN §3 Phase 5: "never 1080p in this session"). */
+  resolution: "480p" | "720p" | "1080p";
+}
+
+export interface VideoGenResult {
+  bytes: Buffer;
+  contentType: string;
+}
+
+export interface VideoProvider {
+  readonly modelId: string;
+  /** Short provider identifier (e.g. "ark", "mock"), mirrors ImageProvider.providerId. */
+  readonly providerId: string;
+  generate(input: VideoGenInput): Promise<VideoGenResult>;
+}
+
 // --- Web search provider (stub interface, `none` only in Phase 1) ---
 export interface SearchResult {
   summary: string;

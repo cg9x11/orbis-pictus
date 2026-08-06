@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { Hono } from "hono";
 import { AspectRatioSchema, NodesCreateRequestSchema, NodesUploadRequestSchema, type Node } from "@flipbook/shared";
-import { getHistory, getNode, insertNode, listGalleryNodes, updateImageVariants } from "../storage/nodes.js";
+import { getHistory, getNode, getVideoInfo, insertNode, listGalleryNodes, updateImageVariants } from "../storage/nodes.js";
 import { saveImageVariant } from "../pipeline/imageStorage.js";
 import { normalizeSubject } from "../pipeline/normalize.js";
 import type { Providers } from "../providers/index.js";
@@ -79,6 +79,18 @@ export function nodesRoute(providers: Providers, imagesDir: string): Hono {
     };
     insertNode(node, { normalizedSubject: normalizeSubject(title), promptHash: null });
     return c.json({ node }, 201);
+  });
+
+  // Idle-loop video polling (PLAN §3 Phase 5): 404 until the background clip is ready, whether
+  // it's still pending, failed, or was never attempted — the client just keeps polling with
+  // backoff and gives up on its own after a while, so no separate "failed" signal is needed here.
+  app.get("/:id/video", (c) => {
+    const id = c.req.param("id");
+    const info = getVideoInfo(id);
+    if (!info || info.status !== "ready" || !info.url) {
+      return c.json({ ready: false }, 404);
+    }
+    return c.json({ ready: true, video_url: info.url });
   });
 
   app.get("/:id", (c) => {

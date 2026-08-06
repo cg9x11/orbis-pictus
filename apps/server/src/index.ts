@@ -11,6 +11,7 @@ import { createProviders, getMissingKeys } from "./providers/index.js";
 import { generateRoute } from "./routes/generate.js";
 import { nodesRoute } from "./routes/nodes.js";
 import { getNode } from "./storage/nodes.js";
+import { isVideoEnabled } from "./pipeline/videoConfig.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -33,7 +34,7 @@ app.use("/api/*", cors());
 app.route("/api/generate", generateRoute(providers, imagesDir));
 app.route("/api/nodes", nodesRoute(providers, imagesDir));
 app.get("/api/waitroom", (c) => c.json({ enabled: false, admitted: true }));
-app.get("/api/config", (c) => c.json({ searchAvailable: providers.search.available }));
+app.get("/api/config", (c) => c.json({ searchAvailable: providers.search.available, videoEnabled: isVideoEnabled() }));
 
 app.use("/images/*", serveStatic({ root: path.relative(process.cwd(), path.dirname(imagesDir)) }));
 

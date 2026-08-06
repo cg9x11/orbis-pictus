@@ -7,12 +7,14 @@ import { PageImage } from "./components/PageImage";
 import { AspectRatioPicker } from "./components/AspectRatioPicker";
 import { UploadButton } from "./components/UploadButton";
 import { WebSearchToggle } from "./components/WebSearchToggle";
+import { VideoLoopToggle } from "./components/VideoLoopToggle";
 import { Landing } from "./components/Landing";
 import { useGenerationStream } from "./hooks/useGenerationStream";
 import { useSessionTrail } from "./hooks/useSessionTrail";
 import { useTapMarker } from "./hooks/useTapMarker";
 import { useDelayedFlag } from "./hooks/useDelayedFlag";
 import { usePageAnalytics } from "./hooks/usePageAnalytics";
+import { useIdleLoopVideo } from "./hooks/useIdleLoopVideo";
 import { fetchConfig, fetchNode, fetchVariant } from "./lib/api";
 import { captureCurrentImage } from "./lib/imageCapture";
 
@@ -35,12 +37,17 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
   const [variantLoading, setVariantLoading] = useState(false);
   const [webSearch, setWebSearch] = useState(false);
+  const [videoAvailable, setVideoAvailable] = useState(false);
+  const [videoLoopEnabled, setVideoLoopEnabled] = useState(false);
   const [lastRequest, setLastRequest] = useState<GenerateRequest | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     fetchConfig()
-      .then((config) => setWebSearch(config.searchAvailable))
+      .then((config) => {
+        setWebSearch(config.searchAvailable);
+        setVideoAvailable(config.videoEnabled);
+      })
       .catch((err: unknown) => console.error(err));
   }, []);
 
@@ -67,6 +74,9 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   const isStreaming = state.status === "streaming";
   // Real generations and cache-hit instant navigations both count as a "page" (PLAN §1.4).
   const showLoadingIndicator = useDelayedFlag(isStreaming || variantLoading, 150);
+  // PLAN §3 Phase 5: purely additive — polls for a background idle-loop clip once the page is
+  // settled (never while still streaming in a new one) and the experimental toggle is on.
+  const idleLoopVideoUrl = useIdleLoopVideo(current?.id, videoLoopEnabled && !isStreaming);
 
   const runRequest = async (request: GenerateRequest) => {
     setLastRequest(request);
@@ -188,6 +198,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
         <>
           <AspectRatioPicker value={aspectRatio} onChange={handleRatioChange} disabled={isStreaming || variantLoading} />
           <WebSearchToggle enabled={webSearch} onChange={setWebSearch} disabled={isStreaming} />
+          {videoAvailable && <VideoLoopToggle enabled={videoLoopEnabled} onChange={setVideoLoopEnabled} disabled={isStreaming} />}
           <UploadButton sessionId={sessionId} disabled={isStreaming || variantLoading} onUploaded={handleUploaded} />
           <button type="button" className="toolbar-button" onClick={handleClear} disabled={isStreaming || trail.length === 0}>
             Clear
@@ -200,6 +211,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
       ) : (
         <PageImage
           imageUrl={imageUrl}
+          videoUrl={idleLoopVideoUrl}
           loading={showLoadingIndicator}
           onTap={handleTap}
           ripple={ripple}

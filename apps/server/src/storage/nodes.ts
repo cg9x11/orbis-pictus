@@ -99,6 +99,39 @@ export function findNodeByPromptHash(hash: string): Node | null {
   return row ? rowToNode(row) : null;
 }
 
+// --- PLAN §3 Phase 5: idle-loop video state (internal — never exposed via the public Node schema) ---
+export type VideoStatus = "pending" | "ready" | "failed";
+
+export interface VideoInfo {
+  status: VideoStatus | null;
+  url: string | null;
+}
+
+const getVideoInfoStmt = db.prepare(`SELECT video_status, video_url FROM nodes WHERE id = ?`);
+
+/** Null if the node itself doesn't exist; status null means video generation has never been attempted for it. */
+export function getVideoInfo(id: string): VideoInfo | null {
+  const row = getVideoInfoStmt.get(id) as { video_status: string | null; video_url: string | null } | undefined;
+  if (!row) return null;
+  return { status: row.video_status as VideoStatus | null, url: row.video_url };
+}
+
+const setVideoStatusStmt = db.prepare(`UPDATE nodes SET video_status = ? WHERE id = ?`);
+
+export function markVideoPending(id: string): void {
+  setVideoStatusStmt.run("pending", id);
+}
+
+export function markVideoFailed(id: string): void {
+  setVideoStatusStmt.run("failed", id);
+}
+
+const setVideoReadyStmt = db.prepare(`UPDATE nodes SET video_status = 'ready', video_url = ? WHERE id = ?`);
+
+export function markVideoReady(id: string, url: string): void {
+  setVideoReadyStmt.run(url, id);
+}
+
 const listGalleryStmt = db.prepare(`SELECT * FROM nodes ORDER BY RANDOM() LIMIT ?`);
 
 /** Random sample of already-generated nodes for the landing-page example gallery — no new generations. */

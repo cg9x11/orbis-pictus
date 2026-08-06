@@ -145,5 +145,10 @@ export const NodesUploadRequestSchema = z.object({
 export type NodesUploadRequest = z.infer<typeof NodesUploadRequestSchema>;
 
 // --- Server config, for feature-availability toggles in the UI ---
-export const ConfigResponseSchema = z.object({ searchAvailable: z.boolean() });
+export const ConfigResponseSchema = z.object({ searchAvailable: z.boolean(), videoEnabled: z.boolean() });
 export type ConfigResponse = z.infer<typeof ConfigResponseSchema>;
+
+// --- Idle-loop video (PLAN §3 Phase 5) ---
+// GET /api/nodes/:id/video: 404 with { ready: false } until the background clip is ready.
+export const NodeVideoResponseSchema = z.object({ ready: z.literal(true), video_url: z.string() });
+export type NodeVideoResponse = z.infer<typeof NodeVideoResponseSchema>;
