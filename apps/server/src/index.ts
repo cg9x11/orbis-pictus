@@ -11,6 +11,8 @@ import { createProviders, getMissingKeys } from "./providers/index.js";
 import { generateRoute } from "./routes/generate.js";
 import { nodesRoute } from "./routes/nodes.js";
 import { getNode } from "./storage/nodes.js";
+import { videoPipeline } from "./pipeline/video.js";
+import { morphPipeline } from "./pipeline/morph.js";
 import { isVideoEnabled } from "./pipeline/videoConfig.js";
 import { isMorphEnabled } from "./pipeline/morphConfig.js";
 import { getDefaultHouseStyleName, listHouseStyles } from "./pipeline/houseStyle.js";
@@ -32,7 +34,7 @@ const imagesDir = path.resolve(process.cwd(), process.env.IMAGES_DIR ?? "./data/
 const app = new Hono();
 app.use("/api/*", cors());
 
-app.route("/api/generate", generateRoute(providers, imagesDir));
+app.route("/api/generate", generateRoute(providers, imagesDir, videoPipeline, morphPipeline));
 app.route("/api/nodes", nodesRoute(providers, imagesDir));
 app.get("/api/waitroom", (c) => c.json({ enabled: false, admitted: true }));
 app.get("/api/config", (c) =>

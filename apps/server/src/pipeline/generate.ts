@@ -13,8 +13,8 @@ import { findTapCacheHit, recordTapCache } from "../storage/tapCache.js";
 import { loadReferenceImageDataUrl, saveImageVariant } from "./imageStorage.js";
 import { normalizeSubject } from "./normalize.js";
 import { computePromptHash } from "./promptHash.js";
-import { videoPipeline } from "./video.js";
-import { morphPipeline } from "./morph.js";
+import type { VideoPipeline } from "./video.js";
+import type { MorphPipeline } from "./morph.js";
 import { getTapDedupMode } from "./config.js";
 import { buildImagePrompt } from "./houseStyle.js";
 import { withRetry } from "../lib/retry.js";
@@ -24,6 +24,8 @@ import type { ImageGenResult } from "../providers/types.js";
 export interface GenerateContext {
   providers: Providers;
   imagesDir: string;
+  video: VideoPipeline;
+  morph: MorphPipeline;
 }
 
 // PLAN §2.3 stampede guard: coalesce concurrent image generations that resolve to the same
@@ -237,8 +239,8 @@ export async function runGenerate(
   // null, which the client is required to read as "no clip will ever exist", and the page would
   // never pick up the loop it is about to have. Neither call can block or fail the page: every
   // guard is inside, and a root node simply no-ops the morph (no parent to morph from).
-  videoPipeline.maybeStartIdleLoop(node, ctx.providers, ctx.imagesDir);
-  morphPipeline.maybeStartMorph(node, ctx.providers, ctx.imagesDir);
+  ctx.video.maybeStartIdleLoop(node, ctx.providers, ctx.imagesDir);
+  ctx.morph.maybeStartMorph(node, ctx.providers, ctx.imagesDir);
 
   const completed = getNode(nodeId) ?? node;
   await emit({ event: "complete", data: completed });

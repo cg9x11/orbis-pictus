@@ -173,9 +173,10 @@ test("the `complete` event already reports video_status pending when a clip is o
   const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-complete-"));
   const events: { event: string; data: unknown }[] = [];
 
+  const { createMorphPipeline } = await import("./morph.js");
   const node = await runGenerate(
     { mode: "search", query: "a topic", aspect_ratio: "16:9", web_search: false, session_id: "s-complete", current_node_id: "" },
-    { providers: makeProviders(new SpyVideoProvider()), imagesDir },
+    { providers: makeProviders(new SpyVideoProvider()), imagesDir, video: createVideoPipeline(), morph: createMorphPipeline() },
     (event) => {
       events.push({ event: event.event, data: event.data });
     },

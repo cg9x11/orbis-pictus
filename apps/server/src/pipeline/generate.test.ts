@@ -16,6 +16,8 @@ const { saveImageVariant } = await import("./imageStorage.js");
 const { insertNode } = await import("../storage/nodes.js");
 const { MockLlmProvider } = await import("../providers/llm/mock.js");
 const { MockVideoProvider } = await import("../providers/video/mock.js");
+const { createVideoPipeline } = await import("./video.js");
+const { createMorphPipeline } = await import("./morph.js");
 
 class SpyImageProvider implements ImageProvider {
   readonly modelId = "spy-image";
@@ -38,6 +40,8 @@ function makeContext(image: ImageProvider) {
   return {
     providers: { llm: new MockLlmProvider(), image, video: new MockVideoProvider(), search: noSearch },
     imagesDir: fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-images-")),
+    video: createVideoPipeline(),
+    morph: createMorphPipeline(),
   };
 }
 
