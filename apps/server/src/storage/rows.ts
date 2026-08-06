@@ -1,16 +1,12 @@
-/** Row shape of the `nodes` table (see db.ts for DDL). */
-export interface NodeRow {
-  id: string;
-  parent_id: string | null;
-  session_id: string;
-  query: string;
-  page_title: string;
-  image_variants: string; // JSON-encoded Record<AspectRatio, string>
-  image_model: string;
-  prompt_author_model: string;
-  authored_prompt: string;
-  created_at: string;
-  version: number;
+import type { Node } from "@flipbook/shared";
+
+/** Row shape of the `nodes` table (see db.ts for DDL). Derived from the public Node type so a
+ *  field rename/add there is caught here at compile time. Only image_variants and video_status
+ *  differ in shape — SQLite has no object or enum column type, so both are stored as raw TEXT and
+ *  only take their Node-facing shape once parsed/validated in nodes.ts (ImageVariantsSchema.parse,
+ *  toVideoStatus()) — plus the internal cache/video/morph metadata never exposed via NodeSchema. */
+export interface NodeRow extends Omit<Node, "image_variants" | "video_status"> {
+  image_variants: string; // JSON-encoded ImageVariants
   // Internal cache-layer metadata (PLAN §2.3) — never exposed via the public Node zod schema.
   normalized_subject: string;
   prompt_hash: string | null;
