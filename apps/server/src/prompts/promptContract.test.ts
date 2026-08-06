@@ -43,3 +43,22 @@ test("house-style.md states every text-bearing region must have prompt-supplied 
 test("page-author.md keeps image_prompt content-only: no style, palette, material, or lighting words requested from the LLM", () => {
   assert.match(PAGE_AUTHOR, /never mention it|Do not write any style, palette, material, lighting/i);
 });
+
+// PLAN §2 (2026-08-06 post-launch fix): page-author.md previously told the author LLM to
+// "Include 4 to 8" sub-topics while house-style.md capped the scene at "five or six labelled
+// elements" — the contradiction let a 7-callout page ship where labels drifted onto the wrong
+// descriptions. Both files must now agree on a 6-callout ceiling.
+test("page-author.md and edit-author.md cap callouts at 6, matching house-style.md's scene-density limit", () => {
+  assert.doesNotMatch(PAGE_AUTHOR, /4 to 8|4–8|4-8/);
+  assert.match(PAGE_AUTHOR, /never more than 6|never exceed 6|4 to 6|4–6/i);
+  assert.match(EDIT_AUTHOR, /never exceed 6|never more than 6/i);
+  assert.match(HOUSE_STYLE, /five or six labelled elements/i);
+});
+
+// house-style.md forbids any subtitle under the title card, but a page-author prompt once wrote
+// one in explicitly ("with a smaller line beneath reading...") and it rendered as garbled text —
+// the ban must be mirrored in the prompts that actually decide page content, not left implicit.
+test("page-author.md and edit-author.md explicitly forbid a subtitle line under the title card", () => {
+  assert.match(PAGE_AUTHOR, /never author a subtitle|title text only/i);
+  assert.match(EDIT_AUTHOR, /subtitle, tagline, byline/i);
+});

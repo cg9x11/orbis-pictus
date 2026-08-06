@@ -72,3 +72,19 @@ test("listGalleryNodes returns up to `limit` already-persisted nodes", () => {
     assert.equal(typeof node.id, "string");
   }
 });
+
+// An edit variant keeps its parent's exact page_title (e.g. a "make it night time" child of
+// "Takoyaki" is also titled "Takoyaki"), which used to show up as two identical-looking gallery
+// cards for what looks like the same node. Only one row per title should ever be sampled, and it
+// should prefer the root node over the edit-variant child as the canonical representative.
+test("listGalleryNodes dedups by page_title, preferring the root node over a same-titled child", () => {
+  const root = makeNode({ id: "takoyaki-root", parent_id: null, page_title: "Takoyaki" });
+  insertNode(root, { normalizedSubject: "takoyaki" });
+  const editChild = makeNode({ id: "takoyaki-night-edit", parent_id: "takoyaki-root", page_title: "Takoyaki" });
+  insertNode(editChild, { normalizedSubject: "takoyaki" });
+
+  const gallery = listGalleryNodes(50);
+  const takoyakiCards = gallery.filter((n) => n.page_title === "Takoyaki");
+  assert.equal(takoyakiCards.length, 1);
+  assert.equal(takoyakiCards[0]?.id, "takoyaki-root");
+});

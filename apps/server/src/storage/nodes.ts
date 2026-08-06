@@ -165,7 +165,21 @@ export function markMorphReady(id: string, url: string): void {
   setMorphReadyStmt.run(url, id);
 }
 
-const listGalleryStmt = db.prepare(`SELECT * FROM nodes ORDER BY RANDOM() LIMIT ?`);
+// Dedups by page_title before sampling: an edit variant (e.g. a "make it night time" child) keeps
+// its parent's exact title, so without this two cards reading identically (e.g. two "Takoyaki"
+// cards, one the daytime root and one the night-edit child) show up side by side and read as a
+// bug even though they're different nodes. One row per title survives, preferring the root node
+// (parent_id IS NULL) as the canonical representative, tie-broken by earliest created_at.
+const listGalleryStmt = db.prepare(`
+  SELECT * FROM nodes n
+  WHERE n.id = (
+    SELECT id FROM nodes n2
+    WHERE n2.page_title = n.page_title
+    ORDER BY (n2.parent_id IS NULL) DESC, n2.created_at ASC
+    LIMIT 1
+  )
+  ORDER BY RANDOM() LIMIT ?
+`);
 
 /** Random sample of already-generated nodes for the landing-page example gallery — no new generations. */
 export function listGalleryNodes(limit: number): Node[] {
