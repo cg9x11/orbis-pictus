@@ -1,3 +1,5 @@
+import { classNames } from "../lib/classNames";
+
 interface WebSearchToggleProps {
   enabled: boolean;
   onChange: (enabled: boolean) => void;
@@ -8,7 +10,7 @@ export function WebSearchToggle({ enabled, onChange, disabled }: WebSearchToggle
   return (
     <button
       type="button"
-      className={`toolbar-button${enabled ? " toolbar-button-active" : ""}`}
+      className={classNames("toolbar-button", { "toolbar-button-active": enabled })}
       onClick={() => onChange(!enabled)}
       disabled={disabled}
       aria-pressed={enabled}

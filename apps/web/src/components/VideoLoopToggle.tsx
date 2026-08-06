@@ -1,4 +1,5 @@
 import type { VideoStatus } from "@flipbook/shared";
+import { classNames } from "../lib/classNames";
 
 interface VideoLoopToggleProps {
   enabled: boolean;
@@ -52,7 +53,7 @@ export function VideoLoopToggle({ enabled, onChange, disabled, status }: VideoLo
   return (
     <button
       type="button"
-      className={`toolbar-button${enabled ? " toolbar-button-active" : ""}${working ? " toolbar-button-working" : ""}`}
+      className={classNames("toolbar-button", { "toolbar-button-active": enabled, "toolbar-button-working": working })}
       onClick={() => onChange(!enabled)}
       disabled={disabled}
       aria-pressed={enabled}

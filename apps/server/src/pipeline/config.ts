@@ -1,3 +1,5 @@
+import { boolEnvFlag } from "../lib/env.js";
+
 export type TapDedupMode = "reuse" | "variant" | "off";
 
 /**
@@ -17,5 +19,5 @@ export function getTapDedupMode(): TapDedupMode {
  * VIDEO_ENABLED / MORPH_ENABLED.
  */
 export function isUploadEnabled(): boolean {
-  return process.env.UPLOAD_ENABLED === "true";
+  return boolEnvFlag("UPLOAD_ENABLED");
 }

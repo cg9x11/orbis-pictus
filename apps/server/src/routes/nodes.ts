@@ -16,6 +16,7 @@ import { saveImageVariant } from "../pipeline/imageStorage.js";
 import { normalizeSubject } from "../pipeline/normalize.js";
 import { getTapDedupMode, isUploadEnabled } from "../pipeline/config.js";
 import { InFlight } from "../lib/coalesce.js";
+import { parseDataUrl } from "../lib/dataUrl.js";
 import type { Providers } from "../providers/index.js";
 
 const DEFAULT_GALLERY_LIMIT = 8;
@@ -93,15 +94,18 @@ export function nodesRoute(providers: Providers, imagesDir: string): Hono {
     }
     const { image, aspect_ratio, session_id } = parsed.data;
 
-    const match = /^data:(image\/\w+);base64,(.*)$/.exec(image);
-    if (!match) return c.json({ error: "Invalid image data URL" }, 400);
-    const [, contentType, data] = match;
-    const bytes = Buffer.from(data!, "base64");
+    let contentType: string, data: string;
+    try {
+      ({ mimeType: contentType, base64: data } = parseDataUrl(image));
+    } catch {
+      return c.json({ error: "Invalid image data URL" }, 400);
+    }
+    const bytes = Buffer.from(data, "base64");
 
     const { title, description } = await providers.llm.titleImage(image);
 
     const id = crypto.randomUUID().replace(/-/g, "");
-    const imageUrl = saveImageVariant(imagesDir, id, aspect_ratio, bytes, contentType!);
+    const imageUrl = saveImageVariant(imagesDir, id, aspect_ratio, bytes, contentType);
 
     const node: Node = {
       id,

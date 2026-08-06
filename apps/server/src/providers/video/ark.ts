@@ -1,33 +1,12 @@
 import type { VideoGenInput, VideoGenResult, VideoProvider } from "../types.js";
 import { pollUntilDone, type PollOutcome } from "../../lib/poll.js";
-
-const QUOTA_ERROR_PATTERN = /quota|rate.?limit|too many requests|exceeded|insufficient|overdue|throttl/i;
+import { toArkRequestError } from "../ark/errors.js";
 
 /** HTTP statuses worth retrying when they hit a *status poll* (not task creation): server errors,
  *  rate limiting, and request timeout are momentary and shouldn't abort a task that is very likely
  *  still succeeding server-side. Everything else (auth, not-found, bad request) is terminal. */
 function isTransientPollStatus(status: number): boolean {
   return status >= 500 || status === 429 || status === 408;
-}
-
-interface ArkErrorBody {
-  error?: { code?: string; message?: string; type?: string };
-}
-
-class ArkVideoRequestError extends Error {
-  readonly status: number;
-  readonly code?: string;
-
-  constructor(status: number, code: string | undefined, message: string) {
-    super(message);
-    this.status = status;
-    this.code = code;
-  }
-
-  get isQuotaOrRateError(): boolean {
-    if (this.status === 429) return true;
-    return QUOTA_ERROR_PATTERN.test(`${this.code ?? ""} ${this.message}`);
-  }
 }
 
 interface ArkTaskCreateResponse {
@@ -146,14 +125,7 @@ export class ArkVideoProvider implements VideoProvider {
   }
 
   private async toRequestError(res: Response): Promise<Error> {
-    const text = await res.text();
-    let parsed: ArkErrorBody | null = null;
-    try {
-      parsed = JSON.parse(text) as ArkErrorBody;
-    } catch {
-      // non-JSON error body, fall through with raw text
-    }
-    const err = new ArkVideoRequestError(res.status, parsed?.error?.code, parsed?.error?.message ?? `Ark video request failed (${res.status}): ${text}`);
+    const err = await toArkRequestError(res, "Ark video request failed");
     return err.isQuotaOrRateError ? new Error(`Video quota exhausted: ${err.message}`) : err;
   }
 }

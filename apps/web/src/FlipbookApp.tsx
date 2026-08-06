@@ -22,6 +22,7 @@ import { useIdleLoopVideo } from "./hooks/useIdleLoopVideo";
 import { useMorphTransition } from "./hooks/useMorphTransition";
 import { fetchConfig, fetchNode, fetchVariant } from "./lib/api";
 import { captureCurrentImage } from "./lib/imageCapture";
+import { classNames } from "./lib/classNames";
 
 function newSessionId(): string {
   return `session_${crypto.randomUUID()}`;
@@ -299,7 +300,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
       )}
       {isStreaming && state.tapSubject && <div className="tap-subject-banner">{state.tapSubject}</div>}
       {state.status === "error" && (
-        <div className={`error-banner${isQuotaError ? " error-banner-quota" : ""}`}>
+        <div className={classNames("error-banner", { "error-banner-quota": isQuotaError })}>
           <span className="error-banner-icon">{isQuotaError ? "⚠️" : "✕"}</span>
           <span className="error-banner-message">{state.error}</span>
           {lastRequest && (

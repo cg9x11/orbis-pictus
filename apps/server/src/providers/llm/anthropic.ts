@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Anthropic from "@anthropic-ai/sdk";
+import { parseDataUrl } from "../../lib/dataUrl.js";
 import type {
   AuthorEditInput,
   AuthorPromptInput,
@@ -20,12 +21,10 @@ const TAP_SUBJECT_SYSTEM = fs.readFileSync(path.join(promptsDir, "tap-subject.md
 const IMAGE_TITLE_SYSTEM = fs.readFileSync(path.join(promptsDir, "image-title.md"), "utf-8");
 
 function imageContentBlock(dataUrl: string): Anthropic.ImageBlockParam {
-  const match = /^data:(image\/\w+);base64,(.*)$/.exec(dataUrl);
-  if (!match) throw new Error("expected a data: URL");
-  const [, mimeType, data] = match;
+  const { mimeType, base64 } = parseDataUrl(dataUrl);
   return {
     type: "image",
-    source: { type: "base64", media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp", data: data! },
+    source: { type: "base64", media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp", data: base64 },
   };
 }
 

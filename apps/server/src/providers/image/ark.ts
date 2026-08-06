@@ -1,5 +1,6 @@
 import type { AspectRatio } from "@flipbook/shared";
 import type { ImageGenInput, ImageGenResult, ImageProvider } from "../types.js";
+import { ArkRequestError, toArkRequestError } from "../ark/errors.js";
 
 /**
  * Draft-tier (Phase 1 single-tier) sizes. BytePlus Ark rejects named sizes like "1K" for
@@ -21,28 +22,6 @@ const DRAFT_SIZE_BY_ASPECT: Record<AspectRatio, string> = {
 //   "3:4": "2500x3332",
 //   "1:1": "2880x2880",
 // };
-
-const QUOTA_ERROR_PATTERN = /quota|rate.?limit|too many requests|exceeded|insufficient|overdue|throttl/i;
-
-interface ArkErrorBody {
-  error?: { code?: string; message?: string; type?: string };
-}
-
-class ArkRequestError extends Error {
-  readonly status: number;
-  readonly code?: string;
-
-  constructor(status: number, code: string | undefined, message: string) {
-    super(message);
-    this.status = status;
-    this.code = code;
-  }
-
-  get isQuotaOrRateError(): boolean {
-    if (this.status === 429) return true;
-    return QUOTA_ERROR_PATTERN.test(`${this.code ?? ""} ${this.message}`);
-  }
-}
 
 export class ArkImageProvider implements ImageProvider {
   readonly modelId: string;
@@ -100,18 +79,7 @@ export class ArkImageProvider implements ImageProvider {
     });
 
     if (!res.ok) {
-      const text = await res.text();
-      let parsed: ArkErrorBody | null = null;
-      try {
-        parsed = JSON.parse(text) as ArkErrorBody;
-      } catch {
-        // non-JSON error body, fall through with raw text
-      }
-      throw new ArkRequestError(
-        res.status,
-        parsed?.error?.code,
-        parsed?.error?.message ?? `Ark request failed (${res.status}): ${text}`,
-      );
+      throw await toArkRequestError(res, "Ark request failed");
     }
 
     const json = (await res.json()) as { data?: { b64_json?: string }[] };

@@ -1,13 +1,14 @@
 /** PLAN §3 Phase 5 guards — video quota burns far faster than images, so every knob defaults safe. */
 
+import { boolEnvFlag, positiveIntEnv } from "../lib/env.js";
+
 /** Master switch. Nothing calls the video provider unless this is explicitly "true". */
 export function isVideoEnabled(): boolean {
-  return process.env.VIDEO_ENABLED === "true";
+  return boolEnvFlag("VIDEO_ENABLED");
 }
 
 export function getVideoMaxPerSession(): number {
-  const raw = Number(process.env.VIDEO_MAX_PER_SESSION);
-  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 5;
+  return positiveIntEnv("VIDEO_MAX_PER_SESSION", 5);
 }
 
 const RESOLUTIONS = ["480p", "720p", "1080p"] as const;

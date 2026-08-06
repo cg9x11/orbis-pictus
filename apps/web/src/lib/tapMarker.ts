@@ -1,3 +1,5 @@
+import { imageToCanvas } from "./canvas";
+
 /**
  * Draws the current page image with a tap marker at the given point, exactly per PLAN §1.3:
  * red (#ff3b30) circle, radius ≈ 8.5% of min dimension (min 64px), white outer halo +
@@ -6,16 +8,8 @@
  * xRatio/yRatio are the click point as a fraction (0..1) of the image's displayed size.
  */
 export function drawTapMarker(image: HTMLImageElement, xRatio: number, yRatio: number): string {
-  const width = image.naturalWidth;
-  const height = image.naturalHeight;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas 2D context unavailable");
-
-  ctx.drawImage(image, 0, 0, width, height);
+  const ctx = imageToCanvas(image);
+  const { width, height } = ctx.canvas;
 
   const minDim = Math.min(width, height);
   const radius = Math.max(minDim * 0.085, 64);
@@ -53,5 +47,5 @@ export function drawTapMarker(image: HTMLImageElement, xRatio: number, yRatio: n
     ctx.stroke();
   }
 
-  return canvas.toDataURL("image/jpeg", 0.92);
+  return ctx.canvas.toDataURL("image/jpeg", 0.92);
 }

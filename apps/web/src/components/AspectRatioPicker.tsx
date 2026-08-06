@@ -1,4 +1,5 @@
 import type { AspectRatio } from "@flipbook/shared";
+import { classNames } from "../lib/classNames";
 
 const RATIOS: AspectRatio[] = ["16:9", "3:4", "1:1"];
 
@@ -15,7 +16,7 @@ export function AspectRatioPicker({ value, onChange, disabled }: AspectRatioPick
         <button
           key={ratio}
           type="button"
-          className={`ratio-btn${ratio === value ? " ratio-btn-active" : ""}`}
+          className={classNames("ratio-btn", { "ratio-btn-active": ratio === value })}
           onClick={() => onChange(ratio)}
           disabled={disabled}
         >

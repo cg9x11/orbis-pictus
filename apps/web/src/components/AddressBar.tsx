@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Node } from "@flipbook/shared";
+import { classNames } from "../lib/classNames";
 
 interface AddressBarProps {
   trail: Node[];
@@ -31,7 +32,7 @@ export function AddressBar({ trail, currentIndex, onNavigate, onSubmit, disabled
             <span key={node.id} className="crumb-wrap">
               <button
                 type="button"
-                className={`crumb${i === currentIndex ? " crumb-current" : ""}`}
+                className={classNames("crumb", { "crumb-current": i === currentIndex })}
                 onClick={() => onNavigate(i)}
               >
                 {node.page_title}

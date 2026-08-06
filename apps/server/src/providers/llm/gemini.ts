@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseDataUrl } from "../../lib/dataUrl.js";
 import type {
   AuthorEditInput,
   AuthorPromptInput,
@@ -82,24 +83,20 @@ export class GeminiLlmProvider implements LlmProvider {
   }
 
   async describeTap(markedImageDataUrl: string): Promise<DescribeTapOutput> {
-    const match = /^data:(image\/\w+);base64,(.*)$/.exec(markedImageDataUrl);
-    if (!match) throw new Error("describeTap: expected a data: URL");
-    const [, mimeType, data] = match;
+    const { mimeType, base64 } = parseDataUrl(markedImageDataUrl);
 
     const result = (await callGemini(this.apiKey, this.modelId, TAP_SUBJECT_SYSTEM, [
-      { inline_data: { mime_type: mimeType!, data: data! } },
+      { inline_data: { mime_type: mimeType, data: base64 } },
     ])) as { subject: string };
 
     return { subject: result.subject };
   }
 
   async titleImage(imageDataUrl: string): Promise<TitleImageOutput> {
-    const match = /^data:(image\/\w+);base64,(.*)$/.exec(imageDataUrl);
-    if (!match) throw new Error("titleImage: expected a data: URL");
-    const [, mimeType, data] = match;
+    const { mimeType, base64 } = parseDataUrl(imageDataUrl);
 
     const result = (await callGemini(this.apiKey, this.modelId, IMAGE_TITLE_SYSTEM, [
-      { inline_data: { mime_type: mimeType!, data: data! } },
+      { inline_data: { mime_type: mimeType, data: base64 } },
     ])) as { title: string; description: string };
 
     return { title: result.title, description: result.description };
