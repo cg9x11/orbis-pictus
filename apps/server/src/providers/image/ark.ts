@@ -1,6 +1,7 @@
 import type { AspectRatio } from "@flipbook/shared";
 import type { ImageGenInput, ImageGenResult, ImageProvider } from "../types.js";
 import { ArkRequestError, toArkRequestError } from "../ark/errors.js";
+import { fetchWithRetry } from "../../lib/retry.js";
 
 /**
  * Draft-tier (Phase 1 single-tier) sizes. BytePlus Ark rejects named sizes like "1K" for
@@ -69,7 +70,7 @@ export class ArkImageProvider implements ImageProvider {
       body.image = input.referenceImageDataUrl;
     }
 
-    const res = await fetch(`${this.baseUrl}/api/v3/images/generations`, {
+    const res = await fetchWithRetry(`${this.baseUrl}/api/v3/images/generations`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.apiKey}`,

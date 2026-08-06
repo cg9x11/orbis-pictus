@@ -1,5 +1,6 @@
 import type { AspectRatio } from "@flipbook/shared";
 import type { ImageGenInput, ImageGenResult, ImageProvider } from "../types.js";
+import { fetchWithRetry } from "../../lib/retry.js";
 
 const IMAGE_SIZE_BY_ASPECT: Record<AspectRatio, string> = {
   "16:9": "landscape_16_9",
@@ -18,7 +19,7 @@ export class FalImageProvider implements ImageProvider {
   }
 
   async generate(input: ImageGenInput): Promise<ImageGenResult> {
-    const res = await fetch(`https://fal.run/${this.modelId}`, {
+    const res = await fetchWithRetry(`https://fal.run/${this.modelId}`, {
       method: "POST",
       headers: {
         Authorization: `Key ${this.apiKey}`,
@@ -40,7 +41,7 @@ export class FalImageProvider implements ImageProvider {
     const image = json.images?.[0];
     if (!image) throw new Error(`fal.ai response missing images: ${JSON.stringify(json)}`);
 
-    const imgRes = await fetch(image.url);
+    const imgRes = await fetchWithRetry(image.url, {});
     if (!imgRes.ok) throw new Error(`Failed to download generated image from ${image.url}`);
     const bytes = Buffer.from(await imgRes.arrayBuffer());
     const contentType = image.content_type ?? imgRes.headers.get("content-type") ?? "image/jpeg";

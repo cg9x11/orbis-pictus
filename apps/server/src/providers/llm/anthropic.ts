@@ -1,6 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+// Unlike the other providers (image/ark.ts, image/fal.ts, llm/gemini.ts, providers/video/ark.ts),
+// this one goes through the official SDK rather than a raw fetch(), so it doesn't need
+// lib/retry.ts's fetchWithRetry: the SDK already retries transient errors (connection errors,
+// 408/409/429, and 5xx) with its own backoff by default.
 import Anthropic from "@anthropic-ai/sdk";
 import { parseDataUrl } from "../../lib/dataUrl.js";
 import type {

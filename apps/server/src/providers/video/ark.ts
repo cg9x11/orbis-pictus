@@ -1,13 +1,7 @@
 import type { VideoGenInput, VideoGenResult, VideoProvider } from "../types.js";
 import { pollUntilDone, type PollOutcome } from "../../lib/poll.js";
+import { fetchWithRetry, isTransientStatus } from "../../lib/retry.js";
 import { toArkRequestError } from "../ark/errors.js";
-
-/** HTTP statuses worth retrying when they hit a *status poll* (not task creation): server errors,
- *  rate limiting, and request timeout are momentary and shouldn't abort a task that is very likely
- *  still succeeding server-side. Everything else (auth, not-found, bad request) is terminal. */
-function isTransientPollStatus(status: number): boolean {
-  return status >= 500 || status === 429 || status === 408;
-}
 
 interface ArkTaskCreateResponse {
   id?: string;
@@ -68,7 +62,7 @@ export class ArkVideoProvider implements VideoProvider {
       content.push({ type: "image_url", image_url: { url: input.firstFrameDataUrl } });
     }
 
-    const res = await fetch(`${this.baseUrl}/api/v3/contents/generations/tasks`, {
+    const res = await fetchWithRetry(`${this.baseUrl}/api/v3/contents/generations/tasks`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
@@ -97,7 +91,11 @@ export class ArkVideoProvider implements VideoProvider {
     }
     if (!res.ok) {
       const err = await this.toRequestError(res);
-      if (isTransientPollStatus(res.status)) {
+      // 429 counts as transient here even though isTransientStatus doesn't include it: a status
+      // poll is a lightweight read, safe to retry on rate-limiting — unlike task creation
+      // (createTask, below), where a 429 must surface immediately as a quota/rate-limit error
+      // rather than disappear into fetchWithRetry's blind retry.
+      if (isTransientStatus(res.status) || res.status === 429) {
         console.warn(`[ark-video] transient ${res.status} polling task ${taskId}, will retry: ${err.message}`);
         return { done: false };
       }
@@ -118,7 +116,7 @@ export class ArkVideoProvider implements VideoProvider {
   }
 
   private async download(videoUrl: string): Promise<VideoGenResult> {
-    const res = await fetch(videoUrl);
+    const res = await fetchWithRetry(videoUrl, {});
     if (!res.ok) throw new Error(`Failed to download generated video (${res.status})`);
     const bytes = Buffer.from(await res.arrayBuffer());
     return { bytes, contentType: res.headers.get("content-type") ?? "video/mp4" };

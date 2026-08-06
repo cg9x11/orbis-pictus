@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseDataUrl } from "../../lib/dataUrl.js";
+import { fetchWithRetry } from "../../lib/retry.js";
 import type {
   AuthorEditInput,
   AuthorPromptInput,
@@ -26,7 +27,7 @@ interface GeminiPart {
 
 async function callGemini(apiKey: string, model: string, systemInstruction: string, parts: GeminiPart[]): Promise<unknown> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const res = await fetch(url, {
+  const res = await fetchWithRetry(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
