@@ -29,11 +29,32 @@ function imageContentBlock(dataUrl: string): Anthropic.ImageBlockParam {
   };
 }
 
-/** Strip ```json ... ``` / ``` ... ``` fences some models wrap JSON in despite instructions not to. */
-function parseJsonLoose(text: string): unknown {
-  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/.exec(text.trim());
-  const body = fenced ? fenced[1]! : text;
-  return JSON.parse(body);
+/**
+ * Extract a JSON object despite models wrapping it in ```json ... ``` fences, or (seen with web
+ * search grounding enabled) adding commentary before/after the fenced block, despite the system
+ * prompt saying "JSON only, no markdown fences, no commentary" in both cases.
+ */
+export function parseJsonLoose(text: string): unknown {
+  const trimmed = text.trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // not bare JSON — fall through
+  }
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(trimmed);
+  if (fenced) {
+    try {
+      return JSON.parse(fenced[1]!.trim());
+    } catch {
+      // fenced content wasn't valid JSON either — fall through to brace-slicing
+    }
+  }
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start !== -1 && end > start) {
+    return JSON.parse(trimmed.slice(start, end + 1));
+  }
+  throw new Error(`Could not parse JSON from LLM response: ${trimmed.slice(0, 200)}`);
 }
 
 function textFromMessage(message: Anthropic.Message): string {
@@ -65,7 +86,7 @@ export class AnthropicLlmProvider implements LlmProvider {
 
     const message = await this.client.messages.create({
       model: this.modelId,
-      max_tokens: 2048,
+      max_tokens: 4096,
       system: PAGE_AUTHOR_SYSTEM,
       messages: [{ role: "user", content: contextLines.join("\n") }],
     });
@@ -82,7 +103,7 @@ export class AnthropicLlmProvider implements LlmProvider {
 
     const message = await this.client.messages.create({
       model: this.modelId,
-      max_tokens: 2048,
+      max_tokens: 4096,
       system: EDIT_AUTHOR_SYSTEM,
       messages: [{ role: "user", content: contextLines.join("\n") }],
     });
