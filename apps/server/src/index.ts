@@ -7,7 +7,7 @@ import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import "./storage/db.js"; // eagerly opens the DB connection and runs migrations as an import side effect
-import { createProviders, getMissingKeys } from "./providers/index.js";
+import { createProviders } from "./providers/index.js";
 import { generateRoute } from "./routes/generate.js";
 import { nodesRoute } from "./routes/nodes.js";
 import { getNode } from "./storage/nodes.js";
@@ -20,8 +20,7 @@ import { isUploadEnabled } from "./pipeline/config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const providers = createProviders();
-const missingKeys = getMissingKeys();
+const { providers, missingKeys } = createProviders();
 if (missingKeys.length > 0) {
   console.warn(
     `[flipbook] Missing API keys: ${missingKeys.join(", ")}. Falling back to mock providers for the affected capability.\n` +
