@@ -6,6 +6,10 @@ interface PageImageProps {
   imageUrl?: string;
   /** PLAN §3 Phase 5: the ready idle-loop clip, or null while none is available/enabled. */
   videoUrl?: string | null;
+  /** PLAN §3 Phase 5: a ready transition-morph clip to play once over the already-current image, or null. */
+  morphUrl?: string | null;
+  /** Called once the morph has finished playing (or its fade-out completes) so the caller can clear it. */
+  onMorphEnded?: () => void;
   loading: boolean;
   onTap: (image: HTMLImageElement, clientX: number, clientY: number) => void;
   ripple: { xRatio: number; yRatio: number } | null;
@@ -14,14 +18,30 @@ interface PageImageProps {
   aspectRatio: AspectRatio;
 }
 
-export function PageImage({ imageUrl, videoUrl, loading, onTap, ripple, onRippleDone, imgRef, aspectRatio }: PageImageProps) {
+export function PageImage({
+  imageUrl,
+  videoUrl,
+  morphUrl,
+  onMorphEnded,
+  loading,
+  onTap,
+  ripple,
+  onRippleDone,
+  imgRef,
+  aspectRatio,
+}: PageImageProps) {
   // Tracks whether the <video> has actually started rendering frames, so the crossfade only
   // begins once there's something to fade to (avoids a flash of black before the first frame).
   const [videoReady, setVideoReady] = useState(false);
+  const [morphVisible, setMorphVisible] = useState(false);
 
   useEffect(() => {
     setVideoReady(false);
   }, [videoUrl]);
+
+  useEffect(() => {
+    setMorphVisible(false);
+  }, [morphUrl]);
 
   const handleClick = (e: React.MouseEvent<HTMLImageElement>) => {
     if (!imgRef.current || loading) return;
@@ -51,6 +71,25 @@ export function PageImage({ imageUrl, videoUrl, loading, onTap, ripple, onRipple
               loop
               playsInline
               onCanPlay={() => setVideoReady(true)}
+            />
+          )}
+          {morphUrl && (
+            // Plays once over the already-current image (which is the real child page, so
+            // whatever the clip's own last frame looks like, the underlying page is exact once
+            // this fades out), then unmounts itself. Rendered after the idle-loop video so it
+            // stacks above it while playing.
+            <video
+              key={morphUrl}
+              className={`page-video page-morph${morphVisible ? " page-video-visible" : ""}`}
+              src={morphUrl}
+              muted
+              autoPlay
+              playsInline
+              onCanPlay={() => setMorphVisible(true)}
+              onEnded={() => {
+                setMorphVisible(false);
+                window.setTimeout(() => onMorphEnded?.(), 500);
+              }}
             />
           )}
         </>

@@ -67,6 +67,18 @@ export async function fetchNodeVideo(id: string): Promise<string | null> {
   return video_url;
 }
 
+/**
+ * Transition morph (PLAN §3 Phase 5): a single non-blocking check, never polled — morphs are
+ * pre-generated in the background and either exist by the time you navigate here or they don't;
+ * null just means "play the instant crossfade instead", not "come back later".
+ */
+export async function fetchNodeMorph(id: string): Promise<string | null> {
+  const res = await fetch(`/api/nodes/${id}/morph`);
+  if (!res.ok) return null;
+  const { morph_url } = (await res.json()) as { ready: true; morph_url: string };
+  return morph_url;
+}
+
 export async function uploadImage(image: string, aspectRatio: AspectRatio, sessionId: string): Promise<Node> {
   const res = await fetch("/api/nodes/upload", {
     method: "POST",

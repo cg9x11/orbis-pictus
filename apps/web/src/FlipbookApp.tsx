@@ -15,6 +15,7 @@ import { useTapMarker } from "./hooks/useTapMarker";
 import { useDelayedFlag } from "./hooks/useDelayedFlag";
 import { usePageAnalytics } from "./hooks/usePageAnalytics";
 import { useIdleLoopVideo } from "./hooks/useIdleLoopVideo";
+import { useMorphTransition } from "./hooks/useMorphTransition";
 import { fetchConfig, fetchNode, fetchVariant } from "./lib/api";
 import { captureCurrentImage } from "./lib/imageCapture";
 
@@ -39,6 +40,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   const [webSearch, setWebSearch] = useState(false);
   const [videoAvailable, setVideoAvailable] = useState(false);
   const [videoLoopEnabled, setVideoLoopEnabled] = useState(false);
+  const [morphAvailable, setMorphAvailable] = useState(false);
   const [lastRequest, setLastRequest] = useState<GenerateRequest | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
@@ -47,6 +49,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
       .then((config) => {
         setWebSearch(config.searchAvailable);
         setVideoAvailable(config.videoEnabled);
+        setMorphAvailable(config.morphEnabled);
       })
       .catch((err: unknown) => console.error(err));
   }, []);
@@ -77,6 +80,8 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   // PLAN §3 Phase 5: purely additive — polls for a background idle-loop clip once the page is
   // settled (never while still streaming in a new one) and the experimental toggle is on.
   const idleLoopVideoUrl = useIdleLoopVideo(current?.id, videoLoopEnabled && !isStreaming);
+  // PLAN §3 Phase 5: a single non-blocking check per navigation, never gates the page render.
+  const [morphUrl, clearMorph] = useMorphTransition(current?.id, current?.parent_id, morphAvailable);
 
   const runRequest = async (request: GenerateRequest) => {
     setLastRequest(request);
@@ -212,6 +217,8 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
         <PageImage
           imageUrl={imageUrl}
           videoUrl={idleLoopVideoUrl}
+          morphUrl={morphUrl}
+          onMorphEnded={clearMorph}
           loading={showLoadingIndicator}
           onTap={handleTap}
           ripple={ripple}

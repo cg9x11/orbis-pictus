@@ -68,12 +68,18 @@ export class ArkVideoProvider implements VideoProvider {
   }
 
   private async createTask(input: VideoGenInput): Promise<string> {
-    const content: Record<string, unknown>[] = [
-      { type: "text", text: buildDashParamPrompt(input) },
-      { type: "image_url", image_url: { url: input.firstFrameDataUrl } },
-    ];
+    const content: Record<string, unknown>[] = [{ type: "text", text: buildDashParamPrompt(input) }];
     if (input.lastFrameDataUrl) {
-      content.push({ type: "image_url", image_url: { url: input.lastFrameDataUrl } });
+      // Ark rejects multi-image content without a role distinguishing which frame is which
+      // ("role must be specified for image contents", found live 2026-08-06, PLAN §2 Video
+      // findings) — but the single-image idle-loop path was already verified working without a
+      // role, so only add it once there are two images.
+      content.push(
+        { type: "image_url", image_url: { url: input.firstFrameDataUrl }, role: "first_frame" },
+        { type: "image_url", image_url: { url: input.lastFrameDataUrl }, role: "last_frame" },
+      );
+    } else {
+      content.push({ type: "image_url", image_url: { url: input.firstFrameDataUrl } });
     }
 
     const res = await fetch(`${this.baseUrl}/api/v3/contents/generations/tasks`, {

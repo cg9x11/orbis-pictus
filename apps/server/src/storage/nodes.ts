@@ -132,6 +132,39 @@ export function markVideoReady(id: string, url: string): void {
   setVideoReadyStmt.run(url, id);
 }
 
+// --- PLAN §3 Phase 5: page-transition morph state (internal — never exposed via the public Node schema) ---
+export type MorphStatus = "pending" | "ready" | "failed";
+
+export interface MorphInfo {
+  status: MorphStatus | null;
+  url: string | null;
+}
+
+const getMorphInfoStmt = db.prepare(`SELECT morph_status, morph_url FROM nodes WHERE id = ?`);
+
+/** Null if the node itself doesn't exist; status null means morph generation has never been attempted for it. */
+export function getMorphInfo(id: string): MorphInfo | null {
+  const row = getMorphInfoStmt.get(id) as { morph_status: string | null; morph_url: string | null } | undefined;
+  if (!row) return null;
+  return { status: row.morph_status as MorphStatus | null, url: row.morph_url };
+}
+
+const setMorphStatusStmt = db.prepare(`UPDATE nodes SET morph_status = ? WHERE id = ?`);
+
+export function markMorphPending(id: string): void {
+  setMorphStatusStmt.run("pending", id);
+}
+
+export function markMorphFailed(id: string): void {
+  setMorphStatusStmt.run("failed", id);
+}
+
+const setMorphReadyStmt = db.prepare(`UPDATE nodes SET morph_status = 'ready', morph_url = ? WHERE id = ?`);
+
+export function markMorphReady(id: string, url: string): void {
+  setMorphReadyStmt.run(url, id);
+}
+
 const listGalleryStmt = db.prepare(`SELECT * FROM nodes ORDER BY RANDOM() LIMIT ?`);
 
 /** Random sample of already-generated nodes for the landing-page example gallery — no new generations. */

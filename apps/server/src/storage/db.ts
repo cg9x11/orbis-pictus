@@ -66,6 +66,11 @@ export function migrate(): void {
   // never regenerated (a failed attempt just stays a static image, no auto-retry).
   ensureColumn("nodes", "video_status", "video_status TEXT");
   ensureColumn("nodes", "video_url", "video_url TEXT");
+
+  // PLAN §3 Phase 5: page-transition morphs. Same null/pending/ready/failed contract as video
+  // above, stored on the child node itself (a child has exactly one parent, so one morph per row).
+  ensureColumn("nodes", "morph_status", "morph_status TEXT");
+  ensureColumn("nodes", "morph_url", "morph_url TEXT");
 }
 
 // Run eagerly so the table exists before any module that imports `db` from here

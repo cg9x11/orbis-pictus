@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { Hono } from "hono";
 import { AspectRatioSchema, NodesCreateRequestSchema, NodesUploadRequestSchema, type Node } from "@flipbook/shared";
-import { getHistory, getNode, getVideoInfo, insertNode, listGalleryNodes, updateImageVariants } from "../storage/nodes.js";
+import { getHistory, getMorphInfo, getNode, getVideoInfo, insertNode, listGalleryNodes, updateImageVariants } from "../storage/nodes.js";
 import { saveImageVariant } from "../pipeline/imageStorage.js";
 import { normalizeSubject } from "../pipeline/normalize.js";
 import type { Providers } from "../providers/index.js";
@@ -91,6 +91,18 @@ export function nodesRoute(providers: Providers, imagesDir: string): Hono {
       return c.json({ ready: false }, 404);
     }
     return c.json({ ready: true, video_url: info.url });
+  });
+
+  // Transition-morph polling (PLAN §3 Phase 5): 404 until the pre-generated clip is ready — same
+  // shape and reasoning as /video above. Morphs are never generated on demand, so a 404 here just
+  // means "use the instant crossfade", not "come back later and block on it".
+  app.get("/:id/morph", (c) => {
+    const id = c.req.param("id");
+    const info = getMorphInfo(id);
+    if (!info || info.status !== "ready" || !info.url) {
+      return c.json({ ready: false }, 404);
+    }
+    return c.json({ ready: true, morph_url: info.url });
   });
 
   app.get("/:id", (c) => {

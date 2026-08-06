@@ -12,6 +12,7 @@ import { generateRoute } from "./routes/generate.js";
 import { nodesRoute } from "./routes/nodes.js";
 import { getNode } from "./storage/nodes.js";
 import { isVideoEnabled } from "./pipeline/videoConfig.js";
+import { isMorphEnabled } from "./pipeline/morphConfig.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -34,7 +35,9 @@ app.use("/api/*", cors());
 app.route("/api/generate", generateRoute(providers, imagesDir));
 app.route("/api/nodes", nodesRoute(providers, imagesDir));
 app.get("/api/waitroom", (c) => c.json({ enabled: false, admitted: true }));
-app.get("/api/config", (c) => c.json({ searchAvailable: providers.search.available, videoEnabled: isVideoEnabled() }));
+app.get("/api/config", (c) =>
+  c.json({ searchAvailable: providers.search.available, videoEnabled: isVideoEnabled(), morphEnabled: isMorphEnabled() }),
+);
 
 // Root must be imagesDir itself, with the "/images" URL prefix stripped explicitly — not
 // path.dirname(imagesDir), which only ever worked by coincidence when IMAGES_DIR is named
