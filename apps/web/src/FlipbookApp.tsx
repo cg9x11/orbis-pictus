@@ -61,7 +61,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
         setHouseStyles(config.houseStyles);
         setHouseStyle(config.houseStyle);
       })
-      .catch((err: unknown) => console.error(err));
+      .catch((err) => console.error(err));
   }, []);
 
   useEffect(() => {
@@ -74,7 +74,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
         setSessionId(node.session_id);
         setHydrating(false);
       })
-      .catch((err: unknown) => {
+      .catch((err) => {
         if (cancelled) return;
         setHydrateError(err instanceof Error ? err.message : "Failed to load page");
         setHydrating(false);
@@ -140,7 +140,6 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
       y: yRatio,
       aspect_ratio: aspectRatio,
       web_search: webSearch,
-      parent_query: current.query,
       parent_title: current.page_title,
       session_id: sessionId,
       current_node_id: current.id,
@@ -172,7 +171,6 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
       image: dataUrl,
       aspect_ratio: aspectRatio,
       web_search: webSearch,
-      parent_query: current.query,
       parent_title: current.page_title,
       session_id: sessionId,
       current_node_id: current.id,
@@ -183,7 +181,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
 
   const handleRetry = () => {
     if (!lastRequest || isStreaming) return;
-    runRequest(lastRequest).catch((err: unknown) => console.error(err));
+    runRequest(lastRequest).catch((err) => console.error(err));
   };
 
   const handleNavigate = (index: number) => {

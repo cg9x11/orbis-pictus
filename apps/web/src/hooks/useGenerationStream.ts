@@ -51,7 +51,7 @@ export function useGenerationStream() {
           }
         },
         controller.signal,
-      ).catch((err: unknown) => {
+      ).catch((err) => {
         if (controller.signal.aborted) return;
         const message = err instanceof Error ? err.message : "Unknown error";
         setState((s) => ({ ...s, status: "error", error: message }));

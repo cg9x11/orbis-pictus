@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import type { GenerationStage } from "@flipbook/shared";
+import { useElapsedSeconds } from "../hooks/useElapsedSeconds";
 
 export interface GenerationProgressProps {
   stage?: GenerationStage;
@@ -14,20 +14,6 @@ export interface GenerationProgressProps {
 /** A page takes tens of seconds, so the elapsed count only appears once the wait is long enough to
  *  need reassurance — showing "1s" immediately would make every generation feel slow. */
 const ELAPSED_AFTER_SECONDS = 8;
-
-function useElapsedSeconds(startedAt: number | undefined): number | null {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (startedAt === undefined) return;
-    setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [startedAt]);
-
-  if (startedAt === undefined) return null;
-  return Math.max(0, Math.floor((now - startedAt) / 1000));
-}
 
 function label(stage: GenerationStage | undefined, tapSubject: string | undefined, pageTitle: string | undefined): string {
   switch (stage) {

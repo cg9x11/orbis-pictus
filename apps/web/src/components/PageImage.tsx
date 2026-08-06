@@ -2,6 +2,10 @@ import { useEffect, useState, type ReactNode, type RefObject } from "react";
 import type { AspectRatio } from "@flipbook/shared";
 import { TapRipple } from "./TapRipple";
 
+// Must match the `.page-video` opacity transition duration in styles.css — this is how long the
+// morph clip takes to fade out after setMorphVisible(false), before it's safe to unmount it.
+const MORPH_FADE_OUT_MS = 500;
+
 interface PageImageProps {
   imageUrl?: string;
   /** PLAN §3 Phase 5: the ready idle-loop clip, or null while none is available/enabled. */
@@ -102,7 +106,7 @@ export function PageImage({
               onCanPlay={() => setMorphVisible(true)}
               onEnded={() => {
                 setMorphVisible(false);
-                window.setTimeout(() => onMorphEnded?.(), 500);
+                window.setTimeout(() => onMorphEnded?.(), MORPH_FADE_OUT_MS);
               }}
             />
           )}

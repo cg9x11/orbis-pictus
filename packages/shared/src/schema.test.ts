@@ -22,7 +22,6 @@ test("GenerateRequestSchema still routes an explicit tap request to the tap bran
   const parsed = GenerateRequestSchema.safeParse({
     mode: "tap",
     image: "data:image/png;base64,AAAA",
-    parent_query: "q",
     parent_title: "t",
     session_id: "s1",
     current_node_id: "n1",

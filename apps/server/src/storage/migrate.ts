@@ -1,5 +1,4 @@
 import "../env.js";
-import { migrate } from "./db.js";
+import "./db.js"; // eagerly opens the DB connection and runs migrations as an import side effect
 
-migrate();
 console.log("Migration complete.");

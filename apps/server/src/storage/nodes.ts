@@ -1,5 +1,5 @@
-import type { AspectRatio, ImageVariants, Node, VideoStatus } from "@flipbook/shared";
-import { VideoStatusSchema } from "@flipbook/shared";
+import type { AspectRatio, Node, VideoStatus } from "@flipbook/shared";
+import { ImageVariantsSchema, VideoStatusSchema } from "@flipbook/shared";
 import { db } from "./db.js";
 import type { NodeRow } from "./rows.js";
 
@@ -16,7 +16,7 @@ function rowToNode(row: NodeRow): Node {
     session_id: row.session_id,
     query: row.query,
     page_title: row.page_title,
-    image_variants: JSON.parse(row.image_variants),
+    image_variants: ImageVariantsSchema.parse(JSON.parse(row.image_variants)),
     image_model: row.image_model,
     prompt_author_model: row.prompt_author_model,
     authored_prompt: row.authored_prompt,
@@ -74,7 +74,7 @@ const getImageVariantsStmt = db.prepare(`SELECT image_variants FROM nodes WHERE 
 export function addImageVariant(id: string, ratio: AspectRatio, url: string): Node | null {
   const row = getImageVariantsStmt.get(id) as { image_variants: string } | undefined;
   if (!row) return null;
-  const variants = JSON.parse(row.image_variants) as ImageVariants;
+  const variants = ImageVariantsSchema.parse(JSON.parse(row.image_variants));
   variants[ratio] = url;
   updateImageVariantsStmt.run(JSON.stringify(variants), id);
   return getNode(id);
@@ -143,23 +143,23 @@ const getVideoInfoStmt = db.prepare(`SELECT video_status, video_url FROM nodes W
 export function getVideoInfo(id: string): VideoInfo | null {
   const row = getVideoInfoStmt.get(id) as { video_status: string | null; video_url: string | null } | undefined;
   if (!row) return null;
-  return { status: row.video_status as VideoStatus | null, url: row.video_url };
+  return { status: toVideoStatus(row.video_status), url: row.video_url };
 }
 
 const setVideoStatusStmt = db.prepare(`UPDATE nodes SET video_status = ? WHERE id = ?`);
 
 export function markVideoPending(id: string): void {
-  setVideoStatusStmt.run("pending", id);
+  setVideoStatusStmt.run(VideoStatusSchema.enum.pending, id);
 }
 
 export function markVideoFailed(id: string): void {
-  setVideoStatusStmt.run("failed", id);
+  setVideoStatusStmt.run(VideoStatusSchema.enum.failed, id);
 }
 
-const setVideoReadyStmt = db.prepare(`UPDATE nodes SET video_status = 'ready', video_url = ? WHERE id = ?`);
+const setVideoReadyStmt = db.prepare(`UPDATE nodes SET video_status = ?, video_url = ? WHERE id = ?`);
 
 export function markVideoReady(id: string, url: string): void {
-  setVideoReadyStmt.run(url, id);
+  setVideoReadyStmt.run(VideoStatusSchema.enum.ready, url, id);
 }
 
 // --- PLAN §3 Phase 5: page-transition morph state (internal — never exposed via the public Node schema) ---

@@ -6,7 +6,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { migrate } from "./storage/db.js";
+import "./storage/db.js"; // eagerly opens the DB connection and runs migrations as an import side effect
 import { createProviders, getMissingKeys } from "./providers/index.js";
 import { generateRoute } from "./routes/generate.js";
 import { nodesRoute } from "./routes/nodes.js";
@@ -17,8 +17,6 @@ import { getDefaultHouseStyleName, listHouseStyles } from "./pipeline/houseStyle
 import { isUploadEnabled } from "./pipeline/config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-migrate();
 
 const providers = createProviders();
 const missingKeys = getMissingKeys();

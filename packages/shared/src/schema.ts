@@ -73,7 +73,6 @@ export const GenerateTapRequestSchema = z.object({
   // pipeline/houseStyle.ts); the server falls back to its HOUSE_STYLE default for anything it does
   // not recognise, so a stale client can never break a generation.
   house_style: z.string().optional(),
-  parent_query: z.string(),
   parent_title: z.string(),
   session_id: z.string(),
   current_node_id: z.string(),
@@ -92,7 +91,6 @@ export const GenerateEditRequestSchema = z.object({
   // pipeline/houseStyle.ts); the server falls back to its HOUSE_STYLE default for anything it does
   // not recognise, so a stale client can never break a generation.
   house_style: z.string().optional(),
-  parent_query: z.string(),
   parent_title: z.string(),
   session_id: z.string(),
   current_node_id: z.string(),

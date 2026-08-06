@@ -1,3 +1,4 @@
+import "../env.js";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import fs from "node:fs";
@@ -10,7 +11,11 @@ db.exec("PRAGMA journal_mode = WAL;");
 
 /** Adds a column to an existing table if it isn't already there. SQLite has no
  *  `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so this checks PRAGMA table_info first —
- *  needed because dev databases created before Phase 3 lack the cache-layer columns. */
+ *  needed because dev databases created before Phase 3 lack the cache-layer columns.
+ *
+ *  `table`/`column`/`columnDdl` are interpolated directly into SQL text because SQLite can't bind
+ *  identifiers as query parameters — only values. This is safe only because every call site below
+ *  passes a hardcoded literal; never pass a request-derived string here. */
 function ensureColumn(table: string, column: string, columnDdl: string): void {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!cols.some((c) => c.name === column)) {
