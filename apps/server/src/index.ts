@@ -13,6 +13,7 @@ import { nodesRoute } from "./routes/nodes.js";
 import { getNode } from "./storage/nodes.js";
 import { isVideoEnabled } from "./pipeline/videoConfig.js";
 import { isMorphEnabled } from "./pipeline/morphConfig.js";
+import { getDefaultHouseStyleName, listHouseStyles } from "./pipeline/houseStyle.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -36,7 +37,13 @@ app.route("/api/generate", generateRoute(providers, imagesDir));
 app.route("/api/nodes", nodesRoute(providers, imagesDir));
 app.get("/api/waitroom", (c) => c.json({ enabled: false, admitted: true }));
 app.get("/api/config", (c) =>
-  c.json({ searchAvailable: providers.search.available, videoEnabled: isVideoEnabled(), morphEnabled: isMorphEnabled() }),
+  c.json({
+    searchAvailable: providers.search.available,
+    videoEnabled: isVideoEnabled(),
+    morphEnabled: isMorphEnabled(),
+    houseStyles: listHouseStyles(),
+    houseStyle: getDefaultHouseStyleName(),
+  }),
 );
 
 // Root must be imagesDir itself, with the "/images" URL prefix stripped explicitly — not

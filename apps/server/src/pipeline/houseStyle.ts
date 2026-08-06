@@ -29,17 +29,44 @@ const STYLE_SECTIONS: Record<HouseStyleName, string> = Object.fromEntries(
   STYLE_NAMES.map((name) => [name, extractSection(name)]),
 ) as Record<HouseStyleName, string>;
 
-function activeStyleName(): HouseStyleName {
+export function isHouseStyleName(raw: string | undefined | null): raw is HouseStyleName {
+  return (STYLE_NAMES as string[]).includes(raw ?? "");
+}
+
+/** The style used when a request doesn't name one — `HOUSE_STYLE` env, or felt (PLAN §2). */
+export function getDefaultHouseStyleName(): HouseStyleName {
   const raw = process.env.HOUSE_STYLE;
-  return (STYLE_NAMES as string[]).includes(raw ?? "") ? (raw as HouseStyleName) : "felt";
+  return isHouseStyleName(raw) ? raw : "felt";
 }
 
-/** Layout contract + the active style block (PLAN §2 VISUAL IDENTITY) — the text appended verbatim to every image prompt. */
-export function getHouseStyleBlock(): string {
-  return `${LAYOUT_SECTION}\n\n${STYLE_SECTIONS[activeStyleName()]}`;
+/** Human label taken from the section's own "## Style: …" heading, so the picker can never drift
+ *  out of sync with the prompt text it selects — there is one source of truth, house-style.md. */
+function styleLabel(name: HouseStyleName): string {
+  const heading = /^##\s*Style:\s*(.+)$/m.exec(STYLE_SECTIONS[name])?.[1]?.trim();
+  const text = heading ?? name;
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-/** Appends the house style to a content-only prompt authored by the LLM (page-author.md / edit-author.md write content only). */
-export function buildImagePrompt(contentPrompt: string): string {
-  return `${contentPrompt}\n\n${getHouseStyleBlock()}`;
+export function listHouseStyles(): { name: HouseStyleName; label: string }[] {
+  return STYLE_NAMES.map((name) => ({ name, label: styleLabel(name) }));
+}
+
+/**
+ * Layout contract + one style block (PLAN §2 VISUAL IDENTITY) — the text appended verbatim to
+ * every image prompt. An unknown or absent `style` falls back to the server default rather than
+ * erroring: a bad value should render the house look, never break a generation.
+ */
+export function getHouseStyleBlock(style?: string): string {
+  const name = isHouseStyleName(style) ? style : getDefaultHouseStyleName();
+  return `${LAYOUT_SECTION}\n\n${STYLE_SECTIONS[name]}`;
+}
+
+/**
+ * Appends the house style to a content-only prompt authored by the LLM (page-author.md /
+ * edit-author.md write content only). Because the style text ends up inside the built prompt, the
+ * prompt-hash image cache (PLAN §2.3 layer 3) keys on it automatically — switching style can never
+ * serve back an image drawn in the previous one.
+ */
+export function buildImagePrompt(contentPrompt: string, style?: string): string {
+  return `${contentPrompt}\n\n${getHouseStyleBlock(style)}`;
 }

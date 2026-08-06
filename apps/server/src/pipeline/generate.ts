@@ -111,7 +111,7 @@ export async function runGenerate(
   // PLAN §2 VISUAL IDENTITY: authoredPrompt is content-only (title, layout, exact text) — the
   // house style (materials/palette/lighting/composition) is a fixed constant appended here, never
   // authored by the LLM, so every page shares one house look regardless of topic.
-  const imagePrompt = buildImagePrompt(authoredPrompt);
+  const imagePrompt = buildImagePrompt(authoredPrompt, req.house_style);
 
   // Layer 3 (PLAN §2.3): prompt-hash image cache, keyed on the full built prompt so a HOUSE_STYLE
   // change invalidates it too. Excluded for edit mode — edits are conditioned on the current

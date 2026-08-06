@@ -47,6 +47,11 @@ export const GenerateSearchRequestSchema = z.object({
   query: z.string().min(1),
   aspect_ratio: AspectRatioSchema.default("16:9"),
   web_search: z.boolean().default(false),
+  // Which block of house-style.md to append to the image prompt. Left as a free string rather than
+  // an enum so the style list stays defined in exactly one place (house-style.md, parsed by
+  // pipeline/houseStyle.ts); the server falls back to its HOUSE_STYLE default for anything it does
+  // not recognise, so a stale client can never break a generation.
+  house_style: z.string().optional(),
   session_id: z.string(),
   current_node_id: z.string().default(""),
 });
@@ -63,6 +68,11 @@ export const GenerateTapRequestSchema = z.object({
   y: z.number().min(0).max(1).default(0.5),
   aspect_ratio: AspectRatioSchema.default("16:9"),
   web_search: z.boolean().default(false),
+  // Which block of house-style.md to append to the image prompt. Left as a free string rather than
+  // an enum so the style list stays defined in exactly one place (house-style.md, parsed by
+  // pipeline/houseStyle.ts); the server falls back to its HOUSE_STYLE default for anything it does
+  // not recognise, so a stale client can never break a generation.
+  house_style: z.string().optional(),
   parent_query: z.string(),
   parent_title: z.string(),
   session_id: z.string(),
@@ -77,6 +87,11 @@ export const GenerateEditRequestSchema = z.object({
   image: z.string().startsWith("data:image/"),
   aspect_ratio: AspectRatioSchema.default("16:9"),
   web_search: z.boolean().default(false),
+  // Which block of house-style.md to append to the image prompt. Left as a free string rather than
+  // an enum so the style list stays defined in exactly one place (house-style.md, parsed by
+  // pipeline/houseStyle.ts); the server falls back to its HOUSE_STYLE default for anything it does
+  // not recognise, so a stale client can never break a generation.
+  house_style: z.string().optional(),
   parent_query: z.string(),
   parent_title: z.string(),
   session_id: z.string(),
@@ -175,7 +190,18 @@ export const NodesUploadRequestSchema = z.object({
 export type NodesUploadRequest = z.infer<typeof NodesUploadRequestSchema>;
 
 // --- Server config, for feature-availability toggles in the UI ---
-export const ConfigResponseSchema = z.object({ searchAvailable: z.boolean(), videoEnabled: z.boolean(), morphEnabled: z.boolean() });
+export const HouseStyleOptionSchema = z.object({ name: z.string(), label: z.string() });
+export type HouseStyleOption = z.infer<typeof HouseStyleOptionSchema>;
+
+export const ConfigResponseSchema = z.object({
+  searchAvailable: z.boolean(),
+  videoEnabled: z.boolean(),
+  morphEnabled: z.boolean(),
+  /** Every style block available in house-style.md, for the picker. */
+  houseStyles: z.array(HouseStyleOptionSchema).default([]),
+  /** The server's own default (the HOUSE_STYLE env), used as the picker's initial value. */
+  houseStyle: z.string().default("felt"),
+});
 export type ConfigResponse = z.infer<typeof ConfigResponseSchema>;
 
 // --- Cached tap points (PLAN §2.3) ---
