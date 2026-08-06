@@ -60,6 +60,8 @@ export function PageImage({
     onTap(imgRef.current, e.clientX, e.clientY);
   };
 
+  const overlay = loading ? "loading" : videoGenerating ? "video-generating" : "none";
+
   return (
     <div className="page-image-container" style={{ aspectRatio: aspectRatio.replace(":", "/") }}>
       {imageUrl ? (
@@ -110,9 +112,9 @@ export function PageImage({
       )}
       {imageUrl && markers}
       {ripple && <TapRipple xRatio={ripple.xRatio} yRatio={ripple.yRatio} onDone={onRippleDone} />}
-      {(loading || videoGenerating) && <div className="page-loading-sheen" />}
-      {loading && <div className="page-loading-overlay">{loadingContent ?? "Generating…"}</div>}
-      {!loading && videoGenerating && (
+      {overlay !== "none" && <div className="page-loading-sheen" />}
+      {overlay === "loading" && <div className="page-loading-overlay">{loadingContent ?? "Generating…"}</div>}
+      {overlay === "video-generating" && (
         // Passive: the page is done and clickable, so this pill sits over it without swallowing taps.
         <div className="page-loading-overlay page-loading-overlay-passive">
           <span className="generation-progress-spinner" aria-hidden="true" />
