@@ -1,6 +1,6 @@
 # Flipbook Open-Source Clone — Implementation Plan
 
-Goal: build an open-source version of https://flipbook.page — "an infinite visual browser generated entirely on demand in real time." Every page is a single AI-generated image; clicking anything in the image generates a new image exploring that thing in more depth. No HTML content, no links — just generated pixels.
+Goal: build an open-source, independent homage to https://flipbook.page — a browsing experience where every "page" is a single AI-generated image rather than HTML, and clicking into anything on that image generates the next image exploring it in more depth. No markup, no links, just generated pixels rendered on demand as you explore.
 
 This plan is based on reverse-engineering the live site (network inspection + de-minified JS bundle `main-BPJa3Dcu.js`) and the demo video. Section 1 documents exactly how the original works; Section 2+ is our build plan.
 

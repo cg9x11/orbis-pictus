@@ -8,13 +8,11 @@ build/
 # reference-only asset used during reverse-engineering, not part of the build
 ParisExampleVideo.mp4
 
-# sqlite
-apps/server/data/*.db
-apps/server/data/*.db-journal
-apps/server/data/*.db-shm
-apps/server/data/*.db-wal
-
-# generated images (keep dir via .gitkeep)
+# local runtime data (sqlite db, generated images, test scratch dirs) - ignore everything
+# under here except the images/ placeholder, so nothing generated at runtime or by tests
+# (e.g. a stray test-fixture db in a subdirectory) can slip into a commit.
+apps/server/data/*
+!apps/server/data/images/
 apps/server/data/images/*
 !apps/server/data/images/.gitkeep
 
