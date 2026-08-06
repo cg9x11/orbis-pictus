@@ -133,14 +133,20 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     }
   };
 
+  // Shared across all three request modes; current_node_id defaults to "" for a mode-less first
+  // search, and is otherwise guaranteed present by each handler's own `if (!current) return` guard.
+  const baseRequestFields = () => ({
+    aspect_ratio: aspectRatio,
+    web_search: webSearch,
+    session_id: sessionId,
+    current_node_id: current?.id ?? "",
+  });
+
   const handleSearch = (query: string) =>
     runRequest({
       mode: "search",
       query,
-      aspect_ratio: aspectRatio,
-      web_search: webSearch,
-      session_id: sessionId,
-      current_node_id: current?.id ?? "",
+      ...baseRequestFields(),
     });
 
   const handleTap = (imageEl: HTMLImageElement, clientX: number, clientY: number) => {
@@ -152,11 +158,8 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
       markedImage: dataUrl,
       x: xRatio,
       y: yRatio,
-      aspect_ratio: aspectRatio,
-      web_search: webSearch,
       parent_title: current.page_title,
-      session_id: sessionId,
-      current_node_id: current.id,
+      ...baseRequestFields(),
     });
   };
 
@@ -185,11 +188,8 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
       mode: "edit",
       prompt: command,
       currentImage: dataUrl,
-      aspect_ratio: aspectRatio,
-      web_search: webSearch,
       parent_title: current.page_title,
-      session_id: sessionId,
-      current_node_id: current.id,
+      ...baseRequestFields(),
     });
   };
 
