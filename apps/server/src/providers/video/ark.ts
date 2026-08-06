@@ -3,6 +3,13 @@ import { pollUntilDone, type PollOutcome } from "../../lib/poll.js";
 
 const QUOTA_ERROR_PATTERN = /quota|rate.?limit|too many requests|exceeded|insufficient|overdue|throttl/i;
 
+/** HTTP statuses worth retrying when they hit a *status poll* (not task creation): server errors,
+ *  rate limiting, and request timeout are momentary and shouldn't abort a task that is very likely
+ *  still succeeding server-side. Everything else (auth, not-found, bad request) is terminal. */
+function isTransientPollStatus(status: number): boolean {
+  return status >= 500 || status === 429 || status === 408;
+}
+
 interface ArkErrorBody {
   error?: { code?: string; message?: string; type?: string };
 }
@@ -98,10 +105,25 @@ export class ArkVideoProvider implements VideoProvider {
   }
 
   private async checkTask(taskId: string): Promise<PollOutcome<string>> {
-    const res = await fetch(`${this.baseUrl}/api/v3/contents/generations/tasks/${taskId}`, {
-      headers: { Authorization: `Bearer ${this.apiKey}` },
-    });
-    if (!res.ok) throw await this.toRequestError(res);
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl}/api/v3/contents/generations/tasks/${taskId}`, {
+        headers: { Authorization: `Bearer ${this.apiKey}` },
+      });
+    } catch (err) {
+      // Network blip mid-poll: keep polling rather than failing the whole clip. pollUntilDone
+      // still bounds retries by maxAttempts, so this can never hang.
+      console.warn(`[ark-video] transient network error polling task ${taskId}, will retry:`, err);
+      return { done: false };
+    }
+    if (!res.ok) {
+      const err = await this.toRequestError(res);
+      if (isTransientPollStatus(res.status)) {
+        console.warn(`[ark-video] transient ${res.status} polling task ${taskId}, will retry: ${err.message}`);
+        return { done: false };
+      }
+      throw err;
+    }
 
     const json = (await res.json()) as ArkTaskStatusResponse;
     if (json.status === "succeeded") {

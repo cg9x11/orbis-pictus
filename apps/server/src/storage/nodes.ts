@@ -1,4 +1,4 @@
-import type { ImageVariants, Node, VideoStatus } from "@flipbook/shared";
+import type { AspectRatio, ImageVariants, Node, VideoStatus } from "@flipbook/shared";
 import { VideoStatusSchema } from "@flipbook/shared";
 import { db } from "./db.js";
 import type { NodeRow } from "./schema.js";
@@ -60,9 +60,22 @@ export function insertNode(node: Node, meta: NodeCacheMeta): Node {
 }
 
 const updateImageVariantsStmt = db.prepare(`UPDATE nodes SET image_variants = ? WHERE id = ?`);
+const getImageVariantsStmt = db.prepare(`SELECT image_variants FROM nodes WHERE id = ?`);
 
-/** Merges a newly-generated variant into a node's stored image_variants and returns the updated node. */
-export function updateImageVariants(id: string, variants: ImageVariants): Node | null {
+/**
+ * Atomically merges one newly-generated variant into a node's stored image_variants and returns
+ * the updated node (null if the node vanished). The variant handler awaits a slow image
+ * generation between reading the node and writing back, so it must NOT persist a blob built from
+ * its now-stale in-memory copy: two concurrent requests for different ratios would each write
+ * `{original, theirRatio}` and the second would clobber the first's variant. Re-reading the
+ * current blob here and merging is atomic because node:sqlite is synchronous — nothing can
+ * interleave between this read and write.
+ */
+export function addImageVariant(id: string, ratio: AspectRatio, url: string): Node | null {
+  const row = getImageVariantsStmt.get(id) as { image_variants: string } | undefined;
+  if (!row) return null;
+  const variants = JSON.parse(row.image_variants) as ImageVariants;
+  variants[ratio] = url;
   updateImageVariantsStmt.run(JSON.stringify(variants), id);
   return getNode(id);
 }
@@ -74,13 +87,19 @@ export function getNode(id: string): Node | null {
   return row ? rowToNode(row) : null;
 }
 
-/** Ancestor chain, root → current (excludes the node itself). */
+/** Ancestor chain, root → current (excludes the node itself). The `seen` set guards against a
+ *  parent-id cycle (e.g. a self-parent, or corrupt/legacy data): without it, `while` would spin
+ *  forever and — because node:sqlite is synchronous — hang the whole event loop. The route layer
+ *  refuses to store a node whose parent doesn't already exist, which makes a cycle impossible to
+ *  create, but this stays cheap and keeps a bad row from taking the server down. */
 export function getHistory(nodeId: string): Node[] {
   const chain: Node[] = [];
+  const seen = new Set<string>([nodeId]);
   let cursor = getNode(nodeId);
-  while (cursor?.parent_id) {
+  while (cursor?.parent_id && !seen.has(cursor.parent_id)) {
     const parent = getNode(cursor.parent_id);
     if (!parent) break;
+    seen.add(parent.id);
     chain.push(parent);
     cursor = parent;
   }

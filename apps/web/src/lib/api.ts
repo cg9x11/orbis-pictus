@@ -9,7 +9,7 @@ import type {
   NodesListResponse,
   NodeTapsResponse,
 } from "@flipbook/shared";
-import { GenerateEventSchema } from "@flipbook/shared";
+import { ConfigResponseSchema, GenerateEventSchema } from "@flipbook/shared";
 import { parseSSEStream } from "./sse";
 
 export async function streamGenerate(
@@ -74,7 +74,10 @@ export async function fetchGallery(limit: number | "all" = 8): Promise<Node[]> {
 export async function fetchConfig(): Promise<ConfigResponse> {
   const res = await fetch("/api/config");
   if (!res.ok) throw new Error("Failed to fetch config");
-  return res.json();
+  // Parse (not raw-cast) so the schema's defaults actually run: an older/mismatched server that
+  // omits e.g. `houseStyles` would otherwise leave it undefined and crash HouseStylePicker's
+  // `styles.length`. The `.default([])`/`.default(false)` exist precisely to degrade gracefully.
+  return ConfigResponseSchema.parse(await res.json());
 }
 
 /** Idle-loop video (PLAN §3 Phase 5): null until the background clip is ready — the caller polls with backoff. */

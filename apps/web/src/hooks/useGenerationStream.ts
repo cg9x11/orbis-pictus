@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { GenerateRequest, GenerationStage, Node } from "@flipbook/shared";
 import { streamGenerate } from "../lib/api";
 
@@ -60,7 +60,20 @@ export function useGenerationStream() {
     });
   }, []);
 
-  const reset = useCallback(() => setState({ status: "idle" }), []);
+  // Abort the in-flight stream, not just clear the UI state. Callers reset() when the user
+  // navigates away mid-generation (e.g. a breadcrumb click); without the abort the orphaned SSE
+  // keeps running and its eventual `complete` would resolve start()'s promise, firing the caller's
+  // append() against the page the user already moved to — truncating the trail and yanking them
+  // forward. The aborted stream's own `.catch` sees `signal.aborted` and stays silent.
+  const reset = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setState({ status: "idle" });
+  }, []);
+
+  // A stream must never outlive the component: on unmount, abort whatever is in flight so its
+  // network work and setState callbacks don't dangle after teardown.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   return { state, start, reset };
 }

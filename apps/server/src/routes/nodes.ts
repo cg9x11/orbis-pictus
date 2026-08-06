@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { Hono } from "hono";
 import { AspectRatioSchema, NodesCreateRequestSchema, NodesUploadRequestSchema, type Node } from "@flipbook/shared";
 import {
+  addImageVariant,
   findChildBySubject,
   getHistory,
   getMorphInfo,
@@ -9,12 +10,12 @@ import {
   getVideoInfo,
   insertNode,
   listGalleryNodes,
-  updateImageVariants,
 } from "../storage/nodes.js";
 import { listTapCache } from "../storage/tapCache.js";
 import { saveImageVariant } from "../pipeline/imageStorage.js";
 import { normalizeSubject } from "../pipeline/normalize.js";
 import { getTapDedupMode, isUploadEnabled } from "../pipeline/config.js";
+import { InFlight } from "../lib/coalesce.js";
 import type { Providers } from "../providers/index.js";
 
 const DEFAULT_GALLERY_LIMIT = 8;
@@ -22,6 +23,12 @@ const MAX_GALLERY_LIMIT = 24;
 
 export function nodesRoute(providers: Providers, imagesDir: string): Hono {
   const app = new Hono();
+
+  // PLAN §2.3 stampede guard for lazy variant generation: two concurrent requests for the same
+  // missing (node, ratio) both pass the `image_variants[ratio]` check and would each pay for a
+  // full image generation. Coalescing lets the second ride the first's result. Lives in the
+  // factory closure so it persists for the process, one map shared across all requests.
+  const variantInFlight = new InFlight<Node | null>();
 
   app.post("/", async (c) => {
     const body = await c.req.json().catch(() => null);
@@ -34,6 +41,14 @@ export function nodesRoute(providers: Providers, imagesDir: string): Hono {
     const id = input.id ?? crypto.randomUUID().replace(/-/g, "");
     const existing = getNode(id);
     if (existing) return c.json({ node: existing }, 200);
+
+    // A parent must already exist. Refusing a dangling parent makes a parent_id cycle impossible
+    // to store (a child can only point at an older node, never at itself or a descendant), which
+    // is what keeps getHistory's ancestor walk from ever looping. Without this, a client could
+    // POST {id:"x", parent_id:"x"} and then hang the server by fetching that node.
+    if (input.parent_id !== null && !getNode(input.parent_id)) {
+      return c.json({ error: "parent_id does not reference an existing node" }, 400);
+    }
 
     const node: Node = {
       ...input,
@@ -168,12 +183,14 @@ export function nodesRoute(providers: Providers, imagesDir: string): Hono {
     if (!node) return c.json({ error: "Not found" }, 404);
     if (node.image_variants[ratio]) return c.json({ node });
 
-    const { bytes, contentType } = await providers.image.generate({
-      prompt: node.authored_prompt,
-      aspectRatio: ratio,
+    const updated = await variantInFlight.run(`${id}:${ratio}`, async () => {
+      const { bytes, contentType } = await providers.image.generate({
+        prompt: node.authored_prompt,
+        aspectRatio: ratio,
+      });
+      const imageUrl = saveImageVariant(imagesDir, id, ratio, bytes, contentType);
+      return addImageVariant(id, ratio, imageUrl);
     });
-    const imageUrl = saveImageVariant(imagesDir, id, ratio, bytes, contentType);
-    const updated = updateImageVariants(id, { ...node.image_variants, [ratio]: imageUrl });
     return c.json({ node: updated });
   });
 

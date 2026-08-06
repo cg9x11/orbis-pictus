@@ -105,6 +105,42 @@ test("generate(): a non-quota request error (e.g. ModelNotOpen) is surfaced with
   );
 });
 
+// A single transient HTTP error on a *status poll* (not task creation) must not abort a task that
+// is still succeeding server-side — the whole clip used to fail on one momentary 5xx/429. Here the
+// second poll 503s, then the third succeeds; generate() should ride through it. (Incurs one real
+// backoff sleep — the poll timing itself is covered fast in lib/poll.test.ts.)
+test("generate(): a transient 503 during status polling is retried, not treated as failure", async () => {
+  await withFetchSequence(
+    [
+      { status: 200, body: { id: "cgt-2" } },
+      { status: 503, body: { error: { message: "upstream temporarily unavailable" } } },
+      { status: 200, body: { id: "cgt-2", status: "succeeded", content: { video_url: "https://example.com/ok.mp4" } } },
+      { status: 200, body: null, isVideoDownload: true },
+    ],
+    async (calls) => {
+      const provider = new ArkVideoProvider("test-key", "https://ark.example.com", "seedance-1-0-pro-250528");
+      const result = await provider.generate(input);
+      assert.equal(result.bytes.toString(), "real-mp4-bytes");
+      assert.equal(calls.length, 4); // create, failed poll, retried poll, download
+    },
+  );
+});
+
+// The retry tolerance is scoped to transient statuses: a clearly terminal status (e.g. the task id
+// is gone / unauthorized) on a poll still aborts rather than spinning to the poll timeout.
+test("generate(): a terminal 404 during status polling aborts instead of retrying", async () => {
+  await withFetchSequence(
+    [
+      { status: 200, body: { id: "cgt-3" } },
+      { status: 404, body: { error: { code: "TaskNotFound", message: "no such task" } } },
+    ],
+    async () => {
+      const provider = new ArkVideoProvider("test-key", "https://ark.example.com", "seedance-1-0-pro-250528");
+      await assert.rejects(() => provider.generate(input), /no such task/);
+    },
+  );
+});
+
 test("generate(): a terminal non-succeeded task status throws instead of polling forever", async () => {
   await withFetchSequence(
     [

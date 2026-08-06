@@ -43,7 +43,7 @@ export type Node = z.infer<typeof NodeSchema>;
 // --- Generate request (PLAN §1.3) ---
 // mode "search": user typed a query
 export const GenerateSearchRequestSchema = z.object({
-  mode: z.literal("search").default("search"),
+  mode: z.literal("search"),
   query: z.string().min(1),
   aspect_ratio: AspectRatioSchema.default("16:9"),
   web_search: z.boolean().default(false),
@@ -99,11 +99,15 @@ export const GenerateEditRequestSchema = z.object({
 });
 export type GenerateEditRequest = z.infer<typeof GenerateEditRequestSchema>;
 
-export const GenerateRequestSchema = z.discriminatedUnion("mode", [
-  GenerateSearchRequestSchema,
-  GenerateTapRequestSchema,
-  GenerateEditRequestSchema,
-]);
+// A request that omits `mode` is treated as a search — the natural default for a bare `{query}`
+// POST. This preprocess has to inject it BEFORE the discriminatedUnion runs: the union resolves its
+// branch from the raw input, so a `.default("search")` living on the literal inside a branch never
+// fires (the branch is never selected in the first place). Injecting here delivers the default the
+// old dead code only advertised.
+export const GenerateRequestSchema = z.preprocess(
+  (val) => (val && typeof val === "object" && (val as { mode?: unknown }).mode == null ? { ...val, mode: "search" } : val),
+  z.discriminatedUnion("mode", [GenerateSearchRequestSchema, GenerateTapRequestSchema, GenerateEditRequestSchema]),
+);
 export type GenerateRequest = z.infer<typeof GenerateRequestSchema>;
 
 // --- SSE events (PLAN §1.3) ---

@@ -90,10 +90,14 @@ app.get("/n/:id", (c) => {
     ]
       .filter(Boolean)
       .join("\n    ");
+    // Function replacers, not string replacers: a string replacement interprets `$&`, `` $` ``,
+    // `$'`, `$$` as replacement patterns, and page_title is client-controlled — a title containing
+    // `$&` would splice matched page HTML into the <title>/head and corrupt the document.
+    // escapeHtml doesn't cover `$` (it isn't an HTML metachar), so neutralize it here instead.
     html = html.includes("<title>")
-      ? html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`)
-      : html.replace("</head>", `<title>${title}</title>\n  </head>`);
-    html = html.replace("</head>", `${ogTags}\n  </head>`);
+      ? html.replace(/<title>.*?<\/title>/, () => `<title>${title}</title>`)
+      : html.replace("</head>", () => `<title>${title}</title>\n  </head>`);
+    html = html.replace("</head>", () => `${ogTags}\n  </head>`);
   }
 
   return c.html(html);

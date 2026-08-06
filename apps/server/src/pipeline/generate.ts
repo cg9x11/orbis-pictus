@@ -11,11 +11,20 @@ import { morphPipeline } from "./morph.js";
 import { getTapDedupMode } from "./config.js";
 import { buildImagePrompt } from "./houseStyle.js";
 import { withRetry } from "../lib/retry.js";
+import { InFlight } from "../lib/coalesce.js";
+import type { ImageGenResult } from "../providers/types.js";
 
 export interface GenerateContext {
   providers: Providers;
   imagesDir: string;
 }
+
+// PLAN §2.3 stampede guard: coalesce concurrent image generations that resolve to the same
+// prompt-hash (the same key the persistent layer-3 cache uses). Two identical requests that both
+// miss the cache now share a single provider call instead of each paying for it. Keyed by
+// promptHash alone — matching the persistent cache's own reuse identity — so a reference image is
+// deliberately not part of the key, exactly as findNodeByPromptHash already treats it.
+const imageInFlight = new InFlight<ImageGenResult>();
 
 /** Runs the full generation pipeline (PLAN §2.2), calling `emit` for each SSE event, and persists the resulting node. */
 export async function runGenerate(
@@ -126,11 +135,16 @@ export async function runGenerate(
   if (cachedImageUrl) {
     imageUrl = cachedImageUrl;
   } else {
-    const { bytes, contentType } = await ctx.providers.image.generate({
-      prompt: imagePrompt,
-      aspectRatio: req.aspect_ratio,
-      referenceImageDataUrl: req.mode === "edit" ? req.image : tapReferenceImageDataUrl,
-    });
+    const genImage = (): Promise<ImageGenResult> =>
+      ctx.providers.image.generate({
+        prompt: imagePrompt,
+        aspectRatio: req.aspect_ratio,
+        referenceImageDataUrl: req.mode === "edit" ? req.image : tapReferenceImageDataUrl,
+      });
+    // Only reusable (non-edit) generations are coalesced: an edit is conditioned on the current
+    // page's actual pixels, so two edits with byte-identical prompts can still need different
+    // images and must each run — the same reason they are excluded from the persistent cache above.
+    const { bytes, contentType } = canReuseImage ? await imageInFlight.run(promptHash, genImage) : await genImage();
     imageUrl = saveImageVariant(ctx.imagesDir, nodeId, req.aspect_ratio, bytes, contentType);
   }
 

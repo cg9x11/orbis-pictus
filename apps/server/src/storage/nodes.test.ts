@@ -7,7 +7,8 @@ import type { Node } from "@flipbook/shared";
 
 process.env.DATABASE_URL = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-nodes-")), "test.db");
 
-const { insertNode, findChildBySubject, findNodeByPromptHash, listGalleryNodes } = await import("./nodes.js");
+const { insertNode, findChildBySubject, findNodeByPromptHash, listGalleryNodes, getHistory, getNode, addImageVariant } =
+  await import("./nodes.js");
 const { recordTapCache, listTapCache } = await import("./tapCache.js");
 
 let counter = 0;
@@ -118,6 +119,62 @@ test("listGalleryNodes returns every eligible node when the limit is null", () =
   // Well past MAX_GALLERY_LIMIT (24), so a lingering cap anywhere below would show up here.
   assert.ok(listGalleryNodes(null).length >= 30);
   assert.equal(listGalleryNodes(3).length, 3);
+});
+
+test("getHistory returns the ancestor chain root -> parent, excluding the node itself", () => {
+  insertNode(makeNode({ id: "hist-root", parent_id: null }), { normalizedSubject: "x" });
+  insertNode(makeNode({ id: "hist-mid", parent_id: "hist-root" }), { normalizedSubject: "x" });
+  insertNode(makeNode({ id: "hist-leaf", parent_id: "hist-mid" }), { normalizedSubject: "x" });
+
+  assert.deepEqual(
+    getHistory("hist-leaf").map((n) => n.id),
+    ["hist-root", "hist-mid"],
+  );
+});
+
+// A parent_id cycle must never make getHistory loop forever (node:sqlite is synchronous, so a
+// spin would hang the whole event loop — a trivial DoS). The route layer refuses to store such a
+// row, but the walk itself has to be self-protecting regardless of how a bad row got there.
+test("getHistory terminates on a self-parent cycle instead of looping forever", () => {
+  // Bypass the route guard by writing a self-referential row directly, as corrupt/legacy data would.
+  insertNode(makeNode({ id: "cycle-self", parent_id: "cycle-self" }), { normalizedSubject: "x" });
+  assert.deepEqual(getHistory("cycle-self"), []);
+});
+
+test("getHistory terminates on a two-node cycle instead of looping forever", () => {
+  insertNode(makeNode({ id: "cycle-a", parent_id: "cycle-b" }), { normalizedSubject: "x" });
+  insertNode(makeNode({ id: "cycle-b", parent_id: "cycle-a" }), { normalizedSubject: "x" });
+  // Whichever end we start from, the walk visits the other node once and stops at the repeat.
+  assert.deepEqual(
+    getHistory("cycle-a").map((n) => n.id),
+    ["cycle-b"],
+  );
+});
+
+// The variant handler awaits a slow image generation between reading a node and writing the merged
+// blob back, so two concurrent requests for different ratios must not clobber each other. Each write
+// re-reads the current persisted variants, so both survive regardless of interleaving.
+test("addImageVariant merges into the latest persisted variants, not a stale snapshot", () => {
+  insertNode(makeNode({ id: "variant-node", image_variants: { "16:9": "/img/16x9.jpg" } }), {
+    normalizedSubject: "x",
+  });
+
+  // Simulate the two handlers reading the same original node, then writing at different times.
+  const afterFirst = addImageVariant("variant-node", "3:4", "/img/3x4.jpg");
+  assert.deepEqual(afterFirst?.image_variants, { "16:9": "/img/16x9.jpg", "3:4": "/img/3x4.jpg" });
+
+  const afterSecond = addImageVariant("variant-node", "1:1", "/img/1x1.jpg");
+  // The 3:4 variant added by the first call is preserved, not overwritten by a stale base.
+  assert.deepEqual(afterSecond?.image_variants, {
+    "16:9": "/img/16x9.jpg",
+    "3:4": "/img/3x4.jpg",
+    "1:1": "/img/1x1.jpg",
+  });
+  assert.equal(getNode("variant-node")?.image_variants["3:4"], "/img/3x4.jpg");
+});
+
+test("addImageVariant returns null for a node that doesn't exist", () => {
+  assert.equal(addImageVariant("no-such-node", "1:1", "/img/x.jpg"), null);
 });
 
 test("listGalleryNodes excludes tap children, returning only root nodes", () => {
