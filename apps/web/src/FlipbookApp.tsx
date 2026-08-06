@@ -31,6 +31,27 @@ function newSessionId(): string {
 
 const QUOTA_ERROR_PATTERN = /quota/i;
 
+// Fetched (and, for webSearch/houseStyle, later user-adjusted) as one unit — grouped into a single
+// state object rather than one useState per field, matching useGenerationStream's GenerationState
+// and useSessionTrail's TrailState.
+interface AppConfig {
+  webSearch: boolean;
+  videoAvailable: boolean;
+  morphAvailable: boolean;
+  uploadAvailable: boolean;
+  houseStyles: HouseStyleOption[];
+  houseStyle: string;
+}
+
+const DEFAULT_CONFIG: AppConfig = {
+  webSearch: false,
+  videoAvailable: false,
+  morphAvailable: false,
+  uploadAvailable: false,
+  houseStyles: [],
+  houseStyle: "",
+};
+
 export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   const navigate = useNavigate();
   const [sessionId, setSessionId] = useState<string>(newSessionId);
@@ -43,14 +64,11 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   const [ripple, setRipple] = useState<{ xRatio: number; yRatio: number } | null>(null);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
   const [variantLoading, setVariantLoading] = useState(false);
-  const [webSearch, setWebSearch] = useState(false);
-  const [videoAvailable, setVideoAvailable] = useState(false);
+  const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
+  const setWebSearch = (webSearch: boolean) => setConfig((c) => ({ ...c, webSearch }));
+  const setHouseStyle = (houseStyle: string) => setConfig((c) => ({ ...c, houseStyle }));
   const [videoLoopEnabled, setVideoLoopEnabled] = useState(false);
-  const [morphAvailable, setMorphAvailable] = useState(false);
-  const [uploadAvailable, setUploadAvailable] = useState(false);
   const [lastRequest, setLastRequest] = useState<GenerateRequest | null>(null);
-  const [houseStyles, setHouseStyles] = useState<HouseStyleOption[]>([]);
-  const [houseStyle, setHouseStyle] = useState<string>("");
   // Surfaces a non-generation failure (open a cached tap, switch ratio, upload) in the same error
   // banner the generation flow uses, instead of the spinner just stopping with no explanation.
   const [actionError, setActionError] = useState<string | null>(null);
@@ -58,14 +76,16 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
 
   useCancellableEffect((cancelled) => {
     fetchConfig()
-      .then((config) => {
+      .then((fetched) => {
         if (cancelled()) return;
-        setWebSearch(config.searchAvailable);
-        setVideoAvailable(config.videoEnabled);
-        setMorphAvailable(config.morphEnabled);
-        setUploadAvailable(config.uploadEnabled);
-        setHouseStyles(config.houseStyles);
-        setHouseStyle(config.houseStyle);
+        setConfig({
+          webSearch: fetched.searchAvailable,
+          videoAvailable: fetched.videoEnabled,
+          morphAvailable: fetched.morphEnabled,
+          uploadAvailable: fetched.uploadEnabled,
+          houseStyles: fetched.houseStyles,
+          houseStyle: fetched.houseStyle,
+        });
       })
       .catch((err) => console.error(err));
   }, []);
@@ -101,7 +121,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   // arrives (idleLoopVideoUrl set) or the page is left. It never blocks tapping; see PageImage.
   const videoGenerating = videoLoopEnabled && !isStreaming && !idleLoopVideoUrl && current?.video_status === "pending";
   // PLAN §3 Phase 5: a single non-blocking check per navigation, never gates the page render.
-  const [morphUrl, clearMorph] = useMorphTransition(current?.id, current?.parent_id, morphAvailable);
+  const [morphUrl, clearMorph] = useMorphTransition(current?.id, current?.parent_id, config.morphAvailable);
   // PLAN §2.3: spots on this page already explored, shown as markers so a free tap is visible
   // before it is made.
   const cachedTaps = useCachedTaps(current?.id, aspectRatio);
@@ -117,7 +137,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     // Injected in one place rather than at each call site, so no generation path can silently fall
     // back to the server's default style. Empty until /api/config has answered, and omitted rather
     // than sent blank so the server keeps its own default in that window.
-    const withStyle = { ...request, house_style: houseStyle || undefined };
+    const withStyle = { ...request, house_style: config.houseStyle || undefined };
     setLastRequest(withStyle);
     setActionError(null);
     try {
@@ -137,7 +157,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   // search, and is otherwise guaranteed present by each handler's own `if (!current) return` guard.
   const baseRequestFields = () => ({
     aspect_ratio: aspectRatio,
-    web_search: webSearch,
+    web_search: config.webSearch,
     session_id: sessionId,
     current_node_id: current?.id ?? "",
   });
@@ -268,9 +288,9 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
       toolbar={
         <>
           <AspectRatioPicker value={aspectRatio} onChange={handleRatioChange} disabled={isStreaming || variantLoading} />
-          <WebSearchToggle enabled={webSearch} onChange={setWebSearch} disabled={isStreaming} />
-          <HouseStylePicker styles={houseStyles} value={houseStyle} onChange={setHouseStyle} disabled={isStreaming} />
-          {videoAvailable && (
+          <WebSearchToggle enabled={config.webSearch} onChange={setWebSearch} disabled={isStreaming} />
+          <HouseStylePicker styles={config.houseStyles} value={config.houseStyle} onChange={setHouseStyle} disabled={isStreaming} />
+          {config.videoAvailable && (
             <VideoLoopToggle
               enabled={videoLoopEnabled}
               onChange={setVideoLoopEnabled}
@@ -281,7 +301,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
               status={idleLoopVideoUrl ? "ready" : current?.video_status}
             />
           )}
-          {uploadAvailable && (
+          {config.uploadAvailable && (
             <UploadButton
               sessionId={sessionId}
               disabled={isStreaming || variantLoading}
