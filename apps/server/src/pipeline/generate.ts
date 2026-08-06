@@ -1,5 +1,12 @@
 import crypto from "node:crypto";
-import type { GenerateEvent, GenerateRequest, Node } from "@flipbook/shared";
+import type {
+  GenerateEditRequest,
+  GenerateEvent,
+  GenerateRequest,
+  GenerateSearchRequest,
+  GenerateTapRequest,
+  Node,
+} from "@flipbook/shared";
 import type { Providers } from "../providers/index.js";
 import { getNode, insertNode, findChildBySubject, findNodeByPromptHash } from "../storage/nodes.js";
 import { findTapCacheHit, recordTapCache } from "../storage/tapCache.js";
@@ -26,6 +33,100 @@ export interface GenerateContext {
 // deliberately not part of the key, exactly as findNodeByPromptHash already treats it.
 const imageInFlight = new InFlight<ImageGenResult>();
 
+/** What every mode resolves to before authoring/drawing begins. `topic` is consistently the same
+ *  meaning regardless of mode (the search query, the VLM-described tap subject, or the parent's
+ *  inherited topic for an edit — never the raw edit command text): used afterwards for the web
+ *  search query, node.query, and the cache-layer normalizedSubject. `tapReferenceImageDataUrl` is
+ *  only ever set by resolveTapContext. */
+interface ModeContext {
+  topic: string;
+  parentNodeId: string | null;
+  parentTitle: string | undefined;
+  parentAuthoredPrompt: string | undefined;
+  tapReferenceImageDataUrl: string | undefined;
+}
+
+// Only tap mode can short-circuit the rest of generation (PLAN §2.3 layer 2: an existing child
+// already covers this subject) — search and edit always resolve to a context, never a cache hit.
+type ModeResolution = { kind: "resolved"; context: ModeContext } | { kind: "cache-hit"; node: Node };
+
+function resolveSearchContext(req: GenerateSearchRequest): ModeResolution {
+  const parentNodeId = req.current_node_id || null;
+  const parent = parentNodeId ? getNode(parentNodeId) : null;
+  return {
+    kind: "resolved",
+    context: {
+      topic: req.query,
+      parentNodeId,
+      parentTitle: parent?.page_title,
+      parentAuthoredPrompt: parent?.authored_prompt,
+      tapReferenceImageDataUrl: undefined,
+    },
+  };
+}
+
+function resolveEditContext(req: GenerateEditRequest): ModeResolution {
+  const parentNodeId = req.current_node_id;
+  const parent = getNode(parentNodeId);
+  if (!parent) throw new Error(`Cannot edit: parent node ${parentNodeId} not found`);
+  return {
+    kind: "resolved",
+    context: {
+      // An edit has no topic of its own — it's a re-render of the same page, so it inherits the
+      // parent's topic rather than using the edit command itself (req.prompt, e.g. "make it night
+      // time"). That command is passed separately to authorEdit() in runGenerate; using it here
+      // instead would mean web-searching the edit instruction and persisting it as this node's query.
+      topic: parent.query,
+      parentNodeId,
+      parentTitle: req.parent_title || parent.page_title,
+      parentAuthoredPrompt: parent.authored_prompt,
+      tapReferenceImageDataUrl: undefined,
+    },
+  };
+}
+
+async function resolveTapContext(
+  req: GenerateTapRequest,
+  ctx: GenerateContext,
+  emit: (event: GenerateEvent) => void | Promise<void>,
+): Promise<ModeResolution> {
+  const parentNodeId = req.current_node_id;
+  const tapDedup = getTapDedupMode();
+
+  // Layer 1 (PLAN §2.3): coordinate-quantization VLM cache — skip the VLM call entirely on a hit.
+  const cacheHit = tapDedup !== "off" ? findTapCacheHit(parentNodeId, req.aspect_ratio, req.x, req.y) : null;
+  let subject: string;
+  if (cacheHit) {
+    subject = cacheHit.subject;
+  } else {
+    subject = (await ctx.providers.llm.describeTap(req.markedImage)).subject;
+    if (tapDedup !== "off") recordTapCache(parentNodeId, req.aspect_ratio, req.x, req.y, subject);
+  }
+  await emit({ event: "tap_subject", data: { subject } });
+
+  // Layer 2: subject-level child dedup — instant navigation to an existing child, zero generation.
+  if (tapDedup === "reuse") {
+    const existingChild = findChildBySubject(parentNodeId, normalizeSubject(subject));
+    if (existingChild) return { kind: "cache-hit", node: existingChild };
+  }
+
+  const parentNode = getNode(parentNodeId);
+  return {
+    kind: "resolved",
+    context: {
+      topic: subject,
+      parentNodeId,
+      parentTitle: req.parent_title,
+      parentAuthoredPrompt: parentNode?.authored_prompt,
+      // Tap-mode scene continuity (PLAN §4 tap mode): the parent page's own rendered image, passed
+      // to the image provider as a reference the same way edit mode passes the current page's
+      // image — verified against the real flipbook.page, whose tap child reuses the parent's exact
+      // scene.
+      tapReferenceImageDataUrl: parentNode ? loadReferenceImageDataUrl(ctx.imagesDir, parentNode, req.aspect_ratio) : undefined,
+    },
+  };
+}
+
 /** Runs the full generation pipeline (PLAN §2.2), calling `emit` for each SSE event, and persists the resulting node. */
 export async function runGenerate(
   req: GenerateRequest,
@@ -34,68 +135,19 @@ export async function runGenerate(
 ): Promise<Node> {
   await emit({ event: "start", data: {} });
 
-  // This node's topic/subject — consistently the same meaning across all three branches below
-  // (the search query, the VLM-described tap subject, or the parent's inherited topic for an
-  // edit), never the raw edit command text. Used afterwards for the web search query, node.query,
-  // and the cache-layer normalizedSubject.
-  let topic: string;
-  let parentNodeId: string | null;
-  let parentTitle: string | undefined;
-  let parentAuthoredPrompt: string | undefined;
-  // Tap-mode scene continuity (PLAN §4 tap mode): the parent page's own rendered image, passed to
-  // the image provider as a reference the same way edit mode passes the current page's image —
-  // verified against the real flipbook.page, whose tap child reuses the parent's exact scene.
-  let tapReferenceImageDataUrl: string | undefined;
+  const resolution =
+    req.mode === "tap"
+      ? await resolveTapContext(req, ctx, emit)
+      : req.mode === "edit"
+        ? resolveEditContext(req)
+        : resolveSearchContext(req);
 
-  if (req.mode === "tap") {
-    parentNodeId = req.current_node_id;
-    const tapDedup = getTapDedupMode();
-
-    // Layer 1 (PLAN §2.3): coordinate-quantization VLM cache — skip the VLM call entirely on a hit.
-    const cacheHit = tapDedup !== "off" ? findTapCacheHit(parentNodeId, req.aspect_ratio, req.x, req.y) : null;
-    let subject: string;
-    if (cacheHit) {
-      subject = cacheHit.subject;
-    } else {
-      subject = (await ctx.providers.llm.describeTap(req.markedImage)).subject;
-      if (tapDedup !== "off") recordTapCache(parentNodeId, req.aspect_ratio, req.x, req.y, subject);
-    }
-    await emit({ event: "tap_subject", data: { subject } });
-
-    // Layer 2: subject-level child dedup — instant navigation to an existing child, zero generation.
-    if (tapDedup === "reuse") {
-      const existingChild = findChildBySubject(parentNodeId, normalizeSubject(subject));
-      if (existingChild) {
-        await emit({ event: "complete", data: existingChild });
-        return existingChild;
-      }
-    }
-
-    topic = subject;
-    parentTitle = req.parent_title;
-    const parentNode = getNode(parentNodeId);
-    parentAuthoredPrompt = parentNode?.authored_prompt;
-    tapReferenceImageDataUrl = parentNode ? loadReferenceImageDataUrl(ctx.imagesDir, parentNode, req.aspect_ratio) : undefined;
-  } else if (req.mode === "edit") {
-    parentNodeId = req.current_node_id;
-    const parent = getNode(parentNodeId);
-    if (!parent) throw new Error(`Cannot edit: parent node ${parentNodeId} not found`);
-    // An edit has no topic of its own — it's a re-render of the same page, so it inherits the
-    // parent's topic rather than using the edit command itself (req.prompt, e.g. "make it night
-    // time"). That command is passed separately to authorEdit() below; using it here instead would
-    // mean web-searching the edit instruction and persisting it as this node's query.
-    topic = parent.query;
-    parentTitle = req.parent_title || parent.page_title;
-    parentAuthoredPrompt = parent.authored_prompt;
-  } else {
-    topic = req.query;
-    parentNodeId = req.current_node_id || null;
-    if (parentNodeId) {
-      const parent = getNode(parentNodeId);
-      parentTitle = parent?.page_title;
-      parentAuthoredPrompt = parent?.authored_prompt;
-    }
+  if (resolution.kind === "cache-hit") {
+    await emit({ event: "complete", data: resolution.node });
+    return resolution.node;
   }
+
+  const { topic, parentNodeId, parentTitle, parentAuthoredPrompt, tapReferenceImageDataUrl } = resolution.context;
 
   let webSearchSummary: string | undefined;
   if (req.web_search) {
