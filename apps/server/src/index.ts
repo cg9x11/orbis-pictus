@@ -36,7 +36,17 @@ app.route("/api/nodes", nodesRoute(providers, imagesDir));
 app.get("/api/waitroom", (c) => c.json({ enabled: false, admitted: true }));
 app.get("/api/config", (c) => c.json({ searchAvailable: providers.search.available, videoEnabled: isVideoEnabled() }));
 
-app.use("/images/*", serveStatic({ root: path.relative(process.cwd(), path.dirname(imagesDir)) }));
+// Root must be imagesDir itself, with the "/images" URL prefix stripped explicitly — not
+// path.dirname(imagesDir), which only ever worked by coincidence when IMAGES_DIR is named
+// "images". Any other folder name silently 404s here and falls through to the SPA catch-all
+// below, which returns a 200 with index.html instead of a real 404 for a missing image.
+app.use(
+  "/images/*",
+  serveStatic({
+    root: path.relative(process.cwd(), imagesDir),
+    rewriteRequestPath: (p) => p.replace(/^\/images/, ""),
+  }),
+);
 
 const webDist = path.resolve(__dirname, "../../web/dist");
 const webDistIndexHtml = path.join(webDist, "index.html");
