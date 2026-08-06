@@ -25,3 +25,7 @@ npm-debug.log*
 !.vscode/extensions.json
 .DS_Store
 Thumbs.db
+
+.claude
+.agents
+skills-lock.json

@@ -1,12 +1,16 @@
 import { useCallback, useState } from "react";
 
-const STORAGE_KEY = "flipbook_pages_generated";
+const STORAGE_KEY = "flipbook_pages_generated:v1";
 const MILESTONES = [5, 10, 25, 50, 100, 250];
 
 function readCount(): number {
-  const raw = sessionStorage.getItem(STORAGE_KEY);
-  const n = raw ? Number(raw) : 0;
-  return Number.isFinite(n) && n >= 0 ? n : 0;
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const n = raw ? Number(raw) : 0;
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  } catch {
+    return 0;
+  }
 }
 
 /** PLAN §1.4/§3: page-generated counter + milestone tracking, sessionStorage only, no external service. */
@@ -17,7 +21,11 @@ export function usePageAnalytics() {
   const recordPage = useCallback(() => {
     setCount((prev) => {
       const next = prev + 1;
-      sessionStorage.setItem(STORAGE_KEY, String(next));
+      try {
+        sessionStorage.setItem(STORAGE_KEY, String(next));
+      } catch {
+        // Storage may be unavailable (e.g. private browsing); the in-memory count still works.
+      }
       if (MILESTONES.includes(next)) setMilestone(next);
       return next;
     });

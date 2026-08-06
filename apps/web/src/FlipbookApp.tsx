@@ -106,7 +106,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   // left the browser tab still naming the page you had left.
   useEffect(() => {
     document.title = current ? `${current.page_title} — flipbook` : "flipbook";
-  }, [current]);
+  }, [current?.id, current?.page_title]);
 
   const runRequest = async (request: GenerateRequest) => {
     // Injected in one place rather than at each call site, so no generation path can silently fall
