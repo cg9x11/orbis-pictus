@@ -119,8 +119,9 @@ export function nodesRoute(providers: Providers, imagesDir: string): Hono {
       authored_prompt: description,
       created_at: new Date().toISOString(),
       version: 1,
-      // An uploaded image is not a generated page, so no idle-loop clip is ever made for it.
+      // An uploaded image is not a generated page, so no idle-loop clip or morph is ever made for it.
       video_status: null,
+      morph_status: null,
     };
     insertNode(node, { normalizedSubject: normalizeSubject(title), promptHash: null });
     return c.json({ node }, 201);

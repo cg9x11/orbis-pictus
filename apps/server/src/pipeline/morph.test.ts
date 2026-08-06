@@ -52,6 +52,7 @@ function makeNode(id: string, sessionId: string, imagesDir: string, parentId: st
     created_at: new Date().toISOString(),
     version: 1,
     video_status: null,
+    morph_status: null,
   };
 }
 

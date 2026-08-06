@@ -19,6 +19,12 @@ export type ImageVariants = z.infer<typeof ImageVariantsSchema>;
 export const VideoStatusSchema = z.enum(["pending", "ready", "failed"]);
 export type VideoStatus = z.infer<typeof VideoStatusSchema>;
 
+/** Lifecycle of a page-transition morph clip — same null/pending/ready/failed contract as
+ *  VideoStatusSchema above, just for the one-shot clip that plays once when navigating from a
+ *  parent into this node, rather than an idle loop. */
+export const MorphStatusSchema = z.enum(["pending", "ready", "failed"]);
+export type MorphStatus = z.infer<typeof MorphStatusSchema>;
+
 // --- Node (PLAN §1.2) ---
 export const NodeSchema = z.object({
   id: z.string(),
@@ -37,6 +43,10 @@ export const NodeSchema = z.object({
   // a 404 — the two are indistinguishable at that endpoint. Defaulted so older stored payloads
   // and create requests, which never carried the field, still parse.
   video_status: VideoStatusSchema.nullable().default(null),
+  // Same rationale as video_status: exposed here so the client can tell "a morph is coming" from
+  // "none will ever exist" from the `complete` event alone, instead of only discovering it by
+  // separately asking GET /api/nodes/:id/morph on every parent -> child navigation.
+  morph_status: MorphStatusSchema.nullable().default(null),
 });
 export type Node = z.infer<typeof NodeSchema>;
 

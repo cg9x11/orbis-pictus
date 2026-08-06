@@ -27,6 +27,7 @@ function makeNode(overrides: Partial<Node> = {}): Node {
     created_at: new Date().toISOString(),
     version: 1,
     video_status: null,
+    morph_status: null,
     ...overrides,
   };
 }

@@ -1,11 +1,12 @@
 import type { Node } from "@flipbook/shared";
 
 /** Row shape of the `nodes` table (see db.ts for DDL). Derived from the public Node type so a
- *  field rename/add there is caught here at compile time. Only image_variants and video_status
- *  differ in shape — SQLite has no object or enum column type, so both are stored as raw TEXT and
- *  only take their Node-facing shape once parsed/validated in nodes.ts (ImageVariantsSchema.parse,
- *  toVideoStatus()) — plus the internal cache/video/morph metadata never exposed via NodeSchema. */
-export interface NodeRow extends Omit<Node, "image_variants" | "video_status"> {
+ *  field rename/add there is caught here at compile time. Only image_variants, video_status, and
+ *  morph_status differ in shape — SQLite has no object or enum column type, so all three are
+ *  stored as raw TEXT and only take their Node-facing shape once parsed/validated in nodes.ts
+ *  (ImageVariantsSchema.parse, toVideoStatus(), toMorphStatus()) — plus video_url/morph_url, never
+ *  exposed via NodeSchema at all. */
+export interface NodeRow extends Omit<Node, "image_variants" | "video_status" | "morph_status"> {
   image_variants: string; // JSON-encoded ImageVariants
   // Internal cache-layer metadata (PLAN §2.3) — never exposed via the public Node zod schema.
   normalized_subject: string;
@@ -15,8 +16,9 @@ export interface NodeRow extends Omit<Node, "image_variants" | "video_status"> {
   // stays internal and is served only by GET /api/nodes/:id/video.
   video_status: string | null;
   video_url: string | null;
-  // Transition-morph state (PLAN §3 Phase 5) — both internal; the client learns about a morph only
-  // by asking GET /api/nodes/:id/morph, which it does once per navigation and never polls.
+  // Transition-morph state (PLAN §3 Phase 5). `morph_status` is now also on the public Node schema
+  // (same rationale as video_status); `morph_url` stays internal, served only by
+  // GET /api/nodes/:id/morph.
   morph_status: string | null;
   morph_url: string | null;
 }

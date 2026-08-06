@@ -171,6 +171,7 @@ export async function runGenerate(
     created_at: new Date().toISOString(),
     version: 1,
     video_status: null,
+    morph_status: null,
   };
 
   await withRetry(() =>

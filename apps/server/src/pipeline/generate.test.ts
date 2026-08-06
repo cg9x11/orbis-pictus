@@ -114,6 +114,7 @@ test("edit mode: the built image prompt includes the house style and passes the 
     created_at: new Date().toISOString(),
     version: 1,
     video_status: null,
+    morph_status: null,
   };
   insertNode(parent, { normalizedSubject: "root" });
 
@@ -164,6 +165,7 @@ test("tap mode: the built image prompt includes the house style and reuses the p
     created_at: new Date().toISOString(),
     version: 1,
     video_status: null,
+    morph_status: null,
   };
   insertNode(parent, { normalizedSubject: "root" });
 

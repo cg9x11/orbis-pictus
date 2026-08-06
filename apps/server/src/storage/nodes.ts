@@ -1,11 +1,17 @@
-import type { AspectRatio, Node, VideoStatus } from "@flipbook/shared";
-import { ImageVariantsSchema, VideoStatusSchema } from "@flipbook/shared";
+import type { AspectRatio, MorphStatus, Node, VideoStatus } from "@flipbook/shared";
+import { ImageVariantsSchema, MorphStatusSchema, VideoStatusSchema } from "@flipbook/shared";
 import { db } from "./db.js";
 import type { NodeRow } from "./rows.js";
 
 /** The column is a bare TEXT field, so anything unrecognised (or NULL) reads as "no clip". */
 function toVideoStatus(raw: string | null): VideoStatus | null {
   const parsed = VideoStatusSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
+
+/** The column is a bare TEXT field, so anything unrecognised (or NULL) reads as "no morph". */
+function toMorphStatus(raw: string | null): MorphStatus | null {
+  const parsed = MorphStatusSchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
 }
 
@@ -23,6 +29,7 @@ function rowToNode(row: NodeRow): Node {
     created_at: row.created_at,
     version: row.version,
     video_status: toVideoStatus(row.video_status),
+    morph_status: toMorphStatus(row.morph_status),
   };
 }
 
@@ -162,8 +169,11 @@ export function markVideoReady(id: string, url: string): void {
   setVideoReadyStmt.run(VideoStatusSchema.enum.ready, url, id);
 }
 
-// --- PLAN §3 Phase 5: page-transition morph state (internal — never exposed via the public Node schema) ---
-export type MorphStatus = "pending" | "ready" | "failed";
+// --- PLAN §3 Phase 5: page-transition morph state. `morph_status` is part of the public Node
+// schema (same rationale as video_status); `morph_url` is internal and reachable only through
+// GET /api/nodes/:id/morph. MorphStatus itself is defined once, in @flipbook/shared, and
+// re-exported here for the existing server-side importers.
+export type { MorphStatus };
 
 export interface MorphInfo {
   status: MorphStatus | null;
@@ -176,23 +186,23 @@ const getMorphInfoStmt = db.prepare(`SELECT morph_status, morph_url FROM nodes W
 export function getMorphInfo(id: string): MorphInfo | null {
   const row = getMorphInfoStmt.get(id) as { morph_status: string | null; morph_url: string | null } | undefined;
   if (!row) return null;
-  return { status: row.morph_status as MorphStatus | null, url: row.morph_url };
+  return { status: toMorphStatus(row.morph_status), url: row.morph_url };
 }
 
 const setMorphStatusStmt = db.prepare(`UPDATE nodes SET morph_status = ? WHERE id = ?`);
 
 export function markMorphPending(id: string): void {
-  setMorphStatusStmt.run("pending", id);
+  setMorphStatusStmt.run(MorphStatusSchema.enum.pending, id);
 }
 
 export function markMorphFailed(id: string): void {
-  setMorphStatusStmt.run("failed", id);
+  setMorphStatusStmt.run(MorphStatusSchema.enum.failed, id);
 }
 
-const setMorphReadyStmt = db.prepare(`UPDATE nodes SET morph_status = 'ready', morph_url = ? WHERE id = ?`);
+const setMorphReadyStmt = db.prepare(`UPDATE nodes SET morph_status = ?, morph_url = ? WHERE id = ?`);
 
 export function markMorphReady(id: string, url: string): void {
-  setMorphReadyStmt.run(url, id);
+  setMorphReadyStmt.run(MorphStatusSchema.enum.ready, url, id);
 }
 
 // Root nodes only (`parent_id IS NULL`) — the opening page of an exploration, the kind a visitor
