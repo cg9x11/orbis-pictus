@@ -5,7 +5,7 @@ anything and a page renders in real time; click anything inside that image and a
 generates exploring that thing in more depth. No markup, no links — just pixels, generated on
 demand as you go.
 
-![Demo: landing page, a generated page, tapping into it, and breadcrumb navigation](docs/demo.gif)
+![Demo: landing page, a generated page, tapping into it with a page-transition morph, and breadcrumb navigation](docs/demo.gif)
 
 This is an **independent, open-source homage** to [flipbook.page](https://flipbook.page) — it
 is not affiliated with, endorsed by, or built by the flipbook.page team. It exists because the
@@ -64,6 +64,18 @@ a short looping video is generated in the background from that page's image (ste
 rippling, that kind of thing) and cross-fades in over the static image once ready. See **Known
 limitations** for the current rough edges.
 
+**Page-transition morphs** (experimental, off by default). After a *child* page completes (a tap
+or an edit — anything with a parent), if `MORPH_ENABLED=true` a clip is generated in the background
+with the parent's image as the first frame and the child's image as the last, so the tapped subject
+stays anchored on screen while the rest of the page repaints into the new one. **This is
+pre-generated and cached, never generated on demand** — navigation never waits on it, so the very
+first time you visit a given parent→child pair you always get the instant image swap; the morph
+only plays on a *later* revisit of that same pair, once the background generation from the first
+visit has had time to finish. Verified against the live Ark API before building the feature (see
+`PLAN.md` §2 for the frame-by-frame judgment); the current model doesn't hold the camera perfectly
+still despite an explicit fixed-camera instruction — it reads more like a deliberate zoom into the
+tapped subject than drift, but it's a real deviation from the prompt, not a stylistic choice.
+
 ## Setup
 
 Requires Node 22.5+ — this project uses the built-in `node:sqlite` module, which is still marked
@@ -110,6 +122,8 @@ inline comments). Nothing but a single LLM provider and a single image provider 
 | `VIDEO_ENABLED` | Master switch for idle-loop video | `false` (default) |
 | `VIDEO_PROVIDER` | Video generation | `ark` (BytePlus Seedance) · `mock` (default even if `ARK_API_KEY` is set — video is opt-in separately from images) |
 | `ARK_VIDEO_MODEL`, `VIDEO_RESOLUTION`, `VIDEO_DURATION_SECONDS`, `VIDEO_MAX_PER_SESSION` | Video generation tuning + a hard per-session cap | — |
+| `MORPH_ENABLED` | Master switch for page-transition morphs | `false` (default) |
+| `MORPH_MAX_PER_SESSION` | Hard per-session cap on morph generations (reuses `VIDEO_PROVIDER`/`ARK_VIDEO_MODEL`/`VIDEO_RESOLUTION`/`VIDEO_DURATION_SECONDS` above) | — |
 | `PORT`, `DATABASE_URL`, `IMAGES_DIR` | Server port, SQLite file path, disk path for generated images | — |
 
 ## Cost
@@ -119,8 +133,9 @@ for a tap — one extra vision-model call per page. With BytePlus Ark's Seedream
 runs about **$0.03**. LLM cost depends entirely on which model you point `LLM_PROVIDER` at; the
 defaults above assume a proxy/account you already have configured. There's no draft/final two-tier
 render here (see `PLAN.md` §3) — every page renders at one quality level, which keeps the
-per-page cost to that single image call. Video, when enabled, costs meaningfully more per page
-than an image and is capped per session by `VIDEO_MAX_PER_SESSION` for exactly that reason.
+per-page cost to that single image call. Video and morphs, when enabled, cost meaningfully more per
+page than an image and are each capped per session (`VIDEO_MAX_PER_SESSION`,
+`MORPH_MAX_PER_SESSION`) for exactly that reason.
 
 ## Known limitations
 
@@ -140,17 +155,20 @@ than an image and is capped per session by `VIDEO_MAX_PER_SESSION` for exactly t
   card and footer caption hold up well, but anything smaller and lower-contrast is at risk. Since
   the house style forbids inventing secondary text regions at all now (see `PLAN.md`), this mostly
   shows up as a residual risk rather than a routine failure.
-- **No page-transition morphing.** The original's experimental feature streams a video transition
-  between the outgoing and incoming page over a live WebSocket to a self-hosted model; this project
-  intentionally doesn't reproduce that (see `PLAN.md` §1.5) and uses a plain crossfade instead.
+- **Page-transition morphs are pre-generated, not real-time.** The original streams a live video
+  transition over a WebSocket to a self-hosted model as you tap (`PLAN.md` §1.5); this project
+  intentionally doesn't reproduce that architecture. Instead, a morph clip generates in the
+  background after a tap/edit completes and is cached — the first visit to any parent→child pair
+  always gets the instant image swap, and only a later revisit can show the morph. The model also
+  doesn't hold the camera perfectly fixed despite the prompt asking for it (see **How it works**).
 - **No true two-tier draft/final rendering.** Dropped by design (`PLAN.md` §3) — see **Cost**.
 
 ## Roadmap
 
 See `PLAN.md` for the full phase-by-phase plan and every empirical finding behind it. Roughly, in
 priority order: a real waitroom/rate-limiting layer for public deployments, an S3/R2 storage
-driver, page-transition morph clips for pre-generated page pairs, and continued work on the
-callout-density and diacritics limitations above as image models improve.
+driver, and continued work on the callout-density and diacritics limitations above as image models
+improve.
 
 ## License
 
