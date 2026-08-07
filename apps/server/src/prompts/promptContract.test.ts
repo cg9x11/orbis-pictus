@@ -14,13 +14,18 @@ test("page-author.md preserves ordering for sequential topics via a connecting a
   assert.match(PAGE_AUTHOR, /continuous drawn arrow path/i);
 });
 
-test("house-style.md's title card carries the title only — no subtitle is described as a feature", () => {
-  assert.match(HOUSE_STYLE, /title text\s+only/i);
-  assert.doesNotMatch(HOUSE_STYLE, /subtitle line underneath the title|title.{0,20}subtitle.{0,20}(reads|shows)/i);
+// Policy change: a subtitle/tagline the renderer adds beside the title or caption used to be banned
+// outright, because on Seedream 4.x any text the model wrote itself came out garbled. Modern models
+// render it cleanly and it reads well, so only the supplied strings stay fixed — the decoration is
+// welcome. These two tests now pin the new policy so it can't be re-tightened by accident.
+test("house-style.md lets the renderer add its own supporting line near the title or caption", () => {
+  assert.match(HOUSE_STYLE, /supporting line of your own/i);
+  assert.doesNotMatch(HOUSE_STYLE, /title text\s+only/i);
 });
 
-test("house-style.md states every text-bearing region must have prompt-supplied text, never invented", () => {
-  assert.match(HOUSE_STYLE, /never text the image model has to invent|exact string supplied/i);
+test("house-style.md still pins the meaning-bearing strings as prompt-supplied and verbatim", () => {
+  assert.match(HOUSE_STYLE, /supplied\s+exactly by a prompt/i);
+  assert.match(HOUSE_STYLE, /must render verbatim/i);
 });
 
 test("page-author.md keeps image_prompt content-only: no style, palette, material, or lighting words requested from the LLM", () => {
@@ -38,12 +43,14 @@ test("page-author.md and edit-author.md cap callouts at 6, matching house-style.
   assert.match(HOUSE_STYLE, /five or six labelled elements/i);
 });
 
-// house-style.md forbids any subtitle under the title card, but a page-author prompt once wrote
-// one in explicitly ("with a smaller line beneath reading...") and it rendered as garbled text —
-// the ban must be mirrored in the prompts that actually decide page content, not left implicit.
-test("page-author.md and edit-author.md explicitly forbid a subtitle line under the title card", () => {
-  assert.match(PAGE_AUTHOR, /never author a subtitle|title text only/i);
-  assert.match(EDIT_AUTHOR, /subtitle, tagline, byline/i);
+// The authoring prompts decide page content, so they have to carry the same policy as house-style.md
+// above: the supplied title string is fixed, and a line the renderer adds beside it is not their
+// problem to prevent. Anything they "fix" by instruction ends up fighting the renderer.
+test("page-author.md and edit-author.md fix the supplied title string without banning a renderer-added line", () => {
+  assert.match(PAGE_AUTHOR, /must render verbatim/i);
+  assert.match(EDIT_AUTHOR, /must render verbatim/i);
+  assert.doesNotMatch(PAGE_AUTHOR, /never author a subtitle/i);
+  assert.doesNotMatch(EDIT_AUTHOR, /never add a subtitle|still add no second line/i);
 });
 
 // Seedream 4.x garbles combined Vietnamese tone-and-vowel marks, so proper nouns must be authored in

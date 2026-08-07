@@ -100,9 +100,12 @@ test("getHouseStyleBlock selects the requested composition block", () => {
   assert.doesNotMatch(diorama, /flat, front-on educational infographic/i);
 
   // "isometric" is the third pole: axonometric projection without the miniature-diorama framing.
+  // Anchored on the section heading rather than a phrase from its prose: this block is the app's
+  // main visual lever and gets reworded often, and a prose marker turned every tuning pass into a
+  // test edit — which says nothing about whether the selector picked the right block.
   const isometric = getHouseStyleBlock("felt", "isometric");
-  assert.match(isometric, /clean isometric \(axonometric\) diagram/i);
-  assert.doesNotMatch(isometric, /miniature diorama scene/i);
+  assert.match(isometric, /## Composition: isometric diagram/i);
+  assert.doesNotMatch(isometric, /isometric three-quarter aerial view/);
 });
 
 test("an unrecognized composition falls back to the default (diorama)", () => {

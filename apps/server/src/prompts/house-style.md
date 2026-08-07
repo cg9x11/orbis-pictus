@@ -16,16 +16,17 @@ models — they cost nothing and still prevent avoidable failures):
 2. Keep the label-plaque paragraph intact regardless of which style block is active. The entire
    product is rendered text; if the scene's texture is allowed to touch the type, the page stops
    being readable. Textured styles need this exemption most, not least.
-3. This file owns which text-bearing regions exist on the page (title card, callout plaques,
-   footer bar) — it must never describe a region without also saying what fills it, and every
-   rendered string anywhere on the page must be an exact string supplied by a prompt (this file
-   or the content prompt it's appended to), never text the image model has to invent. An
-   unspecified text region is always garbled or free-invented in practice: the footer caption
-   bug and a free-invented subtitle line under the title card (never part of this layout, added
-   by the authoring LLM on its own) both traced back to exactly this. If a future style or layout
-   change adds a new text-bearing region here, it must ship with matching instructions in
-   page-author.md/edit-author.md for supplying that region's exact text — never leave one
-   implicit.
+3. This file owns which text-bearing regions exist on the page (the page title, the callout plaques,
+   the footer caption) — it must never describe a region without also saying what fills it. Every
+   string that carries meaning — the title, each callout label, the footer caption — is supplied
+   exactly by a prompt (this file or the content prompt it's appended to) and must render verbatim;
+   a callout label the model invents asserts a fact nobody checked. The renderer may, however, add
+   a decorative supporting line of its own near the title or the caption (a subtitle, a location, a
+   date). That was once banned outright, because on Seedream 4.x anything the model wrote itself came
+   out garbled — modern models render it cleanly and it reads well, so the ban cost more than it
+   bought. If a future style or layout change adds a new text-bearing region here, it must ship with
+   matching instructions in page-author.md/edit-author.md for supplying that region's exact text —
+   never leave one implicit.
 
 The sections below are machine-parsed by `pipeline/houseStyle.ts` via the `<!-- house-style:* -->`
 anchor comments — keep them intact when editing prose. Style selected by env `HOUSE_STYLE=felt|
@@ -39,13 +40,17 @@ papercut|riso|pixel|editorial` (default `felt`); composition by env `COMPOSITION
 
 The page is an educational infographic. Callout labels connect to their subject with thin leader
 lines. Each label is a flat, clean, high-contrast plaque with a bold label line and a smaller
-description line beneath it. The page title sits in a flat card at the top carrying the title text
-only. A solid footer bar runs across the bottom with a short caption, and a small context inset may
-sit in a bottom corner. The plaques, title card and footer are flat, smooth overlays resting above
-the scene whatever the scene is made of, and their text stays sharp and perfectly legible.
+description line beneath it. The page title sits at the top and a short caption sits at the bottom;
+how those two are presented is yours to judge, and you may add a supporting line of your own near
+either — a subtitle, a location, a date — so long as everything reads clearly against whatever is
+behind it. A small context inset may sit in a bottom corner. All lettering stays sharp and perfectly
+legible.
 
-Keep the scene to five or six labelled elements — fewer, larger, well-spaced subjects read far better
-than a crowded page.
+The artwork itself fills the whole frame and runs off all four edges, with the title, plaques and
+caption sitting on top of it — no outer border, panel, mat or margin framing the picture.
+
+Keep the scene to five or six labelled elements — fewer, larger subjects read far better than a
+crowded page.
 
 <!-- house-style:composition-flat -->
 ## Composition: flat infographic
@@ -58,18 +63,18 @@ diagrammatic, poster-like plane.
 <!-- house-style:composition-isometric -->
 ## Composition: isometric diagram
 
-Arrange the page as a clean isometric (axonometric) diagram, like an architectural plate or an
-isometric map: parallel projection with no perspective convergence — parallel lines stay parallel and
-distant elements do not shrink or fade. Every element sits on ONE single continuous isometric ground —
-a shared plot or platform with one common edge, rendered as a single connected place — with the
-elements laid out across that shared ground and knitted together by the terrain between them: paths,
-walkways, plazas, lawns and greenery (or, for a non-spatial subject, one continuous board or surface).
-This shared ground is the most important rule. Do NOT give each element its own separate raised slab,
-pedestal or cropped base tile; do NOT leave gaps of blank background between free-floating blocks; do
-NOT sit each element on a hard cast shadow that makes it read as a separate cut-out; and do NOT merely
-draw connector lines between otherwise-isolated bases — the elements must genuinely share the same
-unbroken ground. The main subject sits centred and largest, the others arranged around it on that same
-ground. Precise, editorial and diagrammatic — not a handmade miniature-diorama world.
+A highly detailed isometric (axonometric) illustration of one single scene, drawn like an architectural
+plate or an isometric map: top-down isometric perspective, parallel projection, no perspective
+convergence.
+
+The whole page is ONE continuous place. Its setting — the ground, terrain, floor or surface the subject
+belongs to — runs unbroken beneath everything and continues past all four edges of the frame, so the
+outer edge of that ground is never visible. Every element sits inside that setting and is connected by
+it, with the space between elements filled by more of the same place rather than left empty.
+
+Environment-rich and intricate, yet composed, uncluttered and legible: the main subject reads largest
+and most central, the rest arranged clearly around it on the same ground. Precise, editorial and
+diagrammatic — not a handmade miniature-diorama world.
 
 <!-- house-style:composition-diorama -->
 ## Composition: isometric diorama
