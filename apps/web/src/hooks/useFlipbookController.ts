@@ -10,7 +10,15 @@ import { usePageAnalytics } from "./usePageAnalytics";
 import { useIdleLoopVideo } from "./useIdleLoopVideo";
 import { useMorphTransition } from "./useMorphTransition";
 import { useCancellableEffect } from "./useCancellableEffect";
-import { fetchConfig, fetchNode, fetchVariant, requestNodeMorph, requestNodeVideo, waitForMorphReady } from "../lib/api";
+import {
+  fetchConfig,
+  fetchNode,
+  fetchVariant,
+  requestNodeMorph,
+  requestNodeVideo,
+  waitForMorphReady,
+  waitForVideoReady,
+} from "../lib/api";
 import { captureCurrentImage } from "../lib/imageCapture";
 
 function newSessionId(): string {
@@ -64,9 +72,9 @@ export function useFlipbookController(initialNodeId?: string) {
   const setHouseStyle = (houseStyle: string) => setConfig((c) => ({ ...c, houseStyle }));
   const setComposition = (composition: string) => setConfig((c) => ({ ...c, composition }));
   const [videoLoopEnabled, setVideoLoopEnabled] = useState(false);
-  // First-step-morph flow: true while navigation is being held on the parent, waiting for a freshly
-  // generated child's transition-morph to finish so it plays on this first step (not only a revisit).
-  const [preparingMorph, setPreparingMorph] = useState(false);
+  // First-step animation flow: true while navigation is being held on the parent, waiting for the
+  // freshly generated child's clips so the whole transition plays through without a gap.
+  const [preparingClips, setPreparingClips] = useState(false);
   // True only for the brief POST round-trip of an on-demand video request, so the "Generate video"
   // button can't be double-fired; once the node flips to "pending" the button hides on its own.
   const [videoRequestPending, setVideoRequestPending] = useState(false);
@@ -118,7 +126,7 @@ export function useFlipbookController(initialNodeId?: string) {
   // holding navigation for a first-step morph. Interaction guards and disabled states key off this
   // rather than isStreaming alone so nothing new can start during the morph wait; streaming-only
   // rendering (the progress overlay, preview image, tap-subject banner) still keys off isStreaming.
-  const busy = isStreaming || preparingMorph;
+  const busy = isStreaming || preparingClips;
   // Real generations and cache-hit instant navigations both count as a "page" (PLAN §1.4).
   const showLoadingIndicator = useDelayedFlag(isStreaming || variantLoading, 150);
   // PLAN §3 Phase 5: purely additive — polls for a background idle-loop clip once the page is
@@ -193,22 +201,40 @@ export function useFlipbookController(initialNodeId?: string) {
     setActionError(null);
     try {
       const node = await start(withStyle);
-      // First-step-morph flow: if the server actually kicked off a transition-morph for this child
-      // (morph_status is "pending" — which it only sets, before `complete`, when Live video is on,
-      // the child has a parent, and the per-session cap has not been hit), hold on the parent until
-      // that clip is ready so the morph plays on this very first step. useMorphTransition then fetches
-      // and plays it the moment we append below. Over the cap / off / no parent, morph_status is null,
-      // waitForMorphReady is never called, and navigation stays instant exactly as before. The wait is
-      // bounded (timeout + failure bail inside waitForMorphReady) so it can never hang the transition.
-      if (config.morphAvailable && node.morph_status === "pending") {
-        setPreparingMorph(true);
+      // First-step animation flow: hold on the parent until every clip the server actually started
+      // for this child is in hand, then show the child with all of them ready. A "pending" status is
+      // set before `complete` and only when that clip is genuinely on its way (Live video on, and for
+      // a morph also a parent plus room under the per-session cap), so anything still null is never
+      // waited for and navigation stays instant exactly as before.
+      //
+      // Both clips are waited on together, not one after the other: the server fires them in parallel,
+      // and waiting only for the morph — as this first did — meant the page arrived mid-render of its
+      // idle loop and sat under a "Generating video…" badge right after the transition, which is the
+      // gap the wait exists to remove. The wait is bounded (timeout + failure bail inside each waiter)
+      // so a stalled generation can never hang the transition.
+      const needsMorph = config.morphAvailable && node.morph_status === "pending";
+      const needsVideo = node.video_status === "pending";
+      let ready = node;
+      if (needsMorph || needsVideo) {
+        setPreparingClips(true);
         try {
-          await waitForMorphReady(node.id);
+          const [morphUrl, videoUrl] = await Promise.all([
+            needsMorph ? waitForMorphReady(node.id) : Promise.resolve(null),
+            needsVideo ? waitForVideoReady(node.id) : Promise.resolve(null),
+          ]);
+          // Record what actually landed. Without this the node still says "pending" on arrival, and
+          // useIdleLoopVideo holds its first request back by a full backoff step — so a clip we just
+          // finished waiting for would sit unused for another few seconds after the morph played.
+          ready = {
+            ...node,
+            morph_status: morphUrl ? "ready" : node.morph_status,
+            video_status: videoUrl ? "ready" : node.video_status,
+          };
         } finally {
-          setPreparingMorph(false);
+          setPreparingClips(false);
         }
       }
-      append(node);
+      append(ready);
       recordPage();
     } catch (err) {
       // useGenerationStream already set state.error/status before rejecting, so the error banner
@@ -289,14 +315,14 @@ export function useFlipbookController(initialNodeId?: string) {
   };
 
   const handleNavigate = (index: number) => {
-    if (preparingMorph) return;
+    if (preparingClips) return;
     resetGeneration();
     setActionError(null);
     navigateTo(index);
   };
 
   const handleRatioChange = async (ratio: AspectRatio) => {
-    if (preparingMorph) return;
+    if (preparingClips) return;
     setAspectRatio(ratio);
     if (!current || current.image_variants[ratio]) return;
     setVariantLoading(true);
@@ -328,7 +354,7 @@ export function useFlipbookController(initialNodeId?: string) {
    * waiting on a node re-fetch.
    */
   const handleGenerateVideo = async () => {
-    if (!current || videoRequestPending || preparingMorph) return;
+    if (!current || videoRequestPending || preparingClips) return;
     setActionError(null);
     setVideoRequestPending(true);
     try {
@@ -358,7 +384,7 @@ export function useFlipbookController(initialNodeId?: string) {
   };
 
   const handleClear = () => {
-    if (preparingMorph) return;
+    if (preparingClips) return;
     resetGeneration();
     reset([]);
     setSessionId(newSessionId());
@@ -391,7 +417,7 @@ export function useFlipbookController(initialNodeId?: string) {
     state,
     isStreaming,
     busy,
-    preparingMorph,
+    preparingClips,
     lastRequest,
     actionError,
     setActionError,

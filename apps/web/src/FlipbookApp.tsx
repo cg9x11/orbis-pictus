@@ -28,7 +28,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     state,
     isStreaming,
     busy,
-    preparingMorph,
+    preparingClips,
     lastRequest,
     setActionError,
     isQuotaError,
@@ -138,7 +138,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
           onMorphEnded={clearMorph}
           markers={<CachedTapMarkers taps={cachedTaps} onOpen={handleOpenCachedTap} hidden={busy} />}
           videoGenerating={videoGenerating}
-          preparingMorph={preparingMorph}
+          preparingClips={preparingClips}
           loading={showLoadingIndicator}
           loadingContent={
             isStreaming ? (

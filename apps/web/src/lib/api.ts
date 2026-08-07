@@ -4,7 +4,6 @@ import type {
   ConfigResponse,
   GenerateEvent,
   GenerateRequest,
-  MorphStatus,
   Node,
   NodesGetResponse,
   NodesListResponse,
@@ -131,42 +130,53 @@ export async function fetchNodeMorph(id: string): Promise<string | null> {
   return morph_url;
 }
 
-// First-step-morph gate (useFlipbookController): unlike the non-blocking fetchNodeMorph above, this
-// deliberately blocks navigation while a morph is on its way. Poll cadence is tuned to real morph
+// Pre-navigation clip gate (useFlipbookController): unlike the non-blocking readers above, these
+// deliberately hold the transition while a clip is still rendering. Cadence is tuned to real
 // generation (~32s in the verified live test): wait a beat, then check every few seconds, and give
-// up after the timeout so a stalled generation can never hang the transition indefinitely.
-const MORPH_WAIT_FIRST_MS = 4000;
-const MORPH_WAIT_POLL_MS = 2500;
-const MORPH_WAIT_TIMEOUT_MS = 60_000;
+// up after the timeout so a stalled generation can never hang the transition indefinitely. The two
+// clips are generated in parallel server-side, so the caller waits on both at once and this timeout
+// bounds the pair, not each one.
+const CLIP_WAIT_FIRST_MS = 4000;
+const CLIP_WAIT_POLL_MS = 2500;
+const CLIP_WAIT_TIMEOUT_MS = 60_000;
+
+type ClipKind = "video" | "morph";
+type ClipStatus = "pending" | "ready" | "failed";
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** One status-aware read of a node's morph: `ready` with the url, or the pending/failed/absent status. */
-async function fetchMorphState(id: string): Promise<{ ready: boolean; status: MorphStatus | null; morphUrl: string | null }> {
-  const res = await fetch(`/api/nodes/${id}/morph`);
-  const body = (await res.json().catch(() => null)) as { status?: MorphStatus | null; morph_url?: string } | null;
-  if (res.ok && body?.morph_url) return { ready: true, status: "ready", morphUrl: body.morph_url };
-  return { ready: false, status: body?.status ?? null, morphUrl: null };
+/** One status-aware read of a node's clip: its url once ready, or the pending/failed/absent status. */
+async function fetchClipState(id: string, kind: ClipKind): Promise<{ status: ClipStatus | null; url: string | null }> {
+  const res = await fetch(`/api/nodes/${id}/${kind}`);
+  const body = (await res.json().catch(() => null)) as
+    | { status?: ClipStatus | null; video_url?: string; morph_url?: string }
+    | null;
+  const url = body?.video_url ?? body?.morph_url ?? null;
+  if (res.ok && url) return { status: "ready", url };
+  return { status: body?.status ?? null, url: null };
 }
 
 /**
- * Blocks until the transition-morph for `id` is ready (resolving its url), or gives up — returning
- * null — the moment the server reports the generation `failed` or the overall timeout elapses. Used
- * only for the first parent -> child step, where navigation is intentionally held so the morph plays
- * on that first transition (see useFlipbookController); over the per-session cap the child never
- * reaches "pending" and the caller never calls this, so navigation there stays instant.
+ * Blocks until the named clip for `id` is ready (resolving its url), or gives up — returning null —
+ * the moment the server reports that generation `failed` or the overall timeout elapses. Used for
+ * the first parent -> child step, where the transition is intentionally held so both the morph and
+ * the idle loop are in hand before the new page is shown. A clip that was never started leaves its
+ * status null, the caller never asks for it, and the transition stays instant.
  */
-export async function waitForMorphReady(id: string): Promise<string | null> {
-  const deadline = Date.now() + MORPH_WAIT_TIMEOUT_MS;
-  await sleep(MORPH_WAIT_FIRST_MS);
+async function waitForClipReady(id: string, kind: ClipKind): Promise<string | null> {
+  const deadline = Date.now() + CLIP_WAIT_TIMEOUT_MS;
+  await sleep(CLIP_WAIT_FIRST_MS);
   for (;;) {
-    const { ready, status, morphUrl } = await fetchMorphState(id);
-    if (ready && morphUrl) return morphUrl;
+    const { status, url } = await fetchClipState(id, kind);
+    if (url) return url;
     if (status === "failed") return null;
     if (Date.now() >= deadline) return null;
-    await sleep(MORPH_WAIT_POLL_MS);
+    await sleep(CLIP_WAIT_POLL_MS);
   }
 }
+
+export const waitForMorphReady = (id: string): Promise<string | null> => waitForClipReady(id, "morph");
+export const waitForVideoReady = (id: string): Promise<string | null> => waitForClipReady(id, "video");
 
 export async function uploadImage(image: string, aspectRatio: AspectRatio, sessionId: string): Promise<Node> {
   const res = await fetch("/api/nodes/upload", {

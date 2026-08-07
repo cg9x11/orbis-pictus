@@ -25,11 +25,11 @@ interface PageImageProps {
    *  `loading`, the page is already finished and stays fully interactive — the indicator only says
    *  "a clip is coming", it must never block a tap. */
   videoGenerating?: boolean;
-  /** First-step-morph flow: navigation is being held while this page's transition-morph finishes
-   *  generating, so the morph can play on the first step. The page underneath stays visible (its own
-   *  idle loop keeps playing); this only shows a passive "preparing" pill. Taps are already blocked
+  /** First-step animation flow: navigation is being held while this page's clips finish generating,
+   *  so the transition plays through without a gap. The page underneath stays visible (its own idle
+   *  loop keeps playing); this only shows a passive "preparing" pill. Taps are already blocked
    *  upstream by the controller's `busy` guard while this is true. */
-  preparingMorph?: boolean;
+  preparingClips?: boolean;
   onTap: (image: HTMLImageElement, clientX: number, clientY: number) => void;
   ripple: { xRatio: number; yRatio: number } | null;
   onRippleDone: () => void;
@@ -46,7 +46,7 @@ export function PageImage({
   loadingContent,
   markers,
   videoGenerating,
-  preparingMorph,
+  preparingClips,
   onTap,
   ripple,
   onRippleDone,
@@ -73,8 +73,8 @@ export function PageImage({
 
   const overlay = loading
     ? "loading"
-    : preparingMorph
-      ? "preparing-morph"
+    : preparingClips
+      ? "preparing-clips"
       : videoGenerating
         ? "video-generating"
         : "none";
@@ -138,12 +138,13 @@ export function PageImage({
           <span>Generating video…</span>
         </div>
       )}
-      {overlay === "preparing-morph" && (
-        // First-step-morph wait: the parent page stays visible (and its idle loop keeps playing)
-        // while its transition-morph finishes rendering; the controller blocks taps meanwhile.
+      {overlay === "preparing-clips" && (
+        // First-step animation wait: the parent page stays visible (and its idle loop keeps playing)
+        // while the next page's morph and idle loop finish rendering; the controller blocks taps
+        // meanwhile. Named for the outcome, since the wait now covers both clips, not just the morph.
         <div className="page-loading-overlay page-loading-overlay-passive">
           <span className="generation-progress-spinner" aria-hidden="true" />
-          <span>Preparing transition…</span>
+          <span>Preparing animation…</span>
         </div>
       )}
     </div>

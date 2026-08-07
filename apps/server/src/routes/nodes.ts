@@ -154,7 +154,10 @@ export function nodesRoute(providers: Providers, imagesDir: string, video: Video
     const id = c.req.param("id");
     const info = getVideoInfo(id);
     if (!info || info.status !== "ready" || !info.url) {
-      return c.json({ ready: false }, 404);
+      // `status` mirrors /:id/morph below: the backoff poller ignores it, but the pre-navigation clip
+      // gate (useFlipbookController) uses it to tell "still rendering, keep waiting" from "failed,
+      // stop waiting and go" while it holds the transition for this clip.
+      return c.json({ ready: false, status: info?.status ?? null }, 404);
     }
     return c.json({ ready: true, video_url: info.url });
   });
