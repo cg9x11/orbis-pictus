@@ -9,6 +9,8 @@ import { MockVideoProvider } from "./video/mock.js";
 import { ArkVideoProvider } from "./video/ark.js";
 import { NoneSearchProvider } from "./search/none.js";
 import { LlmSearchProvider } from "./search/llm.js";
+import { CachingSearchProvider } from "./search/caching.js";
+import { boolEnvFlag, positiveIntEnv } from "../lib/env.js";
 import type { ImageProvider, LlmProvider, SearchProvider, VideoProvider } from "./types.js";
 
 const ArkConfigSchema = z.object({
@@ -148,12 +150,13 @@ function buildLlmSearch(missingKeys: string[]): SearchProvider {
   }
   const baseURL = process.env.LLM_BASE_URL || "http://localhost:20128";
   const searchModel = process.env.SEARCH_MODEL || "cc/claude-sonnet-5";
-  return new LlmSearchProvider(apiKey, baseURL, searchModel);
+  const timeoutMs = positiveIntEnv("SEARCH_TIMEOUT_MS", 45000);
+  return new LlmSearchProvider(apiKey, baseURL, searchModel, timeoutMs);
 }
 
 function buildSearchProvider(missingKeys: string[]): SearchProvider {
   const defaultProvider = process.env.LLM_API_KEY ? "llm" : "none";
-  return selectProvider(
+  const provider = selectProvider(
     process.env.SEARCH_PROVIDER ?? defaultProvider,
     {
       llm: () => buildLlmSearch(missingKeys),
@@ -161,6 +164,9 @@ function buildSearchProvider(missingKeys: string[]): SearchProvider {
     },
     () => new NoneSearchProvider(),
   );
+  // Opt-in in-memory reuse of search summaries across repeated queries (SEARCH_CACHE_ENABLED),
+  // wrapping whichever provider was selected — harmless around the `none` stub.
+  return boolEnvFlag("SEARCH_CACHE_ENABLED") ? new CachingSearchProvider(provider) : provider;
 }
 
 export function createProviders(): { providers: Providers; missingKeys: string[] } {

@@ -130,6 +130,19 @@ async function resolveTapContext(
   };
 }
 
+/** Sharpens the web-search query with the parent page's title as context, so an ambiguous tap
+ *  subject or inherited topic ("the red tower") is searched as what it actually is within the page
+ *  it came from ("the red tower (in the context of Temples of Kyoto)"). Left unchanged when there is
+ *  no parent, or when the topic already contains the parent title (e.g. a full search query the user
+ *  typed, or an edit whose inherited topic equals the parent). Only the *search* query is affected —
+ *  node.query and the layer-2/3 cache identity still use the bare `topic`. */
+function buildSearchQuery(topic: string, parentTitle: string | undefined): string {
+  const parent = parentTitle?.trim();
+  if (!parent) return topic;
+  if (topic.toLowerCase().includes(parent.toLowerCase())) return topic;
+  return `${topic} (in the context of ${parent})`;
+}
+
 /** Runs the full generation pipeline (PLAN §2.2), calling `emit` for each SSE event, and persists the resulting node. */
 export async function runGenerate(
   req: GenerateRequest,
@@ -156,15 +169,19 @@ export async function runGenerate(
   let webSearchDegraded = false;
   if (req.web_search) {
     await emit({ event: "stage", data: { stage: "searching" } });
-    const searchResult = await ctx.providers.search.search(topic);
-    webSearchSummary = searchResult?.summary;
-    webSearchDegraded = Boolean(searchResult?.degraded);
+    const searchResult = await ctx.providers.search.search(buildSearchQuery(topic, parentTitle));
     if (searchResult?.degraded) {
-      // The provider already logged the underlying cause once at startup (see
-      // providers/search/llm.ts's logNoWebSearch) — this ties a specific generation's authored
-      // content to that same degradation, since authorPrompt/authorEdit below still receive this
-      // summary as if it were a real search result.
-      console.warn(`[flipbook] web search degraded to model-knowledge-only for topic "${topic}"`);
+      // Degraded = the summary is model-knowledge-only, not verified web results (see
+      // providers/search/llm.ts). Do NOT feed it to the author as if it were grounded facts — that is
+      // exactly the case where invented dates/prices/hours slip onto the page. Drop it so the author
+      // writes a general page from widely-known facts instead, and say so. (The provider already
+      // logged the underlying cause once at startup; this ties it to a specific generation.)
+      webSearchDegraded = true;
+      console.warn(
+        `[flipbook] web search degraded to model-knowledge-only for topic "${topic}" — dropping summary; page will be written from general knowledge`,
+      );
+    } else {
+      webSearchSummary = searchResult?.summary;
     }
   }
 
@@ -220,9 +237,11 @@ export async function runGenerate(
     // then wrote — the difference is where any embellishment beyond the sources creeps in.
     const search = !req.web_search
       ? "off"
-      : webSearchSummary
-        ? `on${webSearchDegraded ? " (DEGRADED — model knowledge only, not real web results)" : ""}`
-        : "on (no summary returned)";
+      : webSearchDegraded
+        ? "on (DEGRADED — summary dropped, page written from general knowledge)"
+        : webSearchSummary
+          ? "on"
+          : "on (no summary returned)";
     console.log(
       `\n[image-prompt] mode=${req.mode} aspect=${req.aspect_ratio} style=${req.house_style ?? "(server default)"} ` +
         `reference=${reference} served_from_cache=${Boolean(cachedImageUrl)} model=${ctx.providers.image.modelId}\n` +

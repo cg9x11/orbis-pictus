@@ -4,7 +4,14 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { Node } from "@flipbook/shared";
-import type { ImageGenInput, ImageGenResult, ImageProvider, SearchProvider } from "../providers/types.js";
+import type {
+  AuthorPromptInput,
+  AuthorPromptOutput,
+  ImageGenInput,
+  ImageGenResult,
+  ImageProvider,
+  SearchProvider,
+} from "../providers/types.js";
 
 // Must be set before ./generate.js (imports storage/nodes.js -> storage/db.js) runs its
 // module-level migrate(), same pattern as storage/nodes.test.ts.
@@ -31,6 +38,16 @@ class SpyImageProvider implements ImageProvider {
 }
 
 const noSearch: SearchProvider = { available: false, search: async () => null };
+
+/** MockLlmProvider that records the input to authorPrompt, so a test can assert exactly what
+ *  (if any) web-search summary the pipeline handed the authoring model. */
+class SpyLlmProvider extends MockLlmProvider {
+  lastAuthorInput: AuthorPromptInput | undefined;
+  async authorPrompt(input: AuthorPromptInput): Promise<AuthorPromptOutput> {
+    this.lastAuthorInput = input;
+    return super.authorPrompt(input);
+  }
+}
 
 // PLAN §2 KNOWN OPEN ISSUE: a numeral badge stamped next to each callout ("numbered 1-6") is
 // reliably duplicated/skipped by the image model. No built prompt, in any mode, should ask for one.
@@ -99,6 +116,69 @@ test("a web-search generation reports the lookup as its own stage", async () => 
   );
 
   assert.deepEqual(events, ["searching", "authoring", "drawing"]);
+});
+
+test("web search: the query is sharpened with the parent page title as context (node.query stays the bare topic)", async () => {
+  const parent: Node = {
+    id: "parent-search-ctx",
+    parent_id: null,
+    session_id: "s-enrich",
+    query: "kyoto temples",
+    page_title: "Kyoto Temple Guide",
+    image_variants: {},
+    image_model: "mock-image",
+    prompt_author_model: "mock-llm",
+    authored_prompt: "content prompt for the parent page",
+    created_at: new Date().toISOString(),
+    version: 1,
+    video_status: null,
+    morph_status: null,
+  };
+  insertNode(parent, { normalizedSubject: "root" });
+
+  const seen: string[] = [];
+  const search: SearchProvider = {
+    available: true,
+    search: async (q) => {
+      seen.push(q);
+      return { summary: "temple facts" };
+    },
+  };
+  const base = makeContext(new SpyImageProvider());
+  const node = await runGenerate(
+    { mode: "search", query: "the pagoda", aspect_ratio: "16:9", web_search: true, video_loop: false, session_id: "s-enrich", current_node_id: "parent-search-ctx" },
+    { ...base, providers: { ...base.providers, search } },
+    () => {},
+  );
+
+  assert.deepEqual(seen, ["the pagoda (in the context of Kyoto Temple Guide)"]);
+  assert.equal(node.query, "the pagoda", "the persisted topic must stay the bare subject, not the enriched search query");
+});
+
+test("web search degraded: the model-knowledge-only summary is dropped, not passed to the author as grounding", async () => {
+  const spyLlm = new SpyLlmProvider();
+  const search: SearchProvider = { available: true, search: async () => ({ summary: "unverified model text", degraded: true }) };
+  const base = makeContext(new SpyImageProvider());
+  await runGenerate(
+    { mode: "search", query: "this weekend's lineup", aspect_ratio: "16:9", web_search: true, video_loop: false, session_id: "s-degraded", current_node_id: "" },
+    { ...base, providers: { ...base.providers, llm: spyLlm, search } },
+    () => {},
+  );
+
+  assert.equal(spyLlm.lastAuthorInput?.webSearchSummary, undefined);
+});
+
+test("web search genuine: a non-degraded summary IS forwarded to the author", async () => {
+  const spyLlm = new SpyLlmProvider();
+  const search: SearchProvider = { available: true, search: async () => ({ summary: "verified web facts" }) };
+  const base = makeContext(new SpyImageProvider());
+  await runGenerate(
+    { mode: "search", query: "opening hours", aspect_ratio: "16:9", web_search: true, video_loop: false, session_id: "s-genuine", current_node_id: "" },
+    { ...base, providers: { ...base.providers, llm: spyLlm, search } },
+    () => {},
+  );
+
+  assert.equal(spyLlm.lastAuthorInput?.webSearchSummary, "verified web facts");
 });
 
 test("edit mode: the built image prompt includes the house style and passes the current image as reference", async () => {

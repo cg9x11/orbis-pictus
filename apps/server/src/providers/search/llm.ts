@@ -20,12 +20,14 @@ export class LlmSearchProvider implements SearchProvider {
   readonly available = true;
   private readonly client: Anthropic;
   private readonly model: string;
+  private readonly timeoutMs: number;
   private workingToolType: (typeof WEB_SEARCH_TOOL_TYPES)[number] | null = null;
   private warnedNoWebSearch = false;
 
-  constructor(apiKey: string, baseURL: string, model: string) {
+  constructor(apiKey: string, baseURL: string, model: string, timeoutMs: number) {
     this.client = new Anthropic({ apiKey, baseURL });
     this.model = model;
+    this.timeoutMs = timeoutMs;
   }
 
   async search(query: string): Promise<SearchResult | null> {
@@ -34,16 +36,28 @@ export class LlmSearchProvider implements SearchProvider {
     let lastMessage: Anthropic.Message | null = null;
     let lastToolType: (typeof WEB_SEARCH_TOOL_TYPES)[number] | null = null;
 
+    // One overall wall-clock budget for the whole call, not per tool type: the fallback loop below
+    // only runs a second attempt when the first fails (usually fast), so bounding by a shared
+    // deadline keeps the worst case ~timeoutMs instead of timeoutMs × tool-type count. maxRetries: 0
+    // because on timeout/error we degrade gracefully (return null / model-knowledge text) rather than
+    // re-spending quota on SDK-internal retries.
+    const deadline = Date.now() + this.timeoutMs;
+
     for (const toolType of toolTypesToTry) {
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) break;
       try {
-        const message = await this.client.messages.create({
-          model: this.model,
-          max_tokens: 1024,
-          system: SEARCH_SYSTEM,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- server tool type not yet in SDK's stable typings
-          tools: [{ type: toolType, name: "web_search" } as any],
-          messages: [{ role: "user", content: `Research: ${query}` }],
-        });
+        const message = await this.client.messages.create(
+          {
+            model: this.model,
+            max_tokens: 1024,
+            system: SEARCH_SYSTEM,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- server tool type not yet in SDK's stable typings
+            tools: [{ type: toolType, name: "web_search" } as any],
+            messages: [{ role: "user", content: `Research: ${query}` }],
+          },
+          { timeout: remainingMs, maxRetries: 0 },
+        );
 
         lastMessage = message;
         lastToolType = toolType;
