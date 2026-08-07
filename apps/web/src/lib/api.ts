@@ -123,11 +123,11 @@ export async function requestNodeMorph(id: string): Promise<{ status: "pending" 
  * pre-generated in the background and either exist by the time you navigate here or they don't;
  * null just means "play the instant crossfade instead", not "come back later".
  */
-export async function fetchNodeMorph(id: string): Promise<string | null> {
+export async function fetchNodeMorph(id: string): Promise<{ url: string; reverseUrl: string | null } | null> {
   const res = await fetch(`/api/nodes/${id}/morph`);
   if (!res.ok) return null;
-  const { morph_url } = (await res.json()) as { ready: true; morph_url: string };
-  return morph_url;
+  const body = (await res.json()) as { ready: true; morph_url: string; reverse_url?: string | null };
+  return { url: body.morph_url, reverseUrl: body.reverse_url ?? null };
 }
 
 // Pre-navigation clip gate (useFlipbookController): unlike the non-blocking readers above, these

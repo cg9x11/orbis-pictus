@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { AspectRatio } from "@flipbook/shared";
 import { TapRipple } from "./TapRipple";
 import { classNames } from "../lib/classNames";
@@ -7,12 +7,27 @@ import { classNames } from "../lib/classNames";
 // morph clip takes to fade out after setMorphVisible(false), before it's safe to unmount it.
 const MORPH_FADE_OUT_MS = 500;
 
+// Must match the `.page-image-outgoing` animation duration in styles.css — how long the page being
+// left stays mounted while it fades away. Short on purpose: this is the fallback for every move an
+// AI morph clip cannot cover (a breadcrumb jump of more than one step spans several parent/child
+// pairs, so no single clip could represent it), and going back should feel immediate.
+const PAGE_CROSSFADE_MS = 320;
+
+// How long the page being left may stay held while a morph clip is fetched and buffered. Generous
+// enough for a local file to start on a slow machine, short enough that a clip which never plays
+// doesn't strand the viewer on a page they already navigated away from.
+const MORPH_WAIT_MAX_MS = 2500;
+
 interface PageImageProps {
   imageUrl?: string;
   /** PLAN §3 Phase 5: the ready idle-loop clip, or null while none is available/enabled. */
   videoUrl?: string | null;
   /** PLAN §3 Phase 5: a ready transition-morph clip to play once over the already-current image, or null. */
   morphUrl?: string | null;
+  /** A transition is under way — its clip is being looked up, or is playing. While this is true the
+   *  page being left stays painted over the destination, so the destination is never glimpsed before
+   *  the clip that is supposed to lead into it. */
+  morphActive?: boolean;
   /** Called once the morph has finished playing (or its fade-out completes) so the caller can clear it. */
   onMorphEnded?: () => void;
   loading: boolean;
@@ -41,6 +56,7 @@ export function PageImage({
   imageUrl,
   videoUrl,
   morphUrl,
+  morphActive,
   onMorphEnded,
   loading,
   loadingContent,
@@ -57,6 +73,11 @@ export function PageImage({
   // begins once there's something to fade to (avoids a flash of black before the first frame).
   const [videoReady, setVideoReady] = useState(false);
   const [morphVisible, setMorphVisible] = useState(false);
+  // The page being left, kept painted on top and faded out to reveal the new one underneath. Fading
+  // the OUTGOING image out (rather than fading the incoming one in) means the live <img> is never
+  // remounted, so there is no blank frame while the new picture decodes and imgRef stays put.
+  const [outgoingUrl, setOutgoingUrl] = useState<string | null>(null);
+  const shownUrlRef = useRef<string | undefined>(imageUrl);
 
   useEffect(() => {
     setVideoReady(false);
@@ -65,6 +86,33 @@ export function PageImage({
   useEffect(() => {
     setMorphVisible(false);
   }, [morphUrl]);
+
+  useEffect(() => {
+    const previous = shownUrlRef.current;
+    shownUrlRef.current = imageUrl;
+    if (!previous || !imageUrl || previous === imageUrl) return;
+    setOutgoingUrl(previous);
+  }, [imageUrl]);
+
+  // With no clip coming, this is the plain crossfade: the outgoing page fades out and unmounts.
+  // With one coming it must NOT: React swaps `imageUrl` to the destination on the very commit that
+  // navigation happens, while the clip is still being fetched and buffered, so releasing here would
+  // show the destination and only then fade in a clip whose first frame is the page we just left.
+  // Holding until the clip ends keeps the order the transition is meant to have.
+  useEffect(() => {
+    if (!outgoingUrl || morphActive) return;
+    const timer = setTimeout(() => setOutgoingUrl(null), PAGE_CROSSFADE_MS);
+    return () => clearTimeout(timer);
+  }, [outgoingUrl, morphActive]);
+
+  // Safety valve for the window before the clip is on screen: if it never becomes playable (a broken
+  // file, a fetch that resolves to nothing), release the held page rather than sitting on it forever.
+  // Only armed while waiting — once the clip is visible, its own `ended`/`error` handlers take over.
+  useEffect(() => {
+    if (!outgoingUrl || !morphActive || morphVisible) return;
+    const timer = setTimeout(() => setOutgoingUrl(null), MORPH_WAIT_MAX_MS);
+    return () => clearTimeout(timer);
+  }, [outgoingUrl, morphActive, morphVisible]);
 
   const handleClick = (e: React.MouseEvent<HTMLImageElement>) => {
     if (!imgRef.current || loading) return;
@@ -104,6 +152,22 @@ export function PageImage({
               onCanPlay={() => setVideoReady(true)}
             />
           )}
+          {outgoingUrl && (
+            // Deliberately rendered after the idle-loop clip and before the morph: these are all
+            // absolutely positioned with auto z-index, so DOM order is paint order. The destination's
+            // own loop starts the moment we arrive, and sitting above it is the only way this layer
+            // actually covers the destination — above the <img> alone would leave the loop showing
+            // through. The morph still comes last, so it plays over the top of everything.
+            // The destination <img> stays mounted underneath throughout, so the browser keeps it
+            // decoded and revealing it costs nothing.
+            <img
+              key={outgoingUrl}
+              src={outgoingUrl}
+              alt=""
+              aria-hidden="true"
+              className={classNames("page-image page-image-outgoing", { "page-image-outgoing-held": morphActive })}
+            />
+          )}
           {morphUrl && (
             // Plays once over the already-current image (which is the real child page, so
             // whatever the clip's own last frame looks like, the underlying page is exact once
@@ -117,7 +181,18 @@ export function PageImage({
               autoPlay
               playsInline
               onCanPlay={() => setMorphVisible(true)}
+              // A clip that can't load would otherwise leave the page held until the safety valve
+              // fires; treat it as a finished transition so the destination appears right away.
+              onError={() => {
+                setOutgoingUrl(null);
+                onMorphEnded?.();
+              }}
               onEnded={() => {
+                // Drop the held page here, not after the fade: this clip's last frame IS the
+                // destination, and it is still fully opaque at this instant, so swapping what sits
+                // underneath is invisible — and by the time the clip fades out, the destination is
+                // already the thing behind it.
+                setOutgoingUrl(null);
                 setMorphVisible(false);
                 window.setTimeout(() => onMorphEnded?.(), MORPH_FADE_OUT_MS);
               }}

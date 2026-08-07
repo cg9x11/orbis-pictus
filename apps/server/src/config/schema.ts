@@ -69,6 +69,7 @@ export const FileConfigSchema = z
             enabled: z.boolean().optional(),
             maxPerSession: z.number().int().positive().optional(),
             model: z.string().optional(),
+            reverse: z.boolean().optional(),
           })
           .optional(),
       })

@@ -158,7 +158,13 @@ export function useFlipbookController(initialNodeId?: string) {
   const canGenerateVideo =
     config.videoAvailable && videoLoopEnabled && !isStreaming && !!current && (missingIdleLoop || missingMorph);
   // PLAN §3 Phase 5: a single non-blocking check per navigation, never gates the page render.
-  const [morphUrl, clearMorph] = useMorphTransition(current?.id, current?.parent_id, config.morphAvailable);
+  const { morphUrl, morphPending, clearMorph } = useMorphTransition(current, config.morphAvailable);
+  // A transition is under way: its clip is being looked up, or is on screen. The destination image
+  // stays covered and its tap markers stay hidden for this whole window — during a morph the pixels
+  // on screen are the clip, not the page underneath, so a tap would land on coordinates of a page
+  // the user cannot currently see. Deliberately NOT folded into `busy`: the toolbar and breadcrumbs
+  // stay live, this only governs what the picture itself accepts and shows.
+  const morphActive = morphPending || morphUrl !== null;
   // PLAN §2.3: spots on this page already explored, shown as markers so a free tap is visible
   // before it is made.
   const cachedTaps = useCachedTaps(current?.id, aspectRatio);
@@ -264,7 +270,7 @@ export function useFlipbookController(initialNodeId?: string) {
   };
 
   const handleTap = (imageEl: HTMLImageElement, clientX: number, clientY: number) => {
-    if (!current || busy) return;
+    if (!current || busy || morphActive) return;
     const { dataUrl, xRatio, yRatio } = captureTap(imageEl, clientX, clientY);
     setRipple({ xRatio, yRatio });
     return runRequest({
@@ -439,6 +445,7 @@ export function useFlipbookController(initialNodeId?: string) {
     videoRequestPending,
     handleGenerateVideo,
     morphUrl,
+    morphActive,
     clearMorph,
     cachedTaps,
     milestone,

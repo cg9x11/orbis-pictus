@@ -49,6 +49,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     videoRequestPending,
     handleGenerateVideo,
     morphUrl,
+    morphActive,
     clearMorph,
     cachedTaps,
     milestone,
@@ -135,8 +136,9 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
           imageUrl={imageUrl}
           videoUrl={idleLoopVideoUrl}
           morphUrl={morphUrl}
+          morphActive={morphActive}
           onMorphEnded={clearMorph}
-          markers={<CachedTapMarkers taps={cachedTaps} onOpen={handleOpenCachedTap} hidden={busy} />}
+          markers={<CachedTapMarkers taps={cachedTaps} onOpen={handleOpenCachedTap} hidden={busy || morphActive} />}
           videoGenerating={videoGenerating}
           preparingClips={preparingClips}
           loading={showLoadingIndicator}

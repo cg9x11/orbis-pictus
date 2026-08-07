@@ -13,6 +13,14 @@ export function getMorphMaxPerSession(): number {
   return intConfig("MORPH_MAX_PER_SESSION", (c) => c.video?.morph?.maxPerSession, 5);
 }
 
+/** Whether to re-encode each finished morph backwards (ffmpeg) so stepping back up to the parent can
+ *  play the same transition in reverse. Costs no video quota — it is a local re-encode — but it does
+ *  need ffmpeg on PATH, so it is switchable for a host without it, and the tests turn it off rather
+ *  than spawning a real process per case. Off just means back-navigation crossfades instead. */
+export function isMorphReverseEnabled(): boolean {
+  return boolConfig("MORPH_REVERSE", (c) => c.video?.morph?.reverse, true);
+}
+
 /** Model to run morphs on, when it must differ from the idle-loop model. Morphs are first-last-frame
  *  (`flf2v`) tasks, which some fast video models (e.g. seedance-1-0-pro-fast) don't support even
  *  though they handle the single-frame idle loop; set ARK_VIDEO_MORPH_MODEL to a flf2v-capable model

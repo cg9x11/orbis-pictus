@@ -295,6 +295,33 @@ body {
   display: block;
 }
 
+/* Page-to-page crossfade: the page being left stays painted over the new one and fades away. This
+   covers every move an AI morph clip cannot — a jump of more than one step along the trail spans
+   several parent/child pairs, so no single clip could represent it. Duration must match
+   PAGE_CROSSFADE_MS in PageImage.tsx, which unmounts this layer. */
+.page-image-outgoing {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: page-image-fade-out 320ms ease forwards;
+}
+
+@keyframes page-image-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Held rather than crossfading: a morph clip is on its way, and it opens on this very picture. Fading
+   it out here would show the destination first and then cut back to this frame as the clip starts. */
+.page-image-outgoing-held {
+  animation: none;
+  opacity: 1;
+}
+
 .page-image-loading {
   filter: brightness(0.85);
   cursor: wait;
@@ -547,6 +574,11 @@ body {
     animation: none;
   }
   .page-loading-sheen {
+    display: none;
+  }
+  /* Hidden rather than un-animated: with the fade-out cancelled this layer would sit at full opacity
+     over the new page until its timer unmounts it, covering exactly what it is meant to reveal. */
+  .page-image-outgoing {
     display: none;
   }
 }

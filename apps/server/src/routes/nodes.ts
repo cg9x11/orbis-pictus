@@ -13,6 +13,7 @@ import {
 } from "../storage/nodes.js";
 import { listTapCache } from "../storage/tapCache.js";
 import { saveImageVariantResized } from "../pipeline/imageStorage.js";
+import { getMorphReverseUrl } from "../pipeline/morphStorage.js";
 import { normalizeSubject } from "../pipeline/normalize.js";
 import { getTapDedupMode, isUploadEnabled } from "../pipeline/config.js";
 import { InFlight } from "../lib/coalesce.js";
@@ -202,7 +203,9 @@ export function nodesRoute(providers: Providers, imagesDir: string, video: Video
     if (!info || info.status !== "ready" || !info.url) {
       return c.json({ ready: false, status: info?.status ?? null }, 404);
     }
-    return c.json({ ready: true, morph_url: info.url });
+    // `reverse_url` is present only once the reversed re-encode has landed on disk. Stepping back
+    // one level plays it so the same transition runs parent-ward; without it the client crossfades.
+    return c.json({ ready: true, morph_url: info.url, reverse_url: getMorphReverseUrl(imagesDir, id) });
   });
 
   // On-demand morph generation — the counterpart to POST /:id/video above, and for the same reason:

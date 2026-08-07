@@ -12,6 +12,10 @@ import type { VideoGenInput, VideoGenResult, VideoProvider } from "../providers/
 process.env.DATABASE_URL = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-")), "test.db");
 process.env.MORPH_ENABLED = "true";
 process.env.MORPH_MAX_PER_SESSION = "2";
+// The clips here are a few fake bytes, not real mp4s, so the reverse re-encode would spawn a real
+// ffmpeg per case only to fail on them. Off keeps the suite free of subprocesses; writeReversedMorph
+// has its own graceful-failure path and is not what these tests are covering.
+process.env.MORPH_REVERSE = "false";
 
 const { createMorphPipeline } = await import("./morph.js");
 const { saveImageVariant } = await import("./imageStorage.js");

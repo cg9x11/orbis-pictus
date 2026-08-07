@@ -8,6 +8,7 @@
     "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "db:migrate": "tsx src/storage/migrate.ts",
+    "morph:backfill": "tsx src/scripts/backfillMorphReverse.ts",
     "test": "tsx --import ./src/testSetup.ts --test \"src/**/*.test.ts\""
   },
   "dependencies": {

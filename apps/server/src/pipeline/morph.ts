@@ -1,8 +1,8 @@
 import type { AspectRatio, Node } from "@flipbook/shared";
 import type { Providers } from "../providers/index.js";
 import { getMorphInfo, getNode, markMorphFailed, markMorphPending, markMorphReady } from "../storage/nodes.js";
-import { saveMorph } from "./morphStorage.js";
-import { getMorphMaxPerSession, getMorphVideoModel, isMorphEnabled } from "./morphConfig.js";
+import { saveMorph, writeReversedMorph } from "./morphStorage.js";
+import { getMorphMaxPerSession, getMorphVideoModel, isMorphEnabled, isMorphReverseEnabled } from "./morphConfig.js";
 import { MORPH_TRANSITION_MOTION_PROMPT } from "./videoPrompt.js";
 import { createBackgroundClipPipeline, type StartNowResult } from "./backgroundClip.js";
 
@@ -59,7 +59,15 @@ export function createMorphPipeline(): MorphPipeline {
     markPending: markMorphPending,
     markReady: markMorphReady,
     markFailed: markMorphFailed,
-    save: saveMorph,
+    // The reversed copy is written after the clip itself and deliberately not awaited: it is only
+    // needed if the user later steps back from this child, and making `markReady` wait on ffmpeg
+    // would hold up the forward transition that is being waited on right now. If it loses the race
+    // (or ffmpeg is absent) the client simply crossfades back instead.
+    save: (imagesDir, nodeId, bytes) => {
+      const url = saveMorph(imagesDir, nodeId, bytes);
+      if (isMorphReverseEnabled()) void writeReversedMorph(imagesDir, nodeId);
+      return url;
+    },
     videoModel: getMorphVideoModel,
     describeMotion: async ({ firstFrameDataUrl, lastFrameDataUrl }, providers) =>
       lastFrameDataUrl ? (await providers.llm.describeMorphMotion(firstFrameDataUrl, lastFrameDataUrl)).motionPrompt : undefined,
