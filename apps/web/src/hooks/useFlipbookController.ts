@@ -10,7 +10,7 @@ import { usePageAnalytics } from "./usePageAnalytics";
 import { useIdleLoopVideo } from "./useIdleLoopVideo";
 import { useMorphTransition } from "./useMorphTransition";
 import { useCancellableEffect } from "./useCancellableEffect";
-import { fetchConfig, fetchNode, fetchVariant, requestNodeVideo, waitForMorphReady } from "../lib/api";
+import { fetchConfig, fetchNode, fetchVariant, requestNodeMorph, requestNodeVideo, waitForMorphReady } from "../lib/api";
 import { captureCurrentImage } from "../lib/imageCapture";
 
 function newSessionId(): string {
@@ -138,17 +138,17 @@ export function useFlipbookController(initialNodeId?: string) {
       updateNode({ ...current, video_status: "ready" });
     }
   }, [idleLoopVideoUrl, current, updateNode]);
-  // PLAN §3 Phase 5 on-demand path: a page created while Live video was off has no clip and never
-  // will automatically (video_status null), and a prior on-demand attempt may have failed — both are
-  // retryable by explicit request. Offer the action only when the feature is actually available and
-  // the toggle is on, and never mid-generation.
+  // PLAN §3 Phase 5 on-demand path: a page created while Live video was off has no clips and never
+  // will automatically (both statuses null), and a prior on-demand attempt may have failed — all
+  // retryable by explicit request. The two clips are tracked separately because a page can genuinely
+  // be missing just one of them, so the action stays on offer while EITHER is absent. A morph needs
+  // a parent to morph from, so a root page can only ever want the idle loop.
+  const missingIdleLoop = !idleLoopVideoUrl && (current?.video_status === null || current?.video_status === "failed");
+  const missingMorph =
+    !!current?.parent_id && (current.morph_status === null || current.morph_status === "failed");
+  // Offer the action only when the feature is actually available and the toggle is on, never mid-generation.
   const canGenerateVideo =
-    config.videoAvailable &&
-    videoLoopEnabled &&
-    !isStreaming &&
-    !idleLoopVideoUrl &&
-    !!current &&
-    (current.video_status === null || current.video_status === "failed");
+    config.videoAvailable && videoLoopEnabled && !isStreaming && !!current && (missingIdleLoop || missingMorph);
   // PLAN §3 Phase 5: a single non-blocking check per navigation, never gates the page render.
   const [morphUrl, clearMorph] = useMorphTransition(current?.id, current?.parent_id, config.morphAvailable);
   // PLAN §2.3: spots on this page already explored, shown as markers so a free tap is visible
@@ -319,21 +319,39 @@ export function useFlipbookController(initialNodeId?: string) {
   };
 
   /**
-   * On-demand idle-loop generation (PLAN §3 Phase 5) for the current page, which was created without
-   * a clip. Optimistically flips the node's video_status to "pending" (or "ready" if the server says
-   * one already existed) so useIdleLoopVideo starts polling and the "generating" indicator shows —
-   * exactly the state the automatic path leaves a node in — without waiting on a node re-fetch.
+   * On-demand animation (PLAN §3 Phase 5) for the current page, which was created without clips.
+   * Asks for whichever of the two is missing, mirroring what generate.ts does automatically when a
+   * page is made with Live video on: one `video_loop` flag there starts both the idle loop and the
+   * morph, so one action here does the same. Each status is optimistically flipped to "pending" (or
+   * "ready" if the server says one already existed) so useIdleLoopVideo starts polling and the
+   * "generating" indicator shows — exactly the state the automatic path leaves a node in — without
+   * waiting on a node re-fetch.
    */
   const handleGenerateVideo = async () => {
     if (!current || videoRequestPending || preparingMorph) return;
     setActionError(null);
     setVideoRequestPending(true);
     try {
-      const { status } = await requestNodeVideo(current.id);
-      updateNode({ ...current, video_status: status === "ready" ? "ready" : "pending" });
+      let next = current;
+      if (missingIdleLoop) {
+        const { status } = await requestNodeVideo(current.id);
+        next = { ...next, video_status: status === "ready" ? "ready" : "pending" };
+      }
+      if (missingMorph) {
+        // Non-fatal on its own: the morph only pays off on a later visit to this page, so a failure
+        // here (session cap, say) must not surface as an error that buries the idle loop we just
+        // successfully started — nor abort the status write-back below.
+        try {
+          const { status } = await requestNodeMorph(current.id);
+          next = { ...next, morph_status: status === "ready" ? "ready" : "pending" };
+        } catch (err) {
+          console.error(err);
+        }
+      }
+      updateNode(next);
     } catch (err) {
       console.error(err);
-      setActionError(err instanceof Error ? err.message : "Couldn't generate video for this page");
+      setActionError(err instanceof Error ? err.message : "Couldn't animate this page");
     } finally {
       setVideoRequestPending(false);
     }

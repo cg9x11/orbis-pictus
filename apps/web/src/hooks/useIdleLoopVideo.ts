@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { VideoStatus } from "@flipbook/shared";
 import { fetchNodeVideo } from "../lib/api";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
@@ -21,30 +21,30 @@ const MAX_ATTEMPTS = 15;
  * both for "still generating" and for "nothing is generating" — and the second case is the common
  * one: video is off by default, so every page created before it was switched on has no clip and
  * never will. Only "pending" (a clip is genuinely on its way) and "ready" are worth a request.
+ *
+ * The fetched clip is stored together with the node it belongs to, and read back only while that
+ * node is still the current one. Holding a bare URL in state instead let one page's clip survive
+ * into the next: clearing it happened in an effect, so for the render right after navigating,
+ * `current` was already the new node while this hook still returned the previous node's URL. That
+ * window was enough for useFlipbookController's "write ready back to the trail" effect — which runs
+ * in the same commit — to stamp video_status "ready" onto a node with no clip at all, which then
+ * hid its "Generate video" button for good and left it polling a 404. Deriving the answer during
+ * render closes the window entirely; it also stops the old clip painting over the new page's image.
  */
 export function useIdleLoopVideo(
   nodeId: string | undefined,
   enabled: boolean,
   status: VideoStatus | null | undefined,
 ): string | null {
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const lastNodeIdRef = useRef<string | undefined>(undefined);
+  const [fetched, setFetched] = useState<{ nodeId: string; url: string } | null>(null);
   const reducedMotion = usePrefersReducedMotion();
+
+  const canShow = enabled && !!nodeId && !reducedMotion && (status === "pending" || status === "ready");
 
   useCancellableEffect(
     (cancelled) => {
-      const nodeChanged = lastNodeIdRef.current !== nodeId;
-      lastNodeIdRef.current = nodeId;
-
-      const canShow = enabled && !!nodeId && !reducedMotion && (status === "pending" || status === "ready");
-      // Clear the previous clip when the page changes, or when this page can no longer show one
-      // (toggled off, reduced motion, no clip). But a same-node status flip from "pending" to
-      // "ready" — written back once the clip is fetched — must NOT blink the already-playing video:
-      // the poll below re-fetches the same URL and setVideoUrl bails out, so nothing remounts.
-      if (nodeChanged || !canShow) setVideoUrl(null);
-      // Equivalent to `!canShow` but written so TypeScript narrows nodeId to a string below.
-      if (!enabled || !nodeId || reducedMotion) return;
-      if (status !== "pending" && status !== "ready") return;
+      // `canShow` covers enabled/reduced-motion/status; the extra nodeId check narrows it to string.
+      if (!canShow || !nodeId) return;
 
       let timer: ReturnType<typeof setTimeout>;
 
@@ -52,7 +52,7 @@ export function useIdleLoopVideo(
         const url = await fetchNodeVideo(nodeId).catch(() => null);
         if (cancelled()) return;
         if (url) {
-          setVideoUrl(url);
+          setFetched({ nodeId, url });
           return;
         }
         if (attempt >= MAX_ATTEMPTS) return;
@@ -64,8 +64,10 @@ export function useIdleLoopVideo(
       timer = setTimeout(() => poll(0), status === "ready" ? 0 : BACKOFF_MS[0]);
       return () => clearTimeout(timer);
     },
-    [nodeId, enabled, reducedMotion, status],
+    [nodeId, canShow, status],
   );
 
-  return videoUrl;
+  // A same-node status flip from "pending" to "ready" (written back once the clip is fetched) keeps
+  // both `canShow` and the stored nodeId true, so the playing video is never remounted mid-loop.
+  return canShow && fetched?.nodeId === nodeId ? fetched.url : null;
 }

@@ -101,6 +101,57 @@ test("the morph prompt is tailored to the two frames by the VLM, not the static 
   assert.match(video.calls[0]!.prompt, /\[mock\]/);
 });
 
+// The automatic path only fires the instant a child is created, and only while Live video is on, so
+// a child made with it off — or reopened from a cached tap marker, which never runs the generate
+// pipeline at all — could previously never get a morph by any route. startMorphNow is that route.
+test("startMorphNow: generates for a child the automatic path never attempted", async () => {
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
+  const video = new SpyVideoProvider();
+  const { child } = makeParentChild("on-demand", "s-on-demand", imagesDir);
+
+  // No maybeStartMorph ever ran for this child — exactly a page created with Live video off.
+  assert.equal(getMorphInfo(child.id)?.status, null);
+
+  const result = createMorphPipeline().startMorphNow(child, makeProviders(video), imagesDir);
+  await flush();
+
+  assert.equal(result, "started");
+  assert.equal(video.calls.length, 1);
+  assert.equal(getMorphInfo(child.id)?.status, "ready");
+});
+
+test("startMorphNow: a previously-failed child IS retried (unlike the automatic path)", async () => {
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
+  const video = new SpyVideoProvider();
+  video.shouldFail = true;
+  const { child } = makeParentChild("on-demand-retry", "s-on-demand-retry", imagesDir);
+
+  createMorphPipeline().maybeStartMorph(child, makeProviders(video), imagesDir);
+  await flush();
+  assert.equal(getMorphInfo(child.id)?.status, "failed");
+
+  video.shouldFail = false;
+  const result = createMorphPipeline().startMorphNow(child, makeProviders(video), imagesDir);
+  await flush();
+
+  assert.equal(result, "started");
+  assert.equal(video.calls.length, 2, "a deliberate request retries what the automatic path gave up on");
+  assert.equal(getMorphInfo(child.id)?.status, "ready");
+});
+
+test("startMorphNow: a root node reports 'unavailable' rather than generating", async () => {
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
+  const video = new SpyVideoProvider();
+  const root = makeNode("on-demand-root", "s-on-demand-root", imagesDir, null);
+  insertNode(root, { normalizedSubject: "n" });
+
+  const result = createMorphPipeline().startMorphNow(root, makeProviders(video), imagesDir);
+  await flush();
+
+  assert.equal(result, "unavailable");
+  assert.equal(video.calls.length, 0);
+});
+
 test("a root node (no parent) is skipped without touching the provider", async () => {
   const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
   const pipeline = createMorphPipeline();

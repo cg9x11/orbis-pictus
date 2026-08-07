@@ -19,11 +19,12 @@ import { InFlight } from "../lib/coalesce.js";
 import { parseDataUrl } from "../lib/dataUrl.js";
 import type { Providers } from "../providers/index.js";
 import type { VideoPipeline } from "../pipeline/video.js";
+import type { MorphPipeline } from "../pipeline/morph.js";
 
 const DEFAULT_GALLERY_LIMIT = 8;
 const MAX_GALLERY_LIMIT = 24;
 
-export function nodesRoute(providers: Providers, imagesDir: string, video: VideoPipeline): Hono {
+export function nodesRoute(providers: Providers, imagesDir: string, video: VideoPipeline, morph: MorphPipeline): Hono {
   const app = new Hono();
 
   // PLAN §2.3 stampede guard for lazy variant generation: two concurrent requests for the same
@@ -199,6 +200,35 @@ export function nodesRoute(providers: Providers, imagesDir: string, video: Video
       return c.json({ ready: false, status: info?.status ?? null }, 404);
     }
     return c.json({ ready: true, morph_url: info.url });
+  });
+
+  // On-demand morph generation — the counterpart to POST /:id/video above, and for the same reason:
+  // the automatic path only fires the instant a child is created, and only while Live video is on,
+  // so a child made with it off (or reopened from a cached tap marker, which never runs the generate
+  // pipeline) had no way to ever get one. Same guards as the automatic path — MORPH_ENABLED and the
+  // per-session cap still apply — with a `failed` node retryable here because this is a deliberate
+  // action. A root page answers 422: there is no parent to morph from.
+  app.post("/:id/morph", (c) => {
+    const id = c.req.param("id");
+    const node = getNode(id);
+    if (!node) return c.json({ error: "Not found" }, 404);
+
+    const result = morph.startMorphNow(node, providers, imagesDir);
+    switch (result) {
+      case "started":
+      case "already-pending":
+        return c.json({ status: "pending" }, 202);
+      case "already-ready": {
+        const info = getMorphInfo(id);
+        return c.json({ status: "ready", morph_url: info?.url }, 200);
+      }
+      case "disabled":
+        return c.json({ error: "Morph generation is disabled on this server" }, 403);
+      case "session-cap":
+        return c.json({ error: "Morph generation limit reached for this session" }, 429);
+      case "unavailable":
+        return c.json({ error: "This page has no parent page to morph from" }, 422);
+    }
   });
 
   app.get("/:id", (c) => {

@@ -100,17 +100,18 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
             />
           )}
           {/* On-demand path (PLAN §3 Phase 5): a distinct, explicit action shown only when Live video
-              is on and this page has no clip — turning the toggle's honest "none on this page" into
-              something the user can act on, without conflating the global on/off toggle's meaning. */}
+              is on and this page is missing a clip — turning the toggle's honest "none on this page"
+              into something the user can act on, without conflating the global on/off toggle's
+              meaning. Covers both clips, so the label names the outcome rather than just the video. */}
           {canGenerateVideo && (
             <button
               type="button"
               className={classNames("toolbar-button", { "toolbar-button-working": videoRequestPending })}
               onClick={handleGenerateVideo}
               disabled={videoRequestPending}
-              title="Generate a short looping motion clip for this page now (uses video quota)"
+              title="Generate this page's looping motion clip, and its transition morph if it doesn't have one (uses video quota)"
             >
-              {videoRequestPending ? "Starting…" : "✨ Generate video"}
+              {videoRequestPending ? "Starting…" : "✨ Animate page"}
             </button>
           )}
           {config.uploadAvailable && (

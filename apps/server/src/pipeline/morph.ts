@@ -4,7 +4,7 @@ import { getMorphInfo, getNode, markMorphFailed, markMorphPending, markMorphRead
 import { saveMorph } from "./morphStorage.js";
 import { getMorphMaxPerSession, getMorphVideoModel, isMorphEnabled } from "./morphConfig.js";
 import { MORPH_TRANSITION_MOTION_PROMPT } from "./videoPrompt.js";
-import { createBackgroundClipPipeline } from "./backgroundClip.js";
+import { createBackgroundClipPipeline, type StartNowResult } from "./backgroundClip.js";
 
 const RATIO_PREFERENCE: AspectRatio[] = ["16:9", "3:4", "1:1"];
 
@@ -24,6 +24,14 @@ export interface MorphPipeline {
    * parent (a root/search result) is simply skipped inside.
    */
   maybeStartMorph(child: Node, providers: Providers, imagesDir: string): void;
+  /**
+   * Explicit, user-triggered counterpart for a child created without a morph (Live video was off at
+   * the time, or the page was reopened from a cached tap marker, which never runs the generate
+   * pipeline at all). Without this a morph could only ever be made in the one instant the child was
+   * created — miss it and no action anywhere in the app could produce one. Returns why nothing
+   * started when it didn't, so the route can answer the user.
+   */
+  startMorphNow(child: Node, providers: Providers, imagesDir: string): StartNowResult;
 }
 
 /** Factory (not a bare singleton) so tests can get isolated in-flight/session-cap state — see morph.test.ts. */
@@ -57,7 +65,7 @@ export function createMorphPipeline(): MorphPipeline {
       lastFrameDataUrl ? (await providers.llm.describeMorphMotion(firstFrameDataUrl, lastFrameDataUrl)).motionPrompt : undefined,
   });
 
-  return { maybeStartMorph: pipeline.maybeStart };
+  return { maybeStartMorph: pipeline.maybeStart, startMorphNow: pipeline.startNow };
 }
 
 /** The real app's single shared instance — routes import this. */

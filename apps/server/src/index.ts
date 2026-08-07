@@ -35,7 +35,7 @@ const app = new Hono();
 app.use("/api/*", cors());
 
 app.route("/api/generate", generateRoute(providers, imagesDir, videoPipeline, morphPipeline));
-app.route("/api/nodes", nodesRoute(providers, imagesDir, videoPipeline));
+app.route("/api/nodes", nodesRoute(providers, imagesDir, videoPipeline, morphPipeline));
 app.get("/api/waitroom", (c) => c.json({ enabled: false, admitted: true }));
 app.get("/api/config", (c) =>
   c.json({
