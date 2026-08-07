@@ -208,20 +208,15 @@ export function markMorphReady(id: string, url: string): void {
 // Root nodes only (`parent_id IS NULL`) — the opening page of an exploration, the kind a visitor
 // gets by typing a query. Tap children and edit variants are deliberately excluded: they are
 // mid-exploration pages that make no sense as a starting point ("Roadway Deck" is a fine page but
-// a strange thing for the landing gallery to offer), and an edit variant additionally inherits its
-// parent's exact page_title, which used to surface as two identical-looking cards (two "Takoyaki").
-// The page_title dedup is kept for the remaining case this filter does not cover: two separate
-// searches that happen to land on the same title. Earliest node wins, so the gallery is stable.
+// a strange thing for the landing gallery to offer). Every eligible root is listed, newest first —
+// no page_title dedup: re-running the same search is a genuinely new page (a fresh image, possibly
+// with video/morph the earlier one lacked), and collapsing it into the older same-titled root made
+// a just-created page look like it had vanished from the gallery. Same-titled roots now each get
+// their own card; being ordered by created_at keeps the newest on top where it's easy to find.
 const listGalleryStmt = db.prepare(`
-  SELECT * FROM nodes n
-  WHERE n.parent_id IS NULL
-    AND n.id = (
-      SELECT id FROM nodes n2
-      WHERE n2.page_title = n.page_title AND n2.parent_id IS NULL
-      ORDER BY n2.created_at ASC
-      LIMIT 1
-    )
-  ORDER BY n.created_at DESC LIMIT ?
+  SELECT * FROM nodes
+  WHERE parent_id IS NULL
+  ORDER BY created_at DESC LIMIT ?
 `);
 
 /**
