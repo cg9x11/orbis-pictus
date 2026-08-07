@@ -37,21 +37,44 @@ export function resolveConfigPath(): string {
 
 // undefined = not yet loaded; null = loaded, no file present.
 let cachedFile: FileConfig | null | undefined;
+let cachedMtimeMs = 0; // mtime of the file backing cachedFile (0 when no file present)
+let lastStatMs = 0; // wall-clock of the last freshness check, to throttle the stat
+const STAT_THROTTLE_MS = 1000;
+
+/** Read + validate the file at `filePath` (null if it doesn't exist). Throws on invalid content. */
+function loadFile(filePath: string): FileConfig | null {
+  if (!fs.existsSync(filePath)) return null;
+  const raw = (parseYaml(fs.readFileSync(filePath, "utf-8")) ?? {}) as unknown;
+  const parsed = FileConfigSchema.safeParse(raw);
+  if (!parsed.success) {
+    const details = parsed.error.issues.map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`).join("\n");
+    throw new Error(`[flipbook] Invalid config file at ${filePath}:\n${details}`);
+  }
+  return parsed.data;
+}
 
 function fileConfig(): FileConfig {
-  if (cachedFile === undefined) {
-    const filePath = resolveConfigPath();
-    if (!fs.existsSync(filePath)) {
-      cachedFile = null;
-    } else {
-      const raw = (parseYaml(fs.readFileSync(filePath, "utf-8")) ?? {}) as unknown;
-      const parsed = FileConfigSchema.safeParse(raw);
-      if (!parsed.success) {
-        const details = parsed.error.issues.map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`).join("\n");
-        throw new Error(`[flipbook] Invalid config file at ${filePath}:\n${details}`);
-      }
-      cachedFile = parsed.data;
+  const filePath = resolveConfigPath();
+  const now = Date.now();
+  // Hot-reload: if config.yml changed on disk since we parsed it, drop the cache so the next read
+  // reflects the edit with no server restart (dev iteration; `tsx watch` can't see this file because
+  // it isn't imported). Stat at most once per second, so a burst of config reads within one request
+  // costs a single stat. A create/edit/delete all change what statSync returns and trigger a reload.
+  if (cachedFile !== undefined && now - lastStatMs >= STAT_THROTTLE_MS) {
+    lastStatMs = now;
+    let mtimeMs = 0;
+    try {
+      mtimeMs = fs.statSync(filePath).mtimeMs;
+    } catch {
+      mtimeMs = 0; // gone
     }
+    if (mtimeMs !== cachedMtimeMs) cachedFile = undefined;
+  }
+
+  if (cachedFile === undefined) {
+    lastStatMs = now;
+    cachedFile = loadFile(filePath);
+    cachedMtimeMs = cachedFile === null ? 0 : fs.statSync(filePath).mtimeMs;
   }
   return cachedFile ?? {};
 }
@@ -59,6 +82,8 @@ function fileConfig(): FileConfig {
 /** Test-only: forget the parsed file so a later call re-reads it (used by config's own tests). */
 export function __resetConfigCacheForTests(): void {
   cachedFile = undefined;
+  cachedMtimeMs = 0;
+  lastStatMs = 0;
 }
 
 // --- Resolution helpers (env > file > default). `pick` reads the value out of the parsed file. ---
