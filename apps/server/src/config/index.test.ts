@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { strConfig, optStrConfig, boolConfig, intConfig, __resetConfigCacheForTests } from "./index.js";
+import { fileURLToPath } from "node:url";
+import { strConfig, optStrConfig, boolConfig, intConfig, resolveConfigPath, DEFAULT_CONFIG_PATH, __resetConfigCacheForTests } from "./index.js";
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-config-"));
 
@@ -100,6 +101,29 @@ test("an unknown top-level key in the file is rejected (strict), not silently ig
   useConfig(`vidoe:\n  enabled: true`); // typo'd section name
   clearEnv();
   assert.throws(() => strConfig("CFG_STR", (c) => c.houseStyle, "felt"), /Invalid config file/);
+});
+
+test("the default config path resolves to the repo root, not the server's cwd (regression)", () => {
+  // The server runs with cwd = apps/server, but config.yml lives at the repo root next to .env.
+  // This test file sits at apps/server/src/config/, so the repo root is four levels up.
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const expected = path.resolve(here, "../../../../config.yml");
+  assert.equal(DEFAULT_CONFIG_PATH, expected);
+  // Guard against regressing to a cwd/apps-server-relative lookup.
+  assert.ok(!DEFAULT_CONFIG_PATH.includes(`${path.sep}apps${path.sep}server${path.sep}config.yml`));
+});
+
+test("resolveConfigPath honors CONFIG_FILE when set, else uses the repo-root default", () => {
+  const prev = process.env.CONFIG_FILE;
+  try {
+    delete process.env.CONFIG_FILE;
+    assert.equal(resolveConfigPath(), DEFAULT_CONFIG_PATH);
+    process.env.CONFIG_FILE = path.join(tmpDir, "custom.yml");
+    assert.equal(resolveConfigPath(), path.resolve(tmpDir, "custom.yml"));
+  } finally {
+    if (prev === undefined) delete process.env.CONFIG_FILE;
+    else process.env.CONFIG_FILE = prev;
+  }
 });
 
 test("cleanup", () => {

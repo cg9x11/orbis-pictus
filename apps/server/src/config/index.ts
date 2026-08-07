@@ -1,8 +1,24 @@
 import "../env.js"; // load .env before any config value (incl. CONFIG_FILE) is read, regardless of import order
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 import { FileConfigSchema, type FileConfig } from "./schema.js";
+
+// config.yml lives at the repo root next to .env. Resolve it relative to THIS module (the same way
+// env.ts resolves .env), NOT process.cwd(): the server runs with cwd = apps/server (it's launched
+// via the `npm run dev --workspace=apps/server` workspace script), so a cwd-relative lookup silently
+// misses the repo-root file and every config.yml value falls back to its default — this module is
+// apps/server/src/config/, so four levels up is the repo root.
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+export const DEFAULT_CONFIG_PATH = path.resolve(moduleDir, "../../../../config.yml");
+
+/** The config file that will actually be read: CONFIG_FILE (resolved against cwd) if set, else the
+ *  repo-root config.yml. Exported so its resolution can be asserted in tests. */
+export function resolveConfigPath(): string {
+  const override = process.env.CONFIG_FILE?.trim();
+  return override ? path.resolve(override) : DEFAULT_CONFIG_PATH;
+}
 
 /**
  * Hybrid configuration source. Non-secret settings live in an optional `config.yml` (structured,
@@ -24,7 +40,7 @@ let cachedFile: FileConfig | null | undefined;
 
 function fileConfig(): FileConfig {
   if (cachedFile === undefined) {
-    const filePath = process.env.CONFIG_FILE?.trim() || path.resolve(process.cwd(), "config.yml");
+    const filePath = resolveConfigPath();
     if (!fs.existsSync(filePath)) {
       cachedFile = null;
     } else {
