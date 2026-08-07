@@ -29,6 +29,7 @@ const base = "https://gemini.example.com/v1beta";
 const input: ImageGenInput = { prompt: "a felt diorama of pho", aspectRatio: "16:9" };
 const okBody = {
   candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: Buffer.from("gemini-img").toString("base64") } }] } }],
+  usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 1120, totalTokenCount: 1132 },
 };
 
 test("gemini: posts to :generateContent with the api-key header, aspect ratio, and image modality; decodes inlineData", async () => {
@@ -38,6 +39,7 @@ test("gemini: posts to :generateContent with the api-key header, aspect ratio, a
 
     assert.equal(result.bytes.toString(), "gemini-img");
     assert.equal(result.contentType, "image/png");
+    assert.deepEqual(result.usage, { inputTokens: 12, outputTokens: 1120, totalTokens: 1132 });
 
     assert.equal(calls.length, 1);
     assert.equal(calls[0]!.url, `${base}/models/gemini-3.1-flash-lite-image:generateContent`);

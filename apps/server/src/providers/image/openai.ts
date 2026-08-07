@@ -52,11 +52,19 @@ export class OpenAiImageProvider implements ImageProvider {
       throw new Error(`OpenAI image request failed (${res.status}): ${body}`);
     }
 
-    const json = (await res.json()) as { data?: { b64_json?: string }[] };
+    const json = (await res.json()) as {
+      data?: { b64_json?: string }[];
+      usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number };
+    };
     const b64 = json.data?.[0]?.b64_json;
     if (!b64) throw new Error(`OpenAI response missing image data: ${JSON.stringify(json).slice(0, 500)}`);
+    const u = json.usage;
     // gpt-image returns PNG by default; the storage layer re-encodes to JPEG on downscale anyway.
-    return { bytes: Buffer.from(b64, "base64"), contentType: "image/png" };
+    return {
+      bytes: Buffer.from(b64, "base64"),
+      contentType: "image/png",
+      usage: u ? { inputTokens: u.input_tokens, outputTokens: u.output_tokens, totalTokens: u.total_tokens } : undefined,
+    };
   }
 }
 

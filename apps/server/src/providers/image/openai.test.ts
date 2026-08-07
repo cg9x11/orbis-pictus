@@ -26,7 +26,10 @@ function withFetch(response: { status: number; body: unknown }, run: (calls: Rec
 
 const base = "https://openai.example.com/v1";
 const input: ImageGenInput = { prompt: "a felt diorama of pho", aspectRatio: "3:4" };
-const okBody = { data: [{ b64_json: Buffer.from("openai-img").toString("base64") }] };
+const okBody = {
+  data: [{ b64_json: Buffer.from("openai-img").toString("base64") }],
+  usage: { input_tokens: 20, output_tokens: 1568, total_tokens: 1588 },
+};
 
 test("openai: posts to /images/generations with bearer auth, mapped size, and quality; decodes b64_json", async () => {
   await withFetch({ status: 200, body: okBody }, async (calls) => {
@@ -35,6 +38,7 @@ test("openai: posts to /images/generations with bearer auth, mapped size, and qu
 
     assert.equal(result.bytes.toString(), "openai-img");
     assert.equal(result.contentType, "image/png");
+    assert.deepEqual(result.usage, { inputTokens: 20, outputTokens: 1568, totalTokens: 1588 });
 
     assert.equal(calls[0]!.url, `${base}/images/generations`);
     const headers = calls[0]!.init!.headers as Record<string, string>;

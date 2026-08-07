@@ -18,6 +18,7 @@ import type { MorphPipeline } from "./morph.js";
 import { getTapDedupMode } from "./config.js";
 import { buildImagePrompt } from "./houseStyle.js";
 import { boolConfig } from "../config/index.js";
+import { estimateImageCost } from "../providers/image/pricing.js";
 import { withRetry } from "../lib/retry.js";
 import { InFlight } from "../lib/coalesce.js";
 import type { ImageGenResult } from "../providers/types.js";
@@ -229,7 +230,8 @@ export async function runGenerate(
   // Opt-in prompt inspection (env DEBUG_IMAGE_PROMPT=true): print the exact, fully-built prompt sent
   // to the image model — content (authored) + house style appended — plus the knobs that shaped it.
   // Logged whether or not the layer-3 cache serves it back, so `served_from_cache` tells which happened.
-  if (boolConfig("DEBUG_IMAGE_PROMPT", (c) => c.debug?.imagePrompt, false)) {
+  const debugImagePrompt = boolConfig("DEBUG_IMAGE_PROMPT", (c) => c.debug?.imagePrompt, false);
+  if (debugImagePrompt) {
     const reference =
       req.mode === "edit" ? "current page image (edit)" : tapReferenceImageDataUrl ? "parent page frame (tap)" : "none";
     // The web search summary (call 1) is what grounds the authored content (call 2), so logging it
@@ -265,8 +267,21 @@ export async function runGenerate(
     // Only reusable (non-edit) generations are coalesced: an edit is conditioned on the current
     // page's actual pixels, so two edits with byte-identical prompts can still need different
     // images and must each run — the same reason they are excluded from the persistent cache above.
-    const { bytes, contentType } = canReuseImage ? await imageInFlight.run(promptHash, genImage) : await genImage();
+    const { bytes, contentType, usage } = canReuseImage ? await imageInFlight.run(promptHash, genImage) : await genImage();
     imageUrl = await saveImageVariantResized(ctx.imagesDir, nodeId, req.aspect_ratio, bytes, contentType);
+
+    // Same DEBUG_IMAGE_PROMPT flag: after a real generation, log the provider's reported token usage
+    // and an estimated cost from the published per-model rate table (providers/image/pricing.ts).
+    // Only for providers that return usage (Gemini, OpenAI); others log "n/a". Never for a cache hit.
+    if (debugImagePrompt) {
+      const cost = estimateImageCost(ctx.providers.image.modelId, usage);
+      const tokens = usage
+        ? `in=${usage.inputTokens ?? "?"} out=${usage.outputTokens ?? "?"} total=${usage.totalTokens ?? "?"}`
+        : "n/a (provider reports no token usage)";
+      console.log(
+        `[image-prompt] usage: ${tokens} | est. cost: ${cost ? `~$${cost.usd.toFixed(4)} (in $${cost.rate.inputPerM}/M, out $${cost.rate.outputPerM}/M)` : "n/a (no rate for this model)"}\n`,
+      );
+    }
   }
 
   await emit({ event: "preview", data: { aspectRatio: req.aspect_ratio, imageUrl } });

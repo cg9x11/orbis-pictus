@@ -19,6 +19,7 @@ interface GeminiPart {
 }
 interface GeminiResponse {
   candidates?: { content?: { parts?: GeminiPart[] } }[];
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number };
 }
 
 /**
@@ -74,7 +75,14 @@ export class GeminiImageProvider implements ImageProvider {
     if (!inline?.data) {
       throw new Error(`Gemini response missing image data: ${JSON.stringify(json).slice(0, 500)}`);
     }
-    return { bytes: Buffer.from(inline.data, "base64"), contentType: inline.mimeType ?? inline.mime_type ?? "image/png" };
+    const u = json.usageMetadata;
+    return {
+      bytes: Buffer.from(inline.data, "base64"),
+      contentType: inline.mimeType ?? inline.mime_type ?? "image/png",
+      usage: u
+        ? { inputTokens: u.promptTokenCount, outputTokens: u.candidatesTokenCount, totalTokens: u.totalTokenCount }
+        : undefined,
+    };
   }
 }
 

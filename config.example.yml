@@ -76,4 +76,6 @@ tapDedup: reuse                # reuse | variant | off
 
 # --- Debug ---
 debug:
-  imagePrompt: false           # log the exact fully-built image prompt for every generation
+  # Log the exact fully-built image prompt for every generation, plus (after a real generation) the
+  # provider's reported token usage and an estimated cost from the published per-model rate table.
+  imagePrompt: false

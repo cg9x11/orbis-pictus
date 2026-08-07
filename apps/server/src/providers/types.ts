@@ -57,9 +57,20 @@ export interface ImageGenInput {
   referenceImageDataUrl?: string;
 }
 
+/** Token usage a provider reported for one image generation, when it returns one (Gemini's
+ *  `usageMetadata`, OpenAI's `usage`). Absent for providers that bill per-image and report no tokens
+ *  (fal) or don't surface it (ark, mock). Used only for the optional DEBUG_IMAGE_PROMPT cost log. */
+export interface ImageUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}
+
 export interface ImageGenResult {
   bytes: Buffer;
   contentType: string;
+  /** Optional token usage for cost estimation/logging; not every provider reports it. */
+  usage?: ImageUsage;
 }
 
 export interface ImageProvider {
