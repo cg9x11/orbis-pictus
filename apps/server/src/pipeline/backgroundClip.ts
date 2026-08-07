@@ -3,8 +3,29 @@ import type { Providers } from "../providers/index.js";
 import { loadImageAsDataUrl } from "./imageStorage.js";
 import { getVideoDurationSeconds, getVideoResolution } from "./videoConfig.js";
 
+/**
+ * Outcome of an on-demand `startNow` call, mapped to an HTTP response by the route that triggered it
+ * (see routes/nodes.ts). Unlike `maybeStart`, which silently no-ops, an explicit user request wants
+ * to know *why* nothing started so the UI can say so.
+ */
+export type StartNowResult =
+  | "started" // a generation was kicked off; the node is now pending — poll for it
+  | "already-pending" // one is already in flight (or the node is already pending) — poll for it
+  | "already-ready" // a clip already exists for this node
+  | "disabled" // the feature's master switch is off (e.g. VIDEO_ENABLED=false)
+  | "session-cap" // this session has hit its per-session generation cap
+  | "unavailable"; // buildRequest returned null (no usable image variant, no parent to morph, etc.)
+
 export interface BackgroundClipPipeline<TNode extends Node = Node> {
   maybeStart(node: TNode, providers: Providers, imagesDir: string): void;
+  /**
+   * Explicit, user-triggered counterpart to `maybeStart` (PLAN §3 Phase 5): starts a clip for a
+   * node that doesn't have one yet, on demand rather than at creation time. Unlike `maybeStart` it
+   * returns a result the caller can surface, and it will (re)start a node whose previous attempt
+   * `failed` — a deliberate retry — while still refusing to double-start a `pending`/in-flight one,
+   * to duplicate a `ready` one, when the master switch is off, or past the session cap.
+   */
+  startNow(node: TNode, providers: Providers, imagesDir: string): StartNowResult;
 }
 
 /** Identifies the clip request's content-only prompt and frame(s), by same-origin image URL
@@ -51,22 +72,11 @@ export function createBackgroundClipPipeline<TNode extends Node>(config: Backgro
   const inFlight = new Set<string>();
   const sessionCounts = new Map<string, number>();
 
-  function maybeStart(node: TNode, providers: Providers, imagesDir: string): void {
-    if (!config.isEnabled()) return;
-    if (inFlight.has(node.id)) return;
-
-    // A node that already has a stored clip (or already failed once) must never regenerate one.
-    const info = config.getStatus(node.id);
-    if (info?.status) return;
-
-    const count = sessionCounts.get(node.session_id) ?? 0;
-    if (count >= config.maxPerSession()) return;
-
-    const request = config.buildRequest(node);
-    if (!request) return;
-
+  /** The actual generation, shared by both entry points: reserves the in-flight/session budget,
+   *  marks the node pending, and runs the fire-and-forget generate -> save -> mark-ready/failed. */
+  function launch(node: TNode, request: ClipRequest, providers: Providers, imagesDir: string): void {
     inFlight.add(node.id);
-    sessionCounts.set(node.session_id, count + 1);
+    sessionCounts.set(node.session_id, (sessionCounts.get(node.session_id) ?? 0) + 1);
     config.markPending(node.id);
 
     void (async () => {
@@ -93,5 +103,42 @@ export function createBackgroundClipPipeline<TNode extends Node>(config: Backgro
     })();
   }
 
-  return { maybeStart };
+  function maybeStart(node: TNode, providers: Providers, imagesDir: string): void {
+    if (!config.isEnabled()) return;
+    if (inFlight.has(node.id)) return;
+
+    // A node that already has a stored clip (or already failed once) must never regenerate one.
+    const info = config.getStatus(node.id);
+    if (info?.status) return;
+
+    const count = sessionCounts.get(node.session_id) ?? 0;
+    if (count >= config.maxPerSession()) return;
+
+    const request = config.buildRequest(node);
+    if (!request) return;
+
+    launch(node, request, providers, imagesDir);
+  }
+
+  function startNow(node: TNode, providers: Providers, imagesDir: string): StartNowResult {
+    if (!config.isEnabled()) return "disabled";
+    if (inFlight.has(node.id)) return "already-pending";
+
+    // Unlike maybeStart, a truthy status is not a blanket "skip": ready/pending are, but a prior
+    // `failed` is retryable here because this is an explicit user request, not an automatic attempt.
+    const info = config.getStatus(node.id);
+    if (info?.status === "ready") return "already-ready";
+    if (info?.status === "pending") return "already-pending";
+
+    const count = sessionCounts.get(node.session_id) ?? 0;
+    if (count >= config.maxPerSession()) return "session-cap";
+
+    const request = config.buildRequest(node);
+    if (!request) return "unavailable";
+
+    launch(node, request, providers, imagesDir);
+    return "started";
+  }
+
+  return { maybeStart, startNow };
 }

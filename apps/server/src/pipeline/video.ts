@@ -4,7 +4,7 @@ import { getVideoInfo, markVideoFailed, markVideoPending, markVideoReady } from 
 import { saveVideo } from "./videoStorage.js";
 import { getVideoMaxPerSession, isVideoEnabled } from "./videoConfig.js";
 import { IDLE_LOOP_MOTION_PROMPT } from "./videoPrompt.js";
-import { createBackgroundClipPipeline } from "./backgroundClip.js";
+import { createBackgroundClipPipeline, type StartNowResult } from "./backgroundClip.js";
 
 const RATIO_PREFERENCE: AspectRatio[] = ["16:9", "3:4", "1:1"];
 
@@ -23,6 +23,11 @@ export interface VideoPipeline {
    * on video. Safe to call for every completed page unconditionally; all gating happens inside.
    */
   maybeStartIdleLoop(node: Node, providers: Providers, imagesDir: string): void;
+  /**
+   * Explicit, user-triggered idle-loop generation for a node created without one (Live video was
+   * off at the time). Returns why nothing started when it didn't, so the route can answer the user.
+   */
+  startIdleLoopNow(node: Node, providers: Providers, imagesDir: string): StartNowResult;
 }
 
 /** Factory (not a bare singleton) so tests can get isolated in-flight/session-cap state — see video.test.ts. */
@@ -47,7 +52,7 @@ export function createVideoPipeline(): VideoPipeline {
     save: saveVideo,
   });
 
-  return { maybeStartIdleLoop: pipeline.maybeStart };
+  return { maybeStartIdleLoop: pipeline.maybeStart, startIdleLoopNow: pipeline.startNow };
 }
 
 /** The real app's single shared instance — routes import this. */

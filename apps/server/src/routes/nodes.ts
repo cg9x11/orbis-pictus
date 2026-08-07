@@ -18,11 +18,12 @@ import { getTapDedupMode, isUploadEnabled } from "../pipeline/config.js";
 import { InFlight } from "../lib/coalesce.js";
 import { parseDataUrl } from "../lib/dataUrl.js";
 import type { Providers } from "../providers/index.js";
+import type { VideoPipeline } from "../pipeline/video.js";
 
 const DEFAULT_GALLERY_LIMIT = 8;
 const MAX_GALLERY_LIMIT = 24;
 
-export function nodesRoute(providers: Providers, imagesDir: string): Hono {
+export function nodesRoute(providers: Providers, imagesDir: string, video: VideoPipeline): Hono {
   const app = new Hono();
 
   // PLAN §2.3 stampede guard for lazy variant generation: two concurrent requests for the same
@@ -155,6 +156,35 @@ export function nodesRoute(providers: Providers, imagesDir: string): Hono {
       return c.json({ ready: false }, 404);
     }
     return c.json({ ready: true, video_url: info.url });
+  });
+
+  // On-demand idle-loop generation (PLAN §3 Phase 5): the two automatic paths (new node, morph)
+  // only make a clip at creation time and only while Live video is on, so any page created with it
+  // off never gets one. This lets a user, viewing such a page, ask for the clip now. It still spends
+  // real video quota, so it stays gated by VIDEO_ENABLED and the per-session cap; a `failed` node is
+  // retryable here (deliberate action), a `pending`/`ready` one is not re-run. After "started"/
+  // "already-pending" the client polls GET /:id/video exactly as it does for the automatic path.
+  app.post("/:id/video", (c) => {
+    const id = c.req.param("id");
+    const node = getNode(id);
+    if (!node) return c.json({ error: "Not found" }, 404);
+
+    const result = video.startIdleLoopNow(node, providers, imagesDir);
+    switch (result) {
+      case "started":
+      case "already-pending":
+        return c.json({ status: "pending" }, 202);
+      case "already-ready": {
+        const info = getVideoInfo(id);
+        return c.json({ status: "ready", video_url: info?.url }, 200);
+      }
+      case "disabled":
+        return c.json({ error: "Video generation is disabled on this server" }, 403);
+      case "session-cap":
+        return c.json({ error: "Video generation limit reached for this session" }, 429);
+      case "unavailable":
+        return c.json({ error: "This page has no image to animate" }, 422);
+    }
   });
 
   // Transition-morph polling (PLAN §3 Phase 5): 404 until the pre-generated clip is ready — same

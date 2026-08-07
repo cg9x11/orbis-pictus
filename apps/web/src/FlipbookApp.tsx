@@ -43,6 +43,9 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     setVideoLoopEnabled,
     idleLoopVideoUrl,
     videoGenerating,
+    canGenerateVideo,
+    videoRequestPending,
+    handleGenerateVideo,
     morphUrl,
     clearMorph,
     cachedTaps,
@@ -93,6 +96,20 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
               // "generating…" forever on a page whose loop is already playing.
               status={idleLoopVideoUrl ? "ready" : current?.video_status}
             />
+          )}
+          {/* On-demand path (PLAN §3 Phase 5): a distinct, explicit action shown only when Live video
+              is on and this page has no clip — turning the toggle's honest "none on this page" into
+              something the user can act on, without conflating the global on/off toggle's meaning. */}
+          {canGenerateVideo && (
+            <button
+              type="button"
+              className={classNames("toolbar-button", { "toolbar-button-working": videoRequestPending })}
+              onClick={handleGenerateVideo}
+              disabled={videoRequestPending}
+              title="Generate a short looping motion clip for this page now (uses video quota)"
+            >
+              {videoRequestPending ? "Starting…" : "✨ Generate video"}
+            </button>
           )}
           {config.uploadAvailable && (
             <UploadButton

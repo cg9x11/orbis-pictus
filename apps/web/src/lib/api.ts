@@ -89,6 +89,21 @@ export async function fetchNodeVideo(id: string): Promise<string | null> {
 }
 
 /**
+ * On-demand idle-loop generation (PLAN §3 Phase 5): asks the server to make a clip for a page that
+ * was created without one (Live video was off at the time). Returns "pending" once generation is
+ * under way (the caller then polls via fetchNodeVideo) or "ready" if one already existed; throws
+ * with the server's message on a real failure (disabled, session cap, no image to animate).
+ */
+export async function requestNodeVideo(id: string): Promise<{ status: "pending" | "ready"; video_url?: string }> {
+  const res = await fetch(`/api/nodes/${id}/video`, { method: "POST" });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error((body as { error?: string } | null)?.error ?? `Couldn't start video generation (${res.status})`);
+  }
+  return res.json();
+}
+
+/**
  * Transition morph (PLAN §3 Phase 5): a single non-blocking check, never polled — morphs are
  * pre-generated in the background and either exist by the time you navigate here or they don't;
  * null just means "play the instant crossfade instead", not "come back later".

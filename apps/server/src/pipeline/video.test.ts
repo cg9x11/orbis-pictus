@@ -163,6 +163,108 @@ test("VIDEO_ENABLED=false disables generation entirely, synchronously", async ()
   }
 });
 
+// --- On-demand generation (startIdleLoopNow): the explicit, user-triggered path for a page created
+// without a clip (Live video was off at creation). Same budget/guards as the automatic path, but it
+// reports why nothing started and it retries a previously-failed node. ---
+
+test("startNow: generates for a null-status node and reports 'started'", async () => {
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const pipeline = createVideoPipeline();
+  const video = new SpyVideoProvider();
+  const node = makeNode("ondemand-fresh", "s-od-fresh", imagesDir);
+  insertNode(node, { normalizedSubject: "n" });
+
+  const result = pipeline.startIdleLoopNow(node, makeProviders(video), imagesDir);
+  assert.equal(result, "started");
+  await flush();
+
+  assert.equal(video.calls.length, 1);
+  assert.equal(getVideoInfo(node.id)?.status, "ready");
+});
+
+test("startNow: a node that already has a ready clip reports 'already-ready' and does not regenerate", async () => {
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const pipeline = createVideoPipeline();
+  const video = new SpyVideoProvider();
+  const node = makeNode("ondemand-ready", "s-od-ready", imagesDir);
+  insertNode(node, { normalizedSubject: "n" });
+
+  pipeline.maybeStartIdleLoop(node, makeProviders(video), imagesDir);
+  await flush();
+  assert.equal(video.calls.length, 1);
+
+  assert.equal(pipeline.startIdleLoopNow(node, makeProviders(video), imagesDir), "already-ready");
+  await flush();
+  assert.equal(video.calls.length, 1, "a ready clip must not be regenerated on demand");
+});
+
+test("startNow: a second synchronous call while one is in flight reports 'already-pending'", async () => {
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const pipeline = createVideoPipeline();
+  const video = new SpyVideoProvider();
+  const node = makeNode("ondemand-inflight", "s-od-inflight", imagesDir);
+  insertNode(node, { normalizedSubject: "n" });
+
+  assert.equal(pipeline.startIdleLoopNow(node, makeProviders(video), imagesDir), "started");
+  assert.equal(pipeline.startIdleLoopNow(node, makeProviders(video), imagesDir), "already-pending");
+  await flush();
+  assert.equal(video.calls.length, 1);
+});
+
+test("startNow: a previously-failed node IS retried (unlike the automatic path)", async () => {
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const pipeline = createVideoPipeline();
+  const video = new SpyVideoProvider();
+  video.shouldFail = true;
+  const node = makeNode("ondemand-retry", "s-od-retry", imagesDir);
+  insertNode(node, { normalizedSubject: "n" });
+
+  pipeline.maybeStartIdleLoop(node, makeProviders(video), imagesDir);
+  await flush();
+  assert.equal(getVideoInfo(node.id)?.status, "failed");
+
+  video.shouldFail = false;
+  assert.equal(pipeline.startIdleLoopNow(node, makeProviders(video), imagesDir), "started");
+  await flush();
+  assert.equal(video.calls.length, 2, "an explicit on-demand request retries a failed clip");
+  assert.equal(getVideoInfo(node.id)?.status, "ready");
+});
+
+test("startNow: past the per-session cap reports 'session-cap' and starts nothing", async () => {
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const pipeline = createVideoPipeline();
+  const video = new SpyVideoProvider();
+  const sessionId = "s-od-capped";
+  const nodes = ["od-cap-a", "od-cap-b", "od-cap-c"].map((id) => makeNode(id, sessionId, imagesDir));
+  for (const node of nodes) insertNode(node, { normalizedSubject: "n" });
+
+  // VIDEO_MAX_PER_SESSION=2 (top of file): the first two start, the third is refused.
+  assert.equal(pipeline.startIdleLoopNow(nodes[0]!, makeProviders(video), imagesDir), "started");
+  assert.equal(pipeline.startIdleLoopNow(nodes[1]!, makeProviders(video), imagesDir), "started");
+  assert.equal(pipeline.startIdleLoopNow(nodes[2]!, makeProviders(video), imagesDir), "session-cap");
+  await flush();
+  assert.equal(getVideoInfo(nodes[2]!.id)?.status, null);
+});
+
+test("startNow: VIDEO_ENABLED=false reports 'disabled' and starts nothing", async () => {
+  const originalValue = process.env.VIDEO_ENABLED;
+  process.env.VIDEO_ENABLED = "false";
+  try {
+    const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+    const pipeline = createVideoPipeline();
+    const video = new SpyVideoProvider();
+    const node = makeNode("ondemand-disabled", "s-od-disabled", imagesDir);
+    insertNode(node, { normalizedSubject: "n" });
+
+    assert.equal(pipeline.startIdleLoopNow(node, makeProviders(video), imagesDir), "disabled");
+    await flush();
+    assert.equal(video.calls.length, 0);
+    assert.equal(getVideoInfo(node.id)?.status, null);
+  } finally {
+    process.env.VIDEO_ENABLED = originalValue;
+  }
+});
+
 // The client decides whether to wait for a clip purely from the node's video_status, treating null
 // as "no clip will ever exist here". That makes the ORDER inside runGenerate load-bearing: the
 // background generation has to be kicked off, and the node re-read, before `complete` is emitted.

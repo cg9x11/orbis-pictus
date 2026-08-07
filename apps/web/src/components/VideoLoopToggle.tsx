@@ -41,7 +41,7 @@ function describe(enabled: boolean, status: VideoStatus | null | undefined): { l
       return {
         label: "Live video stream: on (none on this page)",
         title:
-          "No clip exists for this page, and none is being generated — clips are only made for a page when it is first created, with video enabled on the server. Newly generated pages will have one.",
+          "No clip exists for this page yet. Use the “Generate video” button to make one now, or newly generated pages will get one automatically while this is on.",
       };
   }
 }

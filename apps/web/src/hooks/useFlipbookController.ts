@@ -10,7 +10,7 @@ import { usePageAnalytics } from "./usePageAnalytics";
 import { useIdleLoopVideo } from "./useIdleLoopVideo";
 import { useMorphTransition } from "./useMorphTransition";
 import { useCancellableEffect } from "./useCancellableEffect";
-import { fetchConfig, fetchNode, fetchVariant } from "../lib/api";
+import { fetchConfig, fetchNode, fetchVariant, requestNodeVideo } from "../lib/api";
 import { captureCurrentImage } from "../lib/imageCapture";
 
 function newSessionId(): string {
@@ -64,6 +64,9 @@ export function useFlipbookController(initialNodeId?: string) {
   const setHouseStyle = (houseStyle: string) => setConfig((c) => ({ ...c, houseStyle }));
   const setComposition = (composition: string) => setConfig((c) => ({ ...c, composition }));
   const [videoLoopEnabled, setVideoLoopEnabled] = useState(false);
+  // True only for the brief POST round-trip of an on-demand video request, so the "Generate video"
+  // button can't be double-fired; once the node flips to "pending" the button hides on its own.
+  const [videoRequestPending, setVideoRequestPending] = useState(false);
   const [lastRequest, setLastRequest] = useState<GenerateRequest | null>(null);
   // Surfaces a non-generation failure (open a cached tap, switch ratio, upload) in the same error
   // banner the generation flow uses, instead of the spinner just stopping with no explanation.
@@ -118,6 +121,17 @@ export function useFlipbookController(initialNodeId?: string) {
   // state onto the image so the wait is visible there too — this stops right when the clip either
   // arrives (idleLoopVideoUrl set) or the page is left. It never blocks tapping; see PageImage.
   const videoGenerating = videoLoopEnabled && !isStreaming && !idleLoopVideoUrl && current?.video_status === "pending";
+  // PLAN §3 Phase 5 on-demand path: a page created while Live video was off has no clip and never
+  // will automatically (video_status null), and a prior on-demand attempt may have failed — both are
+  // retryable by explicit request. Offer the action only when the feature is actually available and
+  // the toggle is on, and never mid-generation.
+  const canGenerateVideo =
+    config.videoAvailable &&
+    videoLoopEnabled &&
+    !isStreaming &&
+    !idleLoopVideoUrl &&
+    !!current &&
+    (current.video_status === null || current.video_status === "failed");
   // PLAN §3 Phase 5: a single non-blocking check per navigation, never gates the page render.
   const [morphUrl, clearMorph] = useMorphTransition(current?.id, current?.parent_id, config.morphAvailable);
   // PLAN §2.3: spots on this page already explored, shown as markers so a free tap is visible
@@ -253,6 +267,27 @@ export function useFlipbookController(initialNodeId?: string) {
     reset([node]);
   };
 
+  /**
+   * On-demand idle-loop generation (PLAN §3 Phase 5) for the current page, which was created without
+   * a clip. Optimistically flips the node's video_status to "pending" (or "ready" if the server says
+   * one already existed) so useIdleLoopVideo starts polling and the "generating" indicator shows —
+   * exactly the state the automatic path leaves a node in — without waiting on a node re-fetch.
+   */
+  const handleGenerateVideo = async () => {
+    if (!current || videoRequestPending) return;
+    setActionError(null);
+    setVideoRequestPending(true);
+    try {
+      const { status } = await requestNodeVideo(current.id);
+      updateNode({ ...current, video_status: status === "ready" ? "ready" : "pending" });
+    } catch (err) {
+      console.error(err);
+      setActionError(err instanceof Error ? err.message : "Couldn't generate video for this page");
+    } finally {
+      setVideoRequestPending(false);
+    }
+  };
+
   const handleClear = () => {
     resetGeneration();
     reset([]);
@@ -302,6 +337,9 @@ export function useFlipbookController(initialNodeId?: string) {
     setVideoLoopEnabled,
     idleLoopVideoUrl,
     videoGenerating,
+    canGenerateVideo,
+    videoRequestPending,
+    handleGenerateVideo,
     morphUrl,
     clearMorph,
     cachedTaps,
