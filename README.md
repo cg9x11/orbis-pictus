@@ -83,7 +83,8 @@ experimental at that version; the warning it prints on startup is expected and h
 
 ```bash
 npm install
-cp .env.example .env
+cp .env.example .env          # secrets (API keys) go here
+cp config.example.yml config.yml   # everything else (providers, models, flags) — optional
 npm run dev:server   # http://localhost:8787
 npm run dev:web      # http://localhost:5173 — proxies /api, /images, /n to the server above
 ```
@@ -101,20 +102,38 @@ same origin, no proxy involved.
 
 ### Configuration
 
-Every provider is swappable independently via `.env` (see `.env.example` for the full file with
-inline comments). Nothing but a single LLM provider and a single image provider is ever required
-— everything else has a safe fallback.
+Configuration is split by sensitivity, resolved with a fixed precedence:
 
-| Env var | Purpose | Options |
+> **environment variable  >  `config.yml`  >  built-in default**
+
+- **`config.yml`** (non-secret, gitignored — copy from `config.example.yml`): provider selection,
+  model names, feature flags, and tunables, in a nested structure that's easy to manage as the
+  number of providers grows. Optional — omit it and everything falls back to env/defaults.
+- **`.env`** (secrets, gitignored — copy from `.env.example`): API keys only, plus any env override
+  you want to force. Env-first precedence means a deployment can override any single `config.yml`
+  value without editing the file.
+
+Nothing but a single LLM provider and a single image provider is ever required — everything else
+has a safe fallback. The table below lists each setting as its **env-override name**; the matching
+`config.yml` path is shown in `config.example.yml`.
+
+| Env override | Purpose | Options |
 |---|---|---|
 | `LLM_PROVIDER` | Prompt authoring + tap vision model | `anthropic` (Anthropic Messages API — works with a real Anthropic key **or** any Anthropic-compatible proxy via `LLM_BASE_URL`) · `gemini` · `mock` (default when no key is set) |
 | `LLM_API_KEY`, `LLM_BASE_URL` | Credentials/endpoint for the `anthropic` provider | `LLM_BASE_URL` has no `/v1` suffix — the SDK appends `/v1/messages` itself |
 | `PROMPT_AUTHOR_MODEL`, `TAP_VLM_MODEL` | Which models to call through that provider | any model id your endpoint serves; the VLM model must accept image input |
 | `GEMINI_API_KEY` | Credentials for the `gemini` provider | — |
-| `IMAGE_PROVIDER` | Image generation | `ark` (BytePlus Ark / Seedream) · `fal` (fal.ai) · `mock` (default when no key is set) |
+| `IMAGE_PROVIDER` | Image generation | `fal` (fal.ai) · `ark` (BytePlus Ark / Seedream) · `gemini` (Google "nano banana") · `openai` (gpt-image) · `mock` (default when no key is set) |
 | `ARK_API_KEY`, `ARK_BASE_URL` | Credentials/endpoint for `ark` | — |
 | `ARK_IMAGE_MODEL`, `ARK_IMAGE_MODEL_FALLBACK` | Primary model + an automatic fallback used on quota errors | e.g. `seedream-4-5-251128` / `seedream-4-0-250828` |
 | `FAL_KEY`, `IMAGE_MODEL` | Credentials/model for `fal` | — |
+| `GEMINI_API_KEY`, `GEMINI_IMAGE_MODEL` | Credentials/model for `gemini` image | e.g. `gemini-3.1-flash-lite-image` · `gemini-3.1-flash-image` · `gemini-3-pro-image` |
+| `OPENAI_API_KEY`, `OPENAI_IMAGE_MODEL`, `OPENAI_IMAGE_QUALITY` | Credentials/model/quality for `openai` image | e.g. `gpt-image-1.5` · quality `low`/`medium`/`high` |
+
+Adding another image provider is a one-file change: create a module under `apps/server/src/providers/image/`
+that exports an `ImageProviderFactory` (see `registry.ts`) and add it to the array in `image/index.ts` —
+no `switch`/`if` to touch. Each factory owns its own key lookup and config, and `referenceImageDataUrl`
+(tap/edit continuity) is optional per provider (`gemini` uses it; `openai` currently ignores it).
 | `SEARCH_PROVIDER` | Optional web search grounding for page content | `llm` (uses the Anthropic-compatible provider's server-side web-search tool) · `none` |
 | `SEARCH_MODEL` | Model used for search | — |
 | `HOUSE_STYLE` | Fixed visual style applied to every page | `felt` (default) · `papercut` · `riso` · `pixel` · `editorial` |

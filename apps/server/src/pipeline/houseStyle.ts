@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { strConfig } from "../config/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOUSE_STYLE_PATH = path.resolve(__dirname, "../prompts/house-style.md");
@@ -43,16 +44,18 @@ export function isCompositionName(raw: string | undefined | null): raw is Compos
   return (COMPOSITION_NAMES as string[]).includes(raw ?? "");
 }
 
-/** The style used when a request doesn't name one — `HOUSE_STYLE` env, or felt (PLAN §2). */
+/** The style used when a request doesn't name one — `HOUSE_STYLE` env / `houseStyle` in config.yml,
+ *  or felt (PLAN §2). */
 export function getDefaultHouseStyleName(): HouseStyleName {
-  const raw = process.env.HOUSE_STYLE;
+  const raw = strConfig("HOUSE_STYLE", (c) => c.houseStyle, "felt");
   return isHouseStyleName(raw) ? raw : "felt";
 }
 
-/** The composition used when a request doesn't name one — `COMPOSITION` env, or diorama (the
- *  app's original look, kept as the default so existing behaviour is unchanged). */
+/** The composition used when a request doesn't name one — `COMPOSITION` env / `composition` in
+ *  config.yml, or diorama (the app's original look, kept as the default so existing behaviour is
+ *  unchanged). */
 export function getDefaultCompositionName(): CompositionName {
-  const raw = process.env.COMPOSITION;
+  const raw = strConfig("COMPOSITION", (c) => c.composition, "diorama");
   return isCompositionName(raw) ? raw : "diorama";
 }
 

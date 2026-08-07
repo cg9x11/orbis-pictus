@@ -1,0 +1,54 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { buildImageProvider } from "./index.js";
+
+const KEYS = ["IMAGE_PROVIDER", "FAL_KEY", "ARK_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"];
+function reset(): void {
+  for (const k of KEYS) delete process.env[k];
+}
+
+test("selects the provider named by IMAGE_PROVIDER when its key is present", () => {
+  reset();
+  process.env.IMAGE_PROVIDER = "gemini";
+  process.env.GEMINI_API_KEY = "g-key";
+  const missing: string[] = [];
+  assert.equal(buildImageProvider(missing).providerId, "gemini");
+  assert.equal(missing.length, 0);
+
+  process.env.IMAGE_PROVIDER = "openai";
+  process.env.OPENAI_API_KEY = "o-key";
+  assert.equal(buildImageProvider([]).providerId, "openai");
+
+  process.env.IMAGE_PROVIDER = "fal";
+  process.env.FAL_KEY = "f-key";
+  assert.equal(buildImageProvider([]).providerId, "fal");
+  reset();
+});
+
+test("falls back to mock (and reports the missing key) when the selected provider has no key", () => {
+  reset();
+  process.env.IMAGE_PROVIDER = "openai"; // no OPENAI_API_KEY
+  const missing: string[] = [];
+  assert.equal(buildImageProvider(missing).providerId, "mock");
+  assert.ok(
+    missing.some((m) => m.includes("OPENAI_API_KEY")),
+    "should report the missing OpenAI key",
+  );
+  reset();
+});
+
+test("an unknown IMAGE_PROVIDER name falls back to mock and is reported", () => {
+  reset();
+  process.env.IMAGE_PROVIDER = "not-a-provider";
+  const missing: string[] = [];
+  assert.equal(buildImageProvider(missing).providerId, "mock");
+  assert.ok(missing.some((m) => m.includes("not-a-provider")));
+  reset();
+});
+
+test("IMAGE_PROVIDER=mock is respected explicitly", () => {
+  reset();
+  process.env.IMAGE_PROVIDER = "mock";
+  assert.equal(buildImageProvider([]).providerId, "mock");
+  reset();
+});

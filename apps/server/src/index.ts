@@ -17,6 +17,7 @@ import { isVideoEnabled } from "./pipeline/videoConfig.js";
 import { isMorphEnabled } from "./pipeline/morphConfig.js";
 import { getDefaultHouseStyleName, listHouseStyles, getDefaultCompositionName, listCompositions } from "./pipeline/houseStyle.js";
 import { isUploadEnabled } from "./pipeline/config.js";
+import { intConfig, strConfig } from "./config/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -28,13 +29,13 @@ if (missingKeys.length > 0) {
   );
 }
 
-const imagesDir = path.resolve(process.cwd(), process.env.IMAGES_DIR ?? "./data/images");
+const imagesDir = path.resolve(process.cwd(), strConfig("IMAGES_DIR", (c) => c.server?.imagesDir, "./data/images"));
 
 const app = new Hono();
 app.use("/api/*", cors());
 
 app.route("/api/generate", generateRoute(providers, imagesDir, videoPipeline, morphPipeline));
-app.route("/api/nodes", nodesRoute(providers, imagesDir));
+app.route("/api/nodes", nodesRoute(providers, imagesDir, videoPipeline));
 app.get("/api/waitroom", (c) => c.json({ enabled: false, admitted: true }));
 app.get("/api/config", (c) =>
   c.json({
@@ -108,7 +109,7 @@ app.get("/n/:id", (c) => {
 app.use("/*", serveStatic({ root: path.relative(process.cwd(), webDist) }));
 app.get("*", serveStatic({ path: path.join(path.relative(process.cwd(), webDist), "index.html") }));
 
-const port = Number(process.env.PORT ?? 8787);
+const port = intConfig("PORT", (c) => c.server?.port, 8787);
 serve({ fetch: app.fetch, port }, (info) => {
   console.log(`[flipbook] server listening on http://localhost:${info.port}`);
 });

@@ -1,0 +1,79 @@
+# flipbook configuration (non-secret) — copy to `config.yml` and edit.
+#
+#   cp config.example.yml config.yml
+#
+# `config.yml` is gitignored. Secrets (API keys) do NOT go here — keep them in `.env`
+# (see .env.example). Precedence for every setting is:
+#
+#     environment variable   >   this file   >   built-in default
+#
+# so a deployment can still override any single value with an env var without editing the file.
+# Anything you omit here falls back to the default shown in the comment.
+
+server:
+  port: 8787
+  databaseUrl: ./data/flipbook.db
+  imagesDir: ./data/images
+
+# --- Prompt author + tap VLM (needs LLM_API_KEY in .env for the anthropic provider) ---
+llm:
+  provider: anthropic          # anthropic | gemini | mock
+  baseUrl: http://localhost:20128   # anthropic proxy base URL (no /v1 suffix)
+  promptAuthorModel: cc/claude-sonnet-5
+  tapVlmModel: cc/claude-haiku-4-5
+
+# --- Image provider (secret goes in .env: FAL_KEY / ARK_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY) ---
+image:
+  provider: fal                # fal | ark | gemini | openai | mock
+  fal:
+    model: fal-ai/flux/schnell   # e.g. fal-ai/nano-banana for quality
+  ark:
+    baseUrl: https://ark.ap-southeast.bytepluses.com
+    model: seedream-4-5-251128
+    fallbackModel: seedream-4-0-250828
+  gemini:                       # Google "nano banana" family (uses GEMINI_API_KEY)
+    model: gemini-3.1-flash-lite-image   # ...-flash-image (2K/4K) | gemini-3-pro-image (Pro)
+    imageSize: 1K                # 512 | 1K | 2K | 4K (Lite is 1K only)
+    baseUrl: https://generativelanguage.googleapis.com/v1beta
+  openai:                       # gpt-image family (uses OPENAI_API_KEY)
+    model: gpt-image-1.5         # gpt-image-2 | gpt-image-1-mini | gpt-image-1
+    quality: medium              # low | medium | high
+    baseUrl: https://api.openai.com/v1
+
+# --- Idle-loop video + page-transition morphs (PLAN §3 Phase 5, experimental) ---
+# Off by default: video burns quota far faster than images. Uses ARK_API_KEY from .env.
+video:
+  enabled: false
+  provider: mock               # ark | mock (defaults to mock even when ARK_API_KEY is set)
+  model: seedance-1-0-pro-250528
+  resolution: 480p             # 480p | 720p | 1080p — never 1080p outside a deliberate test
+  durationSeconds: 5
+  maxPerSession: 5             # hard cap on idle-loop generations per browser session
+  morph:
+    enabled: false
+    maxPerSession: 5
+    # A flf2v-capable model for morphs when it must differ from the idle-loop model above
+    # (some fast models do i2v but not flf2v). Leave empty to reuse video.model.
+    model:
+
+# --- Web search (uses LLM_API_KEY from .env for the llm provider) ---
+search:
+  provider: llm                # llm | none
+  model: cc/claude-sonnet-5
+  timeoutMs: 45000             # wall-clock budget for one search before degrading gracefully
+  cacheEnabled: false          # in-memory reuse of summaries across repeated queries
+
+# --- Visual identity (PLAN §2) ---
+houseStyle: felt               # felt | papercut | riso | pixel | editorial
+composition: diorama           # flat | isometric | diorama
+
+# --- Photo upload (PLAN §3 Phase 2) ---
+upload:
+  enabled: false               # accepts arbitrary user images; opt in deliberately
+
+# --- Tap caching & reuse (PLAN §2.3) ---
+tapDedup: reuse                # reuse | variant | off
+
+# --- Debug ---
+debug:
+  imagePrompt: false           # log the exact fully-built image prompt for every generation

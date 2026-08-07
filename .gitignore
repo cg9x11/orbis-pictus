@@ -3,6 +3,7 @@ dist/
 build/
 *.tsbuildinfo
 .env
+config.yml
 *.local
 
 # reference-only asset used during reverse-engineering, not part of the build

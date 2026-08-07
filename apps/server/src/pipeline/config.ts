@@ -1,4 +1,4 @@
-import { boolEnvFlag } from "../lib/env.js";
+import { boolConfig, strConfig } from "../config/index.js";
 
 export type TapDedupMode = "reuse" | "variant" | "off";
 
@@ -8,7 +8,7 @@ export type TapDedupMode = "reuse" | "variant" | "off";
  * matching the original's always-fresh behavior (PLAN §1.6).
  */
 export function getTapDedupMode(): TapDedupMode {
-  const raw = process.env.TAP_DEDUP;
+  const raw = strConfig("TAP_DEDUP", (c) => c.tapDedup, "reuse");
   return raw === "variant" || raw === "off" ? raw : "reuse";
 }
 
@@ -19,5 +19,5 @@ export function getTapDedupMode(): TapDedupMode {
  * VIDEO_ENABLED / MORPH_ENABLED.
  */
 export function isUploadEnabled(): boolean {
-  return boolEnvFlag("UPLOAD_ENABLED");
+  return boolConfig("UPLOAD_ENABLED", (c) => c.upload?.enabled, false);
 }

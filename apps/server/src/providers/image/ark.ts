@@ -1,7 +1,10 @@
+import { z } from "zod";
 import type { AspectRatio } from "@flipbook/shared";
 import { QuotaExhaustedError, type ImageGenInput, type ImageGenResult, type ImageProvider } from "../types.js";
 import { ArkRequestError, toArkRequestError } from "../ark/errors.js";
 import { fetchWithRetry } from "../../lib/retry.js";
+import { strConfig } from "../../config/index.js";
+import type { ImageProviderFactory } from "./registry.js";
 
 /**
  * Draft-tier (Phase 1 single-tier) sizes. BytePlus Ark rejects named sizes like "1K" for
@@ -94,3 +97,28 @@ export class ArkImageProvider implements ImageProvider {
     return { bytes: Buffer.from(b64, "base64"), contentType: "image/jpeg" };
   }
 }
+
+const ArkImageConfigSchema = z.object({
+  apiKey: z.string().min(1),
+  baseUrl: z.string().url(),
+  model: z.string().min(1),
+  fallbackModel: z.string().min(1).optional(),
+});
+
+export const arkImageFactory: ImageProviderFactory = {
+  id: "ark",
+  build: (ctx) => {
+    const parsed = ArkImageConfigSchema.safeParse({
+      apiKey: process.env.ARK_API_KEY,
+      baseUrl: strConfig("ARK_BASE_URL", (c) => c.image?.ark?.baseUrl, "https://ark.ap-southeast.bytepluses.com"),
+      model: strConfig("ARK_IMAGE_MODEL", (c) => c.image?.ark?.model, "seedream-4-5-251128"),
+      fallbackModel: strConfig("ARK_IMAGE_MODEL_FALLBACK", (c) => c.image?.ark?.fallbackModel, "seedream-4-0-250828"),
+    });
+    if (!parsed.success) {
+      ctx.reportMissing(`ARK_API_KEY/config (${parsed.error.issues.map((i) => i.path.join(".")).join(", ")})`);
+      return null;
+    }
+    const { apiKey, baseUrl, model, fallbackModel } = parsed.data;
+    return new ArkImageProvider(apiKey, baseUrl, model, fallbackModel);
+  },
+};

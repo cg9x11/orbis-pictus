@@ -1,6 +1,8 @@
 import type { AspectRatio } from "@flipbook/shared";
 import type { ImageGenInput, ImageGenResult, ImageProvider } from "../types.js";
 import { fetchWithRetry } from "../../lib/retry.js";
+import { strConfig } from "../../config/index.js";
+import type { ImageProviderFactory } from "./registry.js";
 
 const IMAGE_SIZE_BY_ASPECT: Record<AspectRatio, string> = {
   "16:9": "landscape_16_9",
@@ -49,3 +51,15 @@ export class FalImageProvider implements ImageProvider {
     return { bytes, contentType };
   }
 }
+
+export const falImageFactory: ImageProviderFactory = {
+  id: "fal",
+  build: (ctx) => {
+    const apiKey = process.env.FAL_KEY;
+    if (!apiKey) {
+      ctx.reportMissing("FAL_KEY");
+      return null;
+    }
+    return new FalImageProvider(apiKey, strConfig("IMAGE_MODEL", (c) => c.image?.fal?.model, "fal-ai/flux/schnell"));
+  },
+};

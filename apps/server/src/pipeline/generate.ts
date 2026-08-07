@@ -17,7 +17,7 @@ import type { VideoPipeline } from "./video.js";
 import type { MorphPipeline } from "./morph.js";
 import { getTapDedupMode } from "./config.js";
 import { buildImagePrompt } from "./houseStyle.js";
-import { boolEnvFlag } from "../lib/env.js";
+import { boolConfig } from "../config/index.js";
 import { withRetry } from "../lib/retry.js";
 import { InFlight } from "../lib/coalesce.js";
 import type { ImageGenResult } from "../providers/types.js";
@@ -229,7 +229,7 @@ export async function runGenerate(
   // Opt-in prompt inspection (env DEBUG_IMAGE_PROMPT=true): print the exact, fully-built prompt sent
   // to the image model — content (authored) + house style appended — plus the knobs that shaped it.
   // Logged whether or not the layer-3 cache serves it back, so `served_from_cache` tells which happened.
-  if (boolEnvFlag("DEBUG_IMAGE_PROMPT")) {
+  if (boolConfig("DEBUG_IMAGE_PROMPT", (c) => c.debug?.imagePrompt, false)) {
     const reference =
       req.mode === "edit" ? "current page image (edit)" : tapReferenceImageDataUrl ? "parent page frame (tap)" : "none";
     // The web search summary (call 1) is what grounds the authored content (call 2), so logging it

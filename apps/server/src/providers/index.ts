@@ -2,23 +2,14 @@ import { z } from "zod";
 import { MockLlmProvider } from "./llm/mock.js";
 import { GeminiLlmProvider } from "./llm/gemini.js";
 import { AnthropicLlmProvider } from "./llm/anthropic.js";
-import { MockImageProvider } from "./image/mock.js";
-import { FalImageProvider } from "./image/fal.js";
-import { ArkImageProvider } from "./image/ark.js";
+import { buildImageProvider } from "./image/index.js";
 import { MockVideoProvider } from "./video/mock.js";
 import { ArkVideoProvider } from "./video/ark.js";
 import { NoneSearchProvider } from "./search/none.js";
 import { LlmSearchProvider } from "./search/llm.js";
 import { CachingSearchProvider } from "./search/caching.js";
-import { boolEnvFlag, positiveIntEnv } from "../lib/env.js";
+import { boolConfig, intConfig, strConfig } from "../config/index.js";
 import type { ImageProvider, LlmProvider, SearchProvider, VideoProvider } from "./types.js";
-
-const ArkConfigSchema = z.object({
-  ARK_API_KEY: z.string().min(1),
-  ARK_BASE_URL: z.string().url(),
-  ARK_IMAGE_MODEL: z.string().min(1),
-  ARK_IMAGE_MODEL_FALLBACK: z.string().min(1).optional(),
-});
 
 const ArkVideoConfigSchema = z.object({
   ARK_API_KEY: z.string().min(1),
@@ -53,9 +44,9 @@ function buildAnthropicLlm(missingKeys: string[]): LlmProvider {
     missingKeys.push("LLM_API_KEY");
     return new MockLlmProvider();
   }
-  const baseURL = process.env.LLM_BASE_URL || "http://localhost:20128";
-  const promptAuthorModel = process.env.PROMPT_AUTHOR_MODEL || "cc/claude-sonnet-5";
-  const tapVlmModel = process.env.TAP_VLM_MODEL || "cc/claude-haiku-4-5";
+  const baseURL = strConfig("LLM_BASE_URL", (c) => c.llm?.baseUrl, "http://localhost:20128");
+  const promptAuthorModel = strConfig("PROMPT_AUTHOR_MODEL", (c) => c.llm?.promptAuthorModel, "cc/claude-sonnet-5");
+  const tapVlmModel = strConfig("TAP_VLM_MODEL", (c) => c.llm?.tapVlmModel, "cc/claude-haiku-4-5");
   return new AnthropicLlmProvider(apiKey, baseURL, promptAuthorModel, tapVlmModel);
 }
 
@@ -71,7 +62,7 @@ function buildGeminiLlm(missingKeys: string[]): LlmProvider {
 function buildLlmProvider(missingKeys: string[]): LlmProvider {
   const defaultProvider = process.env.LLM_API_KEY ? "anthropic" : "gemini";
   return selectProvider(
-    process.env.LLM_PROVIDER ?? defaultProvider,
+    strConfig("LLM_PROVIDER", (c) => c.llm?.provider, defaultProvider),
     {
       mock: () => new MockLlmProvider(),
       anthropic: () => buildAnthropicLlm(missingKeys),
@@ -81,47 +72,15 @@ function buildLlmProvider(missingKeys: string[]): LlmProvider {
   );
 }
 
-function buildArkImage(missingKeys: string[]): ImageProvider {
-  const parsed = ArkConfigSchema.safeParse({
-    ARK_API_KEY: process.env.ARK_API_KEY,
-    ARK_BASE_URL: process.env.ARK_BASE_URL || "https://ark.ap-southeast.bytepluses.com",
-    ARK_IMAGE_MODEL: process.env.ARK_IMAGE_MODEL || "seedream-4-5-251128",
-    ARK_IMAGE_MODEL_FALLBACK: process.env.ARK_IMAGE_MODEL_FALLBACK || "seedream-4-0-250828",
-  });
-  if (!parsed.success) {
-    pushMissingConfig(missingKeys, "ARK_API_KEY/config", parsed.error.issues);
-    return new MockImageProvider();
-  }
-  const { ARK_API_KEY, ARK_BASE_URL, ARK_IMAGE_MODEL, ARK_IMAGE_MODEL_FALLBACK } = parsed.data;
-  return new ArkImageProvider(ARK_API_KEY, ARK_BASE_URL, ARK_IMAGE_MODEL, ARK_IMAGE_MODEL_FALLBACK);
-}
-
-function buildFalImage(missingKeys: string[]): ImageProvider {
-  const apiKey = process.env.FAL_KEY;
-  if (!apiKey) {
-    missingKeys.push("FAL_KEY");
-    return new MockImageProvider();
-  }
-  return new FalImageProvider(apiKey, process.env.IMAGE_MODEL || "fal-ai/flux/schnell");
-}
-
-function buildImageProvider(missingKeys: string[]): ImageProvider {
-  return selectProvider(
-    process.env.IMAGE_PROVIDER ?? "fal",
-    {
-      mock: () => new MockImageProvider(),
-      ark: () => buildArkImage(missingKeys),
-      fal: () => buildFalImage(missingKeys),
-    },
-    () => new MockImageProvider(),
-  );
-}
+// Image providers live in their own self-describing registry (./image/index.ts): add a provider by
+// dropping an ImageProviderFactory into that array, no change here. buildImageProvider is re-exported
+// below alongside the other build*Provider functions.
 
 function buildArkVideo(missingKeys: string[]): VideoProvider {
   const parsed = ArkVideoConfigSchema.safeParse({
     ARK_API_KEY: process.env.ARK_API_KEY,
-    ARK_BASE_URL: process.env.ARK_BASE_URL || "https://ark.ap-southeast.bytepluses.com",
-    ARK_VIDEO_MODEL: process.env.ARK_VIDEO_MODEL || "seedance-1-0-pro-250528",
+    ARK_BASE_URL: strConfig("ARK_BASE_URL", (c) => c.image?.ark?.baseUrl, "https://ark.ap-southeast.bytepluses.com"),
+    ARK_VIDEO_MODEL: strConfig("ARK_VIDEO_MODEL", (c) => c.video?.model, "seedance-1-0-pro-250528"),
   });
   if (!parsed.success) {
     pushMissingConfig(missingKeys, "ARK_API_KEY/config for video", parsed.error.issues);
@@ -136,7 +95,7 @@ function buildVideoProvider(missingKeys: string[]): VideoProvider {
   // an opt-in experimental feature gated separately by VIDEO_ENABLED (PLAN §3 Phase 5) — a user
   // shouldn't start burning real video quota just because they already configured Ark for images.
   return selectProvider(
-    process.env.VIDEO_PROVIDER ?? "mock",
+    strConfig("VIDEO_PROVIDER", (c) => c.video?.provider, "mock"),
     { ark: () => buildArkVideo(missingKeys) },
     () => new MockVideoProvider(),
   );
@@ -148,25 +107,25 @@ function buildLlmSearch(missingKeys: string[]): SearchProvider {
     missingKeys.push("LLM_API_KEY (for SEARCH_PROVIDER=llm)");
     return new NoneSearchProvider();
   }
-  const baseURL = process.env.LLM_BASE_URL || "http://localhost:20128";
-  const searchModel = process.env.SEARCH_MODEL || "cc/claude-sonnet-5";
-  const timeoutMs = positiveIntEnv("SEARCH_TIMEOUT_MS", 45000);
+  const baseURL = strConfig("LLM_BASE_URL", (c) => c.llm?.baseUrl, "http://localhost:20128");
+  const searchModel = strConfig("SEARCH_MODEL", (c) => c.search?.model, "cc/claude-sonnet-5");
+  const timeoutMs = intConfig("SEARCH_TIMEOUT_MS", (c) => c.search?.timeoutMs, 45000);
   return new LlmSearchProvider(apiKey, baseURL, searchModel, timeoutMs);
 }
 
 function buildSearchProvider(missingKeys: string[]): SearchProvider {
   const defaultProvider = process.env.LLM_API_KEY ? "llm" : "none";
   const provider = selectProvider(
-    process.env.SEARCH_PROVIDER ?? defaultProvider,
+    strConfig("SEARCH_PROVIDER", (c) => c.search?.provider, defaultProvider),
     {
       llm: () => buildLlmSearch(missingKeys),
       none: () => new NoneSearchProvider(),
     },
     () => new NoneSearchProvider(),
   );
-  // Opt-in in-memory reuse of search summaries across repeated queries (SEARCH_CACHE_ENABLED),
-  // wrapping whichever provider was selected — harmless around the `none` stub.
-  return boolEnvFlag("SEARCH_CACHE_ENABLED") ? new CachingSearchProvider(provider) : provider;
+  // Opt-in in-memory reuse of search summaries across repeated queries (SEARCH_CACHE_ENABLED /
+  // search.cacheEnabled), wrapping whichever provider was selected — harmless around the `none` stub.
+  return boolConfig("SEARCH_CACHE_ENABLED", (c) => c.search?.cacheEnabled, false) ? new CachingSearchProvider(provider) : provider;
 }
 
 export function createProviders(): { providers: Providers; missingKeys: string[] } {
