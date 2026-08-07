@@ -67,14 +67,27 @@ limitations** for the current rough edges.
 **Page-transition morphs** (experimental, off by default). After a *child* page completes (a tap
 or an edit — anything with a parent), if `MORPH_ENABLED=true` a clip is generated in the background
 with the parent's image as the first frame and the child's image as the last, so the tapped subject
-stays anchored on screen while the rest of the page repaints into the new one. **This is
-pre-generated and cached, never generated on demand** — navigation never waits on it, so the very
-first time you visit a given parent→child pair you always get the instant image swap; the morph
-only plays on a *later* revisit of that same pair, once the background generation from the first
-visit has had time to finish. Verified against the live Ark API before building the feature (see
-`PLAN.md` §2 for the frame-by-frame judgment); the current model doesn't hold the camera perfectly
-still despite an explicit fixed-camera instruction — it reads more like a deliberate zoom into the
-tapped subject than drift, but it's a real deviation from the prompt, not a stylistic choice.
+stays anchored on screen while the rest of the page repaints into the new one.
+
+The transition waits for it. Once the new page's image is ready, the app stays on the page you're
+leaving until that page's clips have finished rendering, then plays the morph straight into the new
+page — so the morph appears on the *first* tap, not only on a later revisit. The wait is bounded by
+a timeout and only ever happens while the per-session cap has room; past the cap, or with the
+feature off, navigation is instant as before. A page that missed its chance (created while Live
+video was off, or reopened from a cached-tap marker, which never runs the generate pipeline) can be
+given both clips later with the **✨ Animate page** button.
+
+Going *back* one step replays the same clip in reverse. A morph is a first-frame/last-frame
+interpolation from the parent's image to the child's, so its reverse is exactly the parent-ward
+transition — no second generation and no extra video quota, just a local `ffmpeg -vf reverse`
+re-encode written alongside it (`MORPH_REVERSE`, on by default; without ffmpeg it simply doesn't
+happen). Anything further than one step — a breadcrumb jump to a distant ancestor — spans several
+parent/child pairs, so no single clip could represent it and those get a short crossfade instead.
+
+Verified against the live Ark API before building the feature (see `PLAN.md` §2 for the
+frame-by-frame judgment); the current model doesn't hold the camera perfectly still despite an
+explicit fixed-camera instruction — it reads more like a deliberate zoom into the tapped subject
+than drift, but it's a real deviation from the prompt, not a stylistic choice.
 
 ## Setup
 
@@ -143,6 +156,7 @@ no `switch`/`if` to touch. Each factory owns its own key lookup and config, and 
 | `ARK_VIDEO_MODEL`, `VIDEO_RESOLUTION`, `VIDEO_DURATION_SECONDS`, `VIDEO_MAX_PER_SESSION` | Video generation tuning + a hard per-session cap | — |
 | `MORPH_ENABLED` | Master switch for page-transition morphs | `false` (default) |
 | `MORPH_MAX_PER_SESSION` | Hard per-session cap on morph generations (reuses `VIDEO_PROVIDER`/`ARK_VIDEO_MODEL`/`VIDEO_RESOLUTION`/`VIDEO_DURATION_SECONDS` above) | — |
+| `MORPH_REVERSE` | Re-encode each morph backwards (needs `ffmpeg` on PATH) so stepping back replays it in reverse. Costs no video quota. Off = back-navigation crossfades | `true` (default) |
 | `PORT`, `DATABASE_URL`, `IMAGES_DIR` | Server port, SQLite file path, disk path for generated images | — |
 
 ## Cost
@@ -176,10 +190,11 @@ page than an image and are each capped per session (`VIDEO_MAX_PER_SESSION`,
   shows up as a residual risk rather than a routine failure.
 - **Page-transition morphs are pre-generated, not real-time.** The original streams a live video
   transition over a WebSocket to a self-hosted model as you tap (`PLAN.md` §1.5); this project
-  intentionally doesn't reproduce that architecture. Instead, a morph clip generates in the
-  background after a tap/edit completes and is cached — the first visit to any parent→child pair
-  always gets the instant image swap, and only a later revisit can show the morph. The model also
-  doesn't hold the camera perfectly fixed despite the prompt asking for it (see **How it works**).
+  intentionally doesn't reproduce that architecture. Instead the clip is generated as a whole file
+  after the tap/edit completes, and the transition waits for it — which is why stepping into a new
+  page takes noticeably longer with morphs on than with them off, where the original stays
+  interactive throughout. The model also doesn't hold the camera perfectly fixed despite the prompt
+  asking for it (see **How it works**).
 - **No true two-tier draft/final rendering.** Dropped by design (`PLAN.md` §3) — see **Cost**.
 
 ## Roadmap

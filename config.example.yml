@@ -55,6 +55,10 @@ video:
     # A flf2v-capable model for morphs when it must differ from the idle-loop model above
     # (some fast models do i2v but not flf2v). Leave empty to reuse video.model.
     model:
+    # Re-encode each finished morph backwards (ffmpeg on PATH) so stepping back up to the parent
+    # replays the same transition in reverse. Costs no video quota — it is a local re-encode of a
+    # clip that already exists. Turn off on a host without ffmpeg: back-navigation then crossfades.
+    reverse: true
 
 # --- Web search (uses LLM_API_KEY from .env for the llm provider) ---
 search:
