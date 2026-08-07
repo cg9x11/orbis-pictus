@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { VideoStatus } from "@flipbook/shared";
 import { fetchNodeVideo } from "../lib/api";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
@@ -28,11 +28,21 @@ export function useIdleLoopVideo(
   status: VideoStatus | null | undefined,
 ): string | null {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const lastNodeIdRef = useRef<string | undefined>(undefined);
   const reducedMotion = usePrefersReducedMotion();
 
   useCancellableEffect(
     (cancelled) => {
-      setVideoUrl(null);
+      const nodeChanged = lastNodeIdRef.current !== nodeId;
+      lastNodeIdRef.current = nodeId;
+
+      const canShow = enabled && !!nodeId && !reducedMotion && (status === "pending" || status === "ready");
+      // Clear the previous clip when the page changes, or when this page can no longer show one
+      // (toggled off, reduced motion, no clip). But a same-node status flip from "pending" to
+      // "ready" — written back once the clip is fetched — must NOT blink the already-playing video:
+      // the poll below re-fetches the same URL and setVideoUrl bails out, so nothing remounts.
+      if (nodeChanged || !canShow) setVideoUrl(null);
+      // Equivalent to `!canShow` but written so TypeScript narrows nodeId to a string below.
       if (!enabled || !nodeId || reducedMotion) return;
       if (status !== "pending" && status !== "ready") return;
 

@@ -189,12 +189,14 @@ export function nodesRoute(providers: Providers, imagesDir: string, video: Video
 
   // Transition-morph polling (PLAN §3 Phase 5): 404 until the pre-generated clip is ready — same
   // shape and reasoning as /video above. Morphs are never generated on demand, so a 404 here just
-  // means "use the instant crossfade", not "come back later and block on it".
+  // means "use the instant crossfade", not "come back later and block on it". The `status` field on
+  // the not-ready branch lets the first-step-morph gate (useFlipbookController) tell "still pending,
+  // keep waiting" from "failed, give up and navigate now" while it holds navigation for this clip.
   app.get("/:id/morph", (c) => {
     const id = c.req.param("id");
     const info = getMorphInfo(id);
     if (!info || info.status !== "ready" || !info.url) {
-      return c.json({ ready: false }, 404);
+      return c.json({ ready: false, status: info?.status ?? null }, 404);
     }
     return c.json({ ready: true, morph_url: info.url });
   });

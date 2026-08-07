@@ -27,6 +27,8 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     setComposition,
     state,
     isStreaming,
+    busy,
+    preparingMorph,
     lastRequest,
     setActionError,
     isQuotaError,
@@ -68,29 +70,29 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
   return (
     <BrowserFrame
       onHome={handleClear}
-      homeDisabled={isStreaming || showLanding}
+      homeDisabled={busy || showLanding}
       addressBar={
         <AddressBar
           trail={trail}
           currentIndex={currentIndex}
           onNavigate={handleNavigate}
           onSubmit={handleAddressSubmit}
-          disabled={isStreaming}
+          disabled={busy}
           pendingLabel={isStreaming ? state.tapSubject : undefined}
           editMode={!!current}
         />
       }
       toolbar={
         <>
-          <AspectRatioPicker value={aspectRatio} onChange={handleRatioChange} disabled={isStreaming || variantLoading} />
-          <WebSearchToggle enabled={config.webSearch} onChange={setWebSearch} disabled={isStreaming} />
-          <HouseStylePicker styles={config.houseStyles} value={config.houseStyle} onChange={setHouseStyle} disabled={isStreaming} />
-          <CompositionPicker compositions={config.compositions} value={config.composition} onChange={setComposition} disabled={isStreaming} />
+          <AspectRatioPicker value={aspectRatio} onChange={handleRatioChange} disabled={busy || variantLoading} />
+          <WebSearchToggle enabled={config.webSearch} onChange={setWebSearch} disabled={busy} />
+          <HouseStylePicker styles={config.houseStyles} value={config.houseStyle} onChange={setHouseStyle} disabled={busy} />
+          <CompositionPicker compositions={config.compositions} value={config.composition} onChange={setComposition} disabled={busy} />
           {config.videoAvailable && (
             <VideoLoopToggle
               enabled={videoLoopEnabled}
               onChange={setVideoLoopEnabled}
-              disabled={isStreaming}
+              disabled={busy}
               // Once the poll has the clip in hand it is ready, whatever the node payload said when
               // the page loaded — that snapshot is never refreshed, so it would otherwise read
               // "generating…" forever on a page whose loop is already playing.
@@ -114,12 +116,12 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
           {config.uploadAvailable && (
             <UploadButton
               sessionId={sessionId}
-              disabled={isStreaming || variantLoading}
+              disabled={busy || variantLoading}
               onUploaded={handleUploaded}
               onError={setActionError}
             />
           )}
-          <button type="button" className="toolbar-button" onClick={handleClear} disabled={isStreaming || trail.length === 0}>
+          <button type="button" className="toolbar-button" onClick={handleClear} disabled={busy || trail.length === 0}>
             Clear
           </button>
         </>
@@ -133,8 +135,9 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
           videoUrl={idleLoopVideoUrl}
           morphUrl={morphUrl}
           onMorphEnded={clearMorph}
-          markers={<CachedTapMarkers taps={cachedTaps} onOpen={handleOpenCachedTap} hidden={isStreaming} />}
+          markers={<CachedTapMarkers taps={cachedTaps} onOpen={handleOpenCachedTap} hidden={busy} />}
           videoGenerating={videoGenerating}
+          preparingMorph={preparingMorph}
           loading={showLoadingIndicator}
           loadingContent={
             isStreaming ? (

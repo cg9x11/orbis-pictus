@@ -25,6 +25,11 @@ interface PageImageProps {
    *  `loading`, the page is already finished and stays fully interactive — the indicator only says
    *  "a clip is coming", it must never block a tap. */
   videoGenerating?: boolean;
+  /** First-step-morph flow: navigation is being held while this page's transition-morph finishes
+   *  generating, so the morph can play on the first step. The page underneath stays visible (its own
+   *  idle loop keeps playing); this only shows a passive "preparing" pill. Taps are already blocked
+   *  upstream by the controller's `busy` guard while this is true. */
+  preparingMorph?: boolean;
   onTap: (image: HTMLImageElement, clientX: number, clientY: number) => void;
   ripple: { xRatio: number; yRatio: number } | null;
   onRippleDone: () => void;
@@ -41,6 +46,7 @@ export function PageImage({
   loadingContent,
   markers,
   videoGenerating,
+  preparingMorph,
   onTap,
   ripple,
   onRippleDone,
@@ -65,7 +71,13 @@ export function PageImage({
     onTap(imgRef.current, e.clientX, e.clientY);
   };
 
-  const overlay = loading ? "loading" : videoGenerating ? "video-generating" : "none";
+  const overlay = loading
+    ? "loading"
+    : preparingMorph
+      ? "preparing-morph"
+      : videoGenerating
+        ? "video-generating"
+        : "none";
 
   return (
     <div className="page-image-container" style={{ aspectRatio: aspectRatio.replace(":", "/") }}>
@@ -124,6 +136,14 @@ export function PageImage({
         <div className="page-loading-overlay page-loading-overlay-passive">
           <span className="generation-progress-spinner" aria-hidden="true" />
           <span>Generating video…</span>
+        </div>
+      )}
+      {overlay === "preparing-morph" && (
+        // First-step-morph wait: the parent page stays visible (and its idle loop keeps playing)
+        // while its transition-morph finishes rendering; the controller blocks taps meanwhile.
+        <div className="page-loading-overlay page-loading-overlay-passive">
+          <span className="generation-progress-spinner" aria-hidden="true" />
+          <span>Preparing transition…</span>
         </div>
       )}
     </div>

@@ -4,6 +4,7 @@ import type {
   ConfigResponse,
   GenerateEvent,
   GenerateRequest,
+  MorphStatus,
   Node,
   NodesGetResponse,
   NodesListResponse,
@@ -113,6 +114,43 @@ export async function fetchNodeMorph(id: string): Promise<string | null> {
   if (!res.ok) return null;
   const { morph_url } = (await res.json()) as { ready: true; morph_url: string };
   return morph_url;
+}
+
+// First-step-morph gate (useFlipbookController): unlike the non-blocking fetchNodeMorph above, this
+// deliberately blocks navigation while a morph is on its way. Poll cadence is tuned to real morph
+// generation (~32s in the verified live test): wait a beat, then check every few seconds, and give
+// up after the timeout so a stalled generation can never hang the transition indefinitely.
+const MORPH_WAIT_FIRST_MS = 4000;
+const MORPH_WAIT_POLL_MS = 2500;
+const MORPH_WAIT_TIMEOUT_MS = 60_000;
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** One status-aware read of a node's morph: `ready` with the url, or the pending/failed/absent status. */
+async function fetchMorphState(id: string): Promise<{ ready: boolean; status: MorphStatus | null; morphUrl: string | null }> {
+  const res = await fetch(`/api/nodes/${id}/morph`);
+  const body = (await res.json().catch(() => null)) as { status?: MorphStatus | null; morph_url?: string } | null;
+  if (res.ok && body?.morph_url) return { ready: true, status: "ready", morphUrl: body.morph_url };
+  return { ready: false, status: body?.status ?? null, morphUrl: null };
+}
+
+/**
+ * Blocks until the transition-morph for `id` is ready (resolving its url), or gives up — returning
+ * null — the moment the server reports the generation `failed` or the overall timeout elapses. Used
+ * only for the first parent -> child step, where navigation is intentionally held so the morph plays
+ * on that first transition (see useFlipbookController); over the per-session cap the child never
+ * reaches "pending" and the caller never calls this, so navigation there stays instant.
+ */
+export async function waitForMorphReady(id: string): Promise<string | null> {
+  const deadline = Date.now() + MORPH_WAIT_TIMEOUT_MS;
+  await sleep(MORPH_WAIT_FIRST_MS);
+  for (;;) {
+    const { ready, status, morphUrl } = await fetchMorphState(id);
+    if (ready && morphUrl) return morphUrl;
+    if (status === "failed") return null;
+    if (Date.now() >= deadline) return null;
+    await sleep(MORPH_WAIT_POLL_MS);
+  }
 }
 
 export async function uploadImage(image: string, aspectRatio: AspectRatio, sessionId: string): Promise<Node> {
