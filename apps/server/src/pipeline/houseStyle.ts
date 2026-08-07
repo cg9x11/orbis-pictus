@@ -5,7 +5,6 @@ import { strConfig } from "../config/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOUSE_STYLE_PATH = path.resolve(__dirname, "../prompts/house-style.md");
-const HOUSE_STYLE_SOURCE = fs.readFileSync(HOUSE_STYLE_PATH, "utf-8");
 
 export type HouseStyleName = "felt" | "papercut" | "riso" | "pixel" | "editorial";
 const STYLE_NAMES: HouseStyleName[] = ["felt", "papercut", "riso", "pixel", "editorial"];
@@ -18,23 +17,53 @@ function anchor(name: string): string {
 }
 
 /** Text between an anchor comment and the next one (or EOF), trimmed. */
-function extractSection(name: string): string {
+function extractSection(source: string, name: string): string {
   const marker = anchor(name);
-  const start = HOUSE_STYLE_SOURCE.indexOf(marker);
+  const start = source.indexOf(marker);
   if (start === -1) throw new Error(`house-style.md is missing anchor ${marker}`);
   const afterMarker = start + marker.length;
-  const nextMarkerStart = HOUSE_STYLE_SOURCE.indexOf("<!-- house-style:", afterMarker);
-  const end = nextMarkerStart === -1 ? HOUSE_STYLE_SOURCE.length : nextMarkerStart;
-  return HOUSE_STYLE_SOURCE.slice(afterMarker, end).trim();
+  const nextMarkerStart = source.indexOf("<!-- house-style:", afterMarker);
+  const end = nextMarkerStart === -1 ? source.length : nextMarkerStart;
+  return source.slice(afterMarker, end).trim();
 }
 
-const LAYOUT_SECTION = extractSection("layout");
-const STYLE_SECTIONS: Record<HouseStyleName, string> = Object.fromEntries(
-  STYLE_NAMES.map((name) => [name, extractSection(name)]),
-) as Record<HouseStyleName, string>;
-const COMPOSITION_SECTIONS: Record<CompositionName, string> = Object.fromEntries(
-  COMPOSITION_NAMES.map((name) => [name, extractSection(`composition-${name}`)]),
-) as Record<CompositionName, string>;
+interface ParsedHouseStyle {
+  layout: string;
+  styles: Record<HouseStyleName, string>;
+  compositions: Record<CompositionName, string>;
+}
+
+function parseHouseStyle(source: string): ParsedHouseStyle {
+  return {
+    layout: extractSection(source, "layout"),
+    styles: Object.fromEntries(STYLE_NAMES.map((n) => [n, extractSection(source, n)])) as Record<HouseStyleName, string>,
+    compositions: Object.fromEntries(
+      COMPOSITION_NAMES.map((n) => [n, extractSection(source, `composition-${n}`)]),
+    ) as Record<CompositionName, string>,
+  };
+}
+
+// Hot-reload the prompt file when it changes on disk, so tuning house-style.md takes effect with no
+// server restart (dev iteration; the md isn't imported, so `tsx watch` won't restart on its edits).
+// Stat at most once per second — building a prompt reads a few sections, so this costs one stat.
+let cached: ParsedHouseStyle | undefined;
+let cachedMtimeMs = 0;
+let lastStatMs = 0;
+const STAT_THROTTLE_MS = 1000;
+
+function sections(): ParsedHouseStyle {
+  const now = Date.now();
+  if (cached !== undefined && now - lastStatMs >= STAT_THROTTLE_MS) {
+    lastStatMs = now;
+    if (fs.statSync(HOUSE_STYLE_PATH).mtimeMs !== cachedMtimeMs) cached = undefined;
+  }
+  if (cached === undefined) {
+    lastStatMs = now;
+    cachedMtimeMs = fs.statSync(HOUSE_STYLE_PATH).mtimeMs;
+    cached = parseHouseStyle(fs.readFileSync(HOUSE_STYLE_PATH, "utf-8"));
+  }
+  return cached;
+}
 
 export function isHouseStyleName(raw: string | undefined | null): raw is HouseStyleName {
   return (STYLE_NAMES as string[]).includes(raw ?? "");
@@ -68,11 +97,13 @@ function headingLabel(section: string, keyword: string, fallback: string): strin
 }
 
 export function listHouseStyles(): { name: HouseStyleName; label: string }[] {
-  return STYLE_NAMES.map((name) => ({ name, label: headingLabel(STYLE_SECTIONS[name], "Style", name) }));
+  const { styles } = sections();
+  return STYLE_NAMES.map((name) => ({ name, label: headingLabel(styles[name], "Style", name) }));
 }
 
 export function listCompositions(): { name: CompositionName; label: string }[] {
-  return COMPOSITION_NAMES.map((name) => ({ name, label: headingLabel(COMPOSITION_SECTIONS[name], "Composition", name) }));
+  const { compositions } = sections();
+  return COMPOSITION_NAMES.map((name) => ({ name, label: headingLabel(compositions[name], "Composition", name) }));
 }
 
 /**
@@ -84,7 +115,8 @@ export function listCompositions(): { name: CompositionName; label: string }[] {
 export function getHouseStyleBlock(style?: string, composition?: string): string {
   const styleName = isHouseStyleName(style) ? style : getDefaultHouseStyleName();
   const compName = isCompositionName(composition) ? composition : getDefaultCompositionName();
-  return `${LAYOUT_SECTION}\n\n${COMPOSITION_SECTIONS[compName]}\n\n${STYLE_SECTIONS[styleName]}`;
+  const { layout, compositions, styles } = sections();
+  return `${layout}\n\n${compositions[compName]}\n\n${styles[styleName]}`;
 }
 
 export interface BuildImagePromptOptions {

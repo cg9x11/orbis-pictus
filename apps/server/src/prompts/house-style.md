@@ -60,9 +60,16 @@ diagrammatic, poster-like plane.
 
 Arrange the page as a clean isometric (axonometric) diagram, like an architectural plate or an
 isometric map: parallel projection with no perspective convergence — parallel lines stay parallel and
-distant elements do not shrink or fade. The main subject sits centred and largest, the other elements
-as clear isometric forms arranged around it on an open background. Precise, editorial and diagrammatic
-— not a handmade miniature-diorama world.
+distant elements do not shrink or fade. Every element sits on ONE single continuous isometric ground —
+a shared plot or platform with one common edge, rendered as a single connected place — with the
+elements laid out across that shared ground and knitted together by the terrain between them: paths,
+walkways, plazas, lawns and greenery (or, for a non-spatial subject, one continuous board or surface).
+This shared ground is the most important rule. Do NOT give each element its own separate raised slab,
+pedestal or cropped base tile; do NOT leave gaps of blank background between free-floating blocks; do
+NOT sit each element on a hard cast shadow that makes it read as a separate cut-out; and do NOT merely
+draw connector lines between otherwise-isolated bases — the elements must genuinely share the same
+unbroken ground. The main subject sits centred and largest, the others arranged around it on that same
+ground. Precise, editorial and diagrammatic — not a handmade miniature-diorama world.
 
 <!-- house-style:composition-diorama -->
 ## Composition: isometric diorama
