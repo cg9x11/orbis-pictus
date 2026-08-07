@@ -13,6 +13,7 @@ import type {
   AuthorPromptOutput,
   DescribeTapOutput,
   LlmProvider,
+  MotionPromptOutput,
   TitleImageOutput,
 } from "../types.js";
 
@@ -23,6 +24,8 @@ const PAGE_AUTHOR_SYSTEM = fs.readFileSync(path.join(promptsDir, "page-author.md
 const EDIT_AUTHOR_SYSTEM = fs.readFileSync(path.join(promptsDir, "edit-author.md"), "utf-8");
 const TAP_SUBJECT_SYSTEM = fs.readFileSync(path.join(promptsDir, "tap-subject.md"), "utf-8");
 const IMAGE_TITLE_SYSTEM = fs.readFileSync(path.join(promptsDir, "image-title.md"), "utf-8");
+const IDLE_MOTION_SYSTEM = fs.readFileSync(path.join(promptsDir, "idle-motion.md"), "utf-8");
+const MORPH_MOTION_SYSTEM = fs.readFileSync(path.join(promptsDir, "morph-motion.md"), "utf-8");
 
 function imageContentBlock(dataUrl: string): Anthropic.ImageBlockParam {
   const { mimeType, base64 } = parseDataUrl(dataUrl);
@@ -147,5 +150,45 @@ export class AnthropicLlmProvider implements LlmProvider {
 
     const result = parseJsonLoose(textFromMessage(message)) as { title: string; description: string };
     return { title: result.title, description: result.description };
+  }
+
+  async describeIdleMotion(imageDataUrl: string): Promise<MotionPromptOutput> {
+    const message = await this.client.messages.create({
+      model: this.tapModelId,
+      max_tokens: 512,
+      system: IDLE_MOTION_SYSTEM,
+      messages: [
+        {
+          role: "user",
+          content: [imageContentBlock(imageDataUrl), { type: "text", text: "Describe the idle-loop motion for this page." }],
+        },
+      ],
+    });
+
+    const result = parseJsonLoose(textFromMessage(message)) as { motion_prompt: string };
+    return { motionPrompt: result.motion_prompt };
+  }
+
+  async describeMorphMotion(firstFrameDataUrl: string, lastFrameDataUrl: string): Promise<MotionPromptOutput> {
+    const message = await this.client.messages.create({
+      model: this.tapModelId,
+      max_tokens: 512,
+      system: MORPH_MOTION_SYSTEM,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "FIRST frame (page being left):" },
+            imageContentBlock(firstFrameDataUrl),
+            { type: "text", text: "SECOND frame (page being arrived at):" },
+            imageContentBlock(lastFrameDataUrl),
+            { type: "text", text: "Describe the transition from the first image into the second." },
+          ],
+        },
+      ],
+    });
+
+    const result = parseJsonLoose(textFromMessage(message)) as { motion_prompt: string };
+    return { motionPrompt: result.motion_prompt };
   }
 }

@@ -9,6 +9,7 @@ import type {
   AuthorPromptOutput,
   DescribeTapOutput,
   LlmProvider,
+  MotionPromptOutput,
   TitleImageOutput,
 } from "../types.js";
 
@@ -19,6 +20,8 @@ const PAGE_AUTHOR_SYSTEM = fs.readFileSync(path.join(promptsDir, "page-author.md
 const EDIT_AUTHOR_SYSTEM = fs.readFileSync(path.join(promptsDir, "edit-author.md"), "utf-8");
 const TAP_SUBJECT_SYSTEM = fs.readFileSync(path.join(promptsDir, "tap-subject.md"), "utf-8");
 const IMAGE_TITLE_SYSTEM = fs.readFileSync(path.join(promptsDir, "image-title.md"), "utf-8");
+const IDLE_MOTION_SYSTEM = fs.readFileSync(path.join(promptsDir, "idle-motion.md"), "utf-8");
+const MORPH_MOTION_SYSTEM = fs.readFileSync(path.join(promptsDir, "morph-motion.md"), "utf-8");
 
 interface GeminiPart {
   text?: string;
@@ -101,5 +104,30 @@ export class GeminiLlmProvider implements LlmProvider {
     ])) as { title: string; description: string };
 
     return { title: result.title, description: result.description };
+  }
+
+  async describeIdleMotion(imageDataUrl: string): Promise<MotionPromptOutput> {
+    const { mimeType, base64 } = parseDataUrl(imageDataUrl);
+
+    const result = (await callGemini(this.apiKey, this.modelId, IDLE_MOTION_SYSTEM, [
+      { inline_data: { mime_type: mimeType, data: base64 } },
+    ])) as { motion_prompt: string };
+
+    return { motionPrompt: result.motion_prompt };
+  }
+
+  async describeMorphMotion(firstFrameDataUrl: string, lastFrameDataUrl: string): Promise<MotionPromptOutput> {
+    const first = parseDataUrl(firstFrameDataUrl);
+    const last = parseDataUrl(lastFrameDataUrl);
+
+    const result = (await callGemini(this.apiKey, this.modelId, MORPH_MOTION_SYSTEM, [
+      { text: "FIRST frame (page being left):" },
+      { inline_data: { mime_type: first.mimeType, data: first.base64 } },
+      { text: "SECOND frame (page being arrived at):" },
+      { inline_data: { mime_type: last.mimeType, data: last.base64 } },
+      { text: "Describe the transition from the first image into the second." },
+    ])) as { motion_prompt: string };
+
+    return { motionPrompt: result.motion_prompt };
   }
 }

@@ -4,6 +4,7 @@ import type {
   AuthorPromptOutput,
   DescribeTapOutput,
   LlmProvider,
+  MotionPromptOutput,
   TitleImageOutput,
 } from "../types.js";
 
@@ -34,6 +35,14 @@ export class MockLlmProvider implements LlmProvider {
 
   async titleImage(_imageDataUrl: string): Promise<TitleImageOutput> {
     return { title: "Uploaded Photo", description: "A user-uploaded photograph. [mock]" };
+  }
+
+  async describeIdleMotion(_imageDataUrl: string): Promise<MotionPromptOutput> {
+    return { motionPrompt: "Subtle ambient looping motion; static camera; all text unchanged. [mock]" };
+  }
+
+  async describeMorphMotion(_firstFrameDataUrl: string, _lastFrameDataUrl: string): Promise<MotionPromptOutput> {
+    return { motionPrompt: "Smooth transition from the first page into the second; static camera. [mock]" };
   }
 }
 

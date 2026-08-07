@@ -50,6 +50,8 @@ export function createVideoPipeline(): VideoPipeline {
     markReady: markVideoReady,
     markFailed: markVideoFailed,
     save: saveVideo,
+    describeMotion: async ({ firstFrameDataUrl }, providers) =>
+      (await providers.llm.describeIdleMotion(firstFrameDataUrl)).motionPrompt,
   });
 
   return { maybeStartIdleLoop: pipeline.maybeStart, startIdleLoopNow: pipeline.startNow };

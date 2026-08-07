@@ -32,6 +32,11 @@ export interface DescribeTapOutput {
   subject: string;
 }
 
+export interface MotionPromptOutput {
+  /** A short, scene-specific motion prompt for the video model (see idle-motion.md / morph-motion.md). */
+  motionPrompt: string;
+}
+
 export interface TitleImageOutput {
   title: string;
   /** Short description usable as authored_prompt for style continuity on future child pages. */
@@ -47,6 +52,14 @@ export interface LlmProvider {
   describeTap(markedImageDataUrl: string): Promise<DescribeTapOutput>;
   /** imageDataUrl: a user-uploaded photo with no marker. */
   titleImage(imageDataUrl: string): Promise<TitleImageOutput>;
+  /** Looks at a page's own rendered image and returns a short idle-loop motion prompt tailored to
+   *  what THIS image actually contains (see idle-motion.md). The static-camera / unchanged-text
+   *  guardrails live in the prompt; the background clip pipeline falls back to a generic prompt if
+   *  this throws (PLAN §3 Phase 5). */
+  describeIdleMotion(imageDataUrl: string): Promise<MotionPromptOutput>;
+  /** Looks at a page-transition's two frames (parent -> child) and returns a short morph prompt
+   *  describing how the first repaints into the second (see morph-motion.md). */
+  describeMorphMotion(firstFrameDataUrl: string, lastFrameDataUrl: string): Promise<MotionPromptOutput>;
 }
 
 // --- Image provider (PLAN §2.2 [C]/[D]) ---

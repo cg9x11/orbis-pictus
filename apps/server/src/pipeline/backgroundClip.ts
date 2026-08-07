@@ -57,6 +57,14 @@ export interface BackgroundClipConfig<TNode extends Node> {
   /** Optional per-clip-type video model override (e.g. morphs need a flf2v-capable model); when
    *  absent or returning undefined, the video provider uses its own configured model. */
   videoModel?: () => string | undefined;
+  /** Optional: derive a scene-specific motion prompt from the loaded frame(s) via the VLM, replacing
+   *  the static `request.prompt`. Runs inside the background task, where the frames are already in
+   *  memory as data URLs. If it throws or returns empty, the pipeline falls back to `request.prompt`
+   *  — a VLM hiccup must degrade to the generic prompt, never fail the clip. */
+  describeMotion?: (
+    frames: { firstFrameDataUrl: string; lastFrameDataUrl?: string },
+    providers: Providers,
+  ) => Promise<string | undefined>;
 }
 
 /**
@@ -83,8 +91,21 @@ export function createBackgroundClipPipeline<TNode extends Node>(config: Backgro
       try {
         const firstFrameDataUrl = loadImageAsDataUrl(imagesDir, request.firstFrameUrl);
         const lastFrameDataUrl = request.lastFrameUrl ? loadImageAsDataUrl(imagesDir, request.lastFrameUrl) : undefined;
+
+        // Tailor the motion prompt to what's actually in this page (VLM); fall back to the generic
+        // static prompt if the VLM is unavailable or errors — the clip must still generate.
+        let prompt = request.prompt;
+        if (config.describeMotion) {
+          try {
+            const dynamic = await config.describeMotion({ firstFrameDataUrl, lastFrameDataUrl }, providers);
+            if (dynamic && dynamic.trim()) prompt = dynamic.trim();
+          } catch (err) {
+            console.warn(`[flipbook] ${config.label}: motion-prompt generation failed, using generic fallback:`, err instanceof Error ? err.message : err);
+          }
+        }
+
         const { bytes } = await providers.video.generate({
-          prompt: request.prompt,
+          prompt,
           aspectRatio: request.aspectRatio,
           firstFrameDataUrl,
           lastFrameDataUrl,

@@ -4,7 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { Node } from "@flipbook/shared";
-import type { VideoGenInput, VideoGenResult, VideoProvider } from "../providers/types.js";
+import type { LlmProvider, MotionPromptOutput, VideoGenInput, VideoGenResult, VideoProvider } from "../providers/types.js";
+import { IDLE_LOOP_MOTION_PROMPT } from "./videoPrompt.js";
 
 // Must be set before ./video.js (imports storage/nodes.js -> storage/db.js) runs its module-level
 // migrate(), same pattern as generate.test.ts. VIDEO_ENABLED/VIDEO_MAX_PER_SESSION are read
@@ -33,8 +34,8 @@ class SpyVideoProvider implements VideoProvider {
   }
 }
 
-function makeProviders(video: VideoProvider) {
-  return { llm: new MockLlmProvider(), image: new MockImageProvider(), video, search: new NoneSearchProvider() };
+function makeProviders(video: VideoProvider, llm: LlmProvider = new MockLlmProvider()) {
+  return { llm, image: new MockImageProvider(), video, search: new NoneSearchProvider() };
 }
 
 function makeNode(id: string, sessionId: string, imagesDir: string): Node {
@@ -76,6 +77,42 @@ test("generates and stores a video for a node that has never been attempted", as
   const info = getVideoInfo(node.id);
   assert.equal(info?.status, "ready");
   assert.equal(info?.url, `/images/${node.id}/loop.mp4`);
+});
+
+test("the motion prompt is tailored to the page by the VLM, not the static fallback", async () => {
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const pipeline = createVideoPipeline();
+  const video = new SpyVideoProvider();
+  const node = makeNode("node-vlm-prompt", "s-vlm", imagesDir);
+  insertNode(node, { normalizedSubject: "n" });
+
+  pipeline.maybeStartIdleLoop(node, makeProviders(video), imagesDir);
+  await flush();
+
+  assert.equal(video.calls.length, 1);
+  // MockLlmProvider.describeIdleMotion tags its output with [mock]; the static fallback never would.
+  assert.match(video.calls[0]!.prompt, /\[mock\]/);
+  assert.notEqual(video.calls[0]!.prompt, IDLE_LOOP_MOTION_PROMPT);
+});
+
+test("a VLM failure falls back to the generic idle-loop prompt and still generates the clip", async () => {
+  class FailingVlm extends MockLlmProvider {
+    override async describeIdleMotion(_imageDataUrl: string): Promise<MotionPromptOutput> {
+      throw new Error("vlm unavailable");
+    }
+  }
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const pipeline = createVideoPipeline();
+  const video = new SpyVideoProvider();
+  const node = makeNode("node-vlm-fail", "s-vlm-fail", imagesDir);
+  insertNode(node, { normalizedSubject: "n" });
+
+  pipeline.maybeStartIdleLoop(node, makeProviders(video, new FailingVlm()), imagesDir);
+  await flush();
+
+  assert.equal(video.calls.length, 1);
+  assert.equal(video.calls[0]!.prompt, IDLE_LOOP_MOTION_PROMPT, "a VLM error degrades to the generic prompt");
+  assert.equal(getVideoInfo(node.id)?.status, "ready", "the clip must still generate despite the VLM failing");
 });
 
 test("a node that already has a stored video is never regenerated", async () => {

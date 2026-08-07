@@ -53,6 +53,8 @@ export function createMorphPipeline(): MorphPipeline {
     markFailed: markMorphFailed,
     save: saveMorph,
     videoModel: getMorphVideoModel,
+    describeMotion: async ({ firstFrameDataUrl, lastFrameDataUrl }, providers) =>
+      lastFrameDataUrl ? (await providers.llm.describeMorphMotion(firstFrameDataUrl, lastFrameDataUrl)).motionPrompt : undefined,
   });
 
   return { maybeStartMorph: pipeline.maybeStart };

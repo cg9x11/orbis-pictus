@@ -87,6 +87,20 @@ test("triggers a morph generation for a fresh child, using the parent as first f
   assert.equal(info?.url, `/images/${child.id}/morph.mp4`);
 });
 
+test("the morph prompt is tailored to the two frames by the VLM, not the static fallback", async () => {
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
+  const pipeline = createMorphPipeline();
+  const video = new SpyVideoProvider();
+  const { child } = makeParentChild("vlm-prompt", "s-vlm", imagesDir);
+
+  pipeline.maybeStartMorph(child, makeProviders(video), imagesDir);
+  await flush();
+
+  assert.equal(video.calls.length, 1);
+  // MockLlmProvider.describeMorphMotion tags its output with [mock]; the static fallback never would.
+  assert.match(video.calls[0]!.prompt, /\[mock\]/);
+});
+
 test("a root node (no parent) is skipped without touching the provider", async () => {
   const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
   const pipeline = createMorphPipeline();
@@ -181,7 +195,7 @@ test("MORPH_ENABLED=false disables generation entirely, synchronously", async ()
   }
 });
 
-test("no morph yet -> the endpoint's underlying state is the null/never-attempted case a client should read as 'use the crossfade'", async () => {
+test("no morph yet -> the endpoint's underlying state is the null/never-attempted case a client reads as 'no morph, just show the page' (the instant image swap)", async () => {
   const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
   const { child } = makeParentChild("never-attempted", "s-never", imagesDir);
 
