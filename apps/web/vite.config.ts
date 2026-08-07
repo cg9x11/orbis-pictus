@@ -14,17 +14,14 @@ export default defineConfig({
         target: "http://localhost:8787",
         changeOrigin: true,
       },
-      // Server-rendered so it can inject OG meta tags for link unfurling (see index.ts).
-      // Must be the regex `^/n/`, never the plain string "/n": Vite matches a non-regex proxy key
-      // with `url.startsWith(context)`, so "/n" also captures every `/node_modules/...` request —
-      // including the optimizer's `/node_modules/.vite/deps/react.js` — and forwards them to the
-      // Hono server, which answers with its SPA index.html. The browser then rejects those as
-      // modules ("Expected a JavaScript-or-Wasm module script but the server responded with a MIME
-      // type of text/html") and the dev server appears to hang on dependency pre-bundling.
-      "^/n/": {
-        target: "http://localhost:8787",
-        changeOrigin: true,
-      },
+      // `/n/:id` is intentionally NOT proxied to the Hono server in dev. That route exists so that,
+      // in production, link-unfurling bots get server-rendered OG meta tags (see index.ts) — but the
+      // server hands back a plain HTML shell, without Vite's dev-time HTML transform. Proxying it
+      // here meant a real browser loading /n/:id (a deep link, or a refresh while on a node page)
+      // received a shell missing Vite's client and @vitejs/plugin-react's React Refresh preamble, so
+      // the app threw "can't detect preamble" and rendered a blank white page. Letting Vite's own SPA
+      // fallback serve index.html for /n/:id gives the fully-transformed shell; the client then
+      // hydrates the node via /api. OG tags simply aren't needed against a local dev server.
     },
   },
 });

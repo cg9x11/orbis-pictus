@@ -64,9 +64,10 @@ app.use(
 
 const webDist = path.resolve(__dirname, "../../web/dist");
 const webDistIndexHtml = path.join(webDist, "index.html");
-// In dev, dist/ doesn't exist yet — fall back to the raw source index.html, which still works
-// because the browser reaches this route through the Vite dev proxy (see vite.config.ts), so
-// its relative `/src/main.tsx` script src resolves against Vite's own origin.
+// In dev, dist/ doesn't exist yet — fall back to the raw source index.html. This route is not
+// reached by a real browser in dev (Vite serves /n/:id itself via its SPA fallback; it is
+// deliberately NOT proxied here — see vite.config.ts), so the fallback exists only for a direct hit
+// on this server, e.g. a link-unfurling bot reading the OG tags below.
 const webSrcIndexHtml = path.resolve(__dirname, "../../web/index.html");
 
 function escapeHtml(s: string): string {
