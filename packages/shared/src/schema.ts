@@ -57,11 +57,19 @@ export const GenerateSearchRequestSchema = z.object({
   query: z.string().min(1),
   aspect_ratio: AspectRatioSchema.default("16:9"),
   web_search: z.boolean().default(false),
+  // Whether the client's "Live video stream" toggle is on. Gates background idle-loop AND morph
+  // generation server-side, so no video quota is spent (and no provider call is attempted) when the
+  // user isn't using video — display was already gated client-side, but generation was not. Optional
+  // (injected by the client in one place); absent/undefined is treated as off, the safe default.
+  video_loop: z.boolean().optional(),
   // Which block of house-style.md to append to the image prompt. Left as a free string rather than
   // an enum so the style list stays defined in exactly one place (house-style.md, parsed by
   // pipeline/houseStyle.ts); the server falls back to its HOUSE_STYLE default for anything it does
   // not recognise, so a stale client can never break a generation.
   house_style: z.string().optional(),
+  // Which composition block (flat / diorama) to use — same free-string + server-default rationale
+  // as house_style above; the server falls back to its COMPOSITION default for anything unrecognised.
+  composition: z.string().optional(),
   session_id: z.string(),
   current_node_id: z.string().default(""),
 });
@@ -80,11 +88,19 @@ export const GenerateTapRequestSchema = z.object({
   y: z.number().min(0).max(1).default(0.5),
   aspect_ratio: AspectRatioSchema.default("16:9"),
   web_search: z.boolean().default(false),
+  // Whether the client's "Live video stream" toggle is on. Gates background idle-loop AND morph
+  // generation server-side, so no video quota is spent (and no provider call is attempted) when the
+  // user isn't using video — display was already gated client-side, but generation was not. Optional
+  // (injected by the client in one place); absent/undefined is treated as off, the safe default.
+  video_loop: z.boolean().optional(),
   // Which block of house-style.md to append to the image prompt. Left as a free string rather than
   // an enum so the style list stays defined in exactly one place (house-style.md, parsed by
   // pipeline/houseStyle.ts); the server falls back to its HOUSE_STYLE default for anything it does
   // not recognise, so a stale client can never break a generation.
   house_style: z.string().optional(),
+  // Which composition block (flat / diorama) to use — same free-string + server-default rationale
+  // as house_style above; the server falls back to its COMPOSITION default for anything unrecognised.
+  composition: z.string().optional(),
   parent_title: z.string(),
   session_id: z.string(),
   current_node_id: z.string(),
@@ -100,11 +116,19 @@ export const GenerateEditRequestSchema = z.object({
   currentImage: z.string().startsWith("data:image/"),
   aspect_ratio: AspectRatioSchema.default("16:9"),
   web_search: z.boolean().default(false),
+  // Whether the client's "Live video stream" toggle is on. Gates background idle-loop AND morph
+  // generation server-side, so no video quota is spent (and no provider call is attempted) when the
+  // user isn't using video — display was already gated client-side, but generation was not. Optional
+  // (injected by the client in one place); absent/undefined is treated as off, the safe default.
+  video_loop: z.boolean().optional(),
   // Which block of house-style.md to append to the image prompt. Left as a free string rather than
   // an enum so the style list stays defined in exactly one place (house-style.md, parsed by
   // pipeline/houseStyle.ts); the server falls back to its HOUSE_STYLE default for anything it does
   // not recognise, so a stale client can never break a generation.
   house_style: z.string().optional(),
+  // Which composition block (flat / diorama) to use — same free-string + server-default rationale
+  // as house_style above; the server falls back to its COMPOSITION default for anything unrecognised.
+  composition: z.string().optional(),
   parent_title: z.string(),
   session_id: z.string(),
   current_node_id: z.string(),
@@ -226,6 +250,10 @@ export const ConfigResponseSchema = z.object({
   houseStyles: z.array(HouseStyleOptionSchema).default([]),
   /** The server's own default (the HOUSE_STYLE env), used as the picker's initial value. */
   houseStyle: z.string().default("felt"),
+  /** Every composition block available in house-style.md (flat / diorama), for the picker. */
+  compositions: z.array(HouseStyleOptionSchema).default([]),
+  /** The server's own default (the COMPOSITION env), used as the picker's initial value. */
+  composition: z.string().default("diorama"),
 });
 export type ConfigResponse = z.infer<typeof ConfigResponseSchema>;
 

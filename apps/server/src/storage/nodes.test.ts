@@ -77,6 +77,24 @@ test("listGalleryNodes returns up to `limit` already-persisted nodes", () => {
   }
 });
 
+test("listGalleryNodes returns nodes newest first (created_at DESC)", () => {
+  insertNode(makeNode({ id: "order-old", page_title: "Order Old", created_at: "2026-01-01T00:00:00.000Z" }), {
+    normalizedSubject: "order",
+  });
+  insertNode(makeNode({ id: "order-new", page_title: "Order New", created_at: "2026-03-01T00:00:00.000Z" }), {
+    normalizedSubject: "order",
+  });
+  insertNode(makeNode({ id: "order-mid", page_title: "Order Mid", created_at: "2026-02-01T00:00:00.000Z" }), {
+    normalizedSubject: "order",
+  });
+
+  const ordered = listGalleryNodes(null).filter((n) => n.id.startsWith("order-"));
+  assert.deepEqual(
+    ordered.map((n) => n.id),
+    ["order-new", "order-mid", "order-old"],
+  );
+});
+
 // An edit variant keeps its parent's exact page_title (e.g. a "make it night time" child of
 // "Takoyaki" is also titled "Takoyaki"), which used to show up as two identical-looking gallery
 // cards for what looks like the same node. Only one row per title should ever be sampled, and it

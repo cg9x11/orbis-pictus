@@ -221,11 +221,11 @@ const listGalleryStmt = db.prepare(`
       ORDER BY n2.created_at ASC
       LIMIT 1
     )
-  ORDER BY RANDOM() LIMIT ?
+  ORDER BY n.created_at DESC LIMIT ?
 `);
 
 /**
- * Random sample of already-generated root pages for the landing-page example gallery — no new
+ * Already-generated root pages for the landing-page example gallery, newest first — no new
  * generations. Pass `null` for no limit at all: SQLite reads any negative LIMIT as unbounded, so
  * one prepared statement covers both cases without a second query.
  */

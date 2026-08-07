@@ -33,6 +33,9 @@ export interface BackgroundClipConfig<TNode extends Node> {
   markReady: (id: string, url: string) => void;
   markFailed: (id: string) => void;
   save: (imagesDir: string, id: string, bytes: Buffer) => string;
+  /** Optional per-clip-type video model override (e.g. morphs need a flf2v-capable model); when
+   *  absent or returning undefined, the video provider uses its own configured model. */
+  videoModel?: () => string | undefined;
 }
 
 /**
@@ -77,6 +80,7 @@ export function createBackgroundClipPipeline<TNode extends Node>(config: Backgro
           lastFrameDataUrl,
           durationSeconds: getVideoDurationSeconds(),
           resolution: getVideoResolution(),
+          modelOverride: config.videoModel?.(),
         });
         const url = config.save(imagesDir, node.id, bytes);
         config.markReady(node.id, url);

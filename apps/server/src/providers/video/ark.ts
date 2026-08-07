@@ -68,7 +68,7 @@ export class ArkVideoProvider implements VideoProvider {
         Authorization: `Bearer ${this.apiKey}`,
         "content-type": "application/json",
       },
-      body: JSON.stringify({ model: this.modelId, content }),
+      body: JSON.stringify({ model: input.modelOverride ?? this.modelId, content }),
     });
     if (!res.ok) throw await this.toRequestError(res);
 

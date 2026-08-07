@@ -5,6 +5,7 @@ import { AspectRatioPicker } from "./components/AspectRatioPicker";
 import { UploadButton } from "./components/UploadButton";
 import { WebSearchToggle } from "./components/WebSearchToggle";
 import { HouseStylePicker } from "./components/HouseStylePicker";
+import { CompositionPicker } from "./components/CompositionPicker";
 import { VideoLoopToggle } from "./components/VideoLoopToggle";
 import { GenerationProgress } from "./components/GenerationProgress";
 import { CachedTapMarkers } from "./components/CachedTapMarkers";
@@ -23,6 +24,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     config,
     setWebSearch,
     setHouseStyle,
+    setComposition,
     state,
     isStreaming,
     lastRequest,
@@ -80,6 +82,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
           <AspectRatioPicker value={aspectRatio} onChange={handleRatioChange} disabled={isStreaming || variantLoading} />
           <WebSearchToggle enabled={config.webSearch} onChange={setWebSearch} disabled={isStreaming} />
           <HouseStylePicker styles={config.houseStyles} value={config.houseStyle} onChange={setHouseStyle} disabled={isStreaming} />
+          <CompositionPicker compositions={config.compositions} value={config.composition} onChange={setComposition} disabled={isStreaming} />
           {config.videoAvailable && (
             <VideoLoopToggle
               enabled={videoLoopEnabled}

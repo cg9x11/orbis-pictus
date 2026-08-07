@@ -48,7 +48,7 @@ function makeContext(image: ImageProvider) {
 test("search mode: the built image prompt includes the house style, authored_prompt does not", async () => {
   const image = new SpyImageProvider();
   const node = await runGenerate(
-    { mode: "search", query: "Ha Noi street food", aspect_ratio: "16:9", web_search: false, session_id: "s1", current_node_id: "" },
+    { mode: "search", query: "Ha Noi street food", aspect_ratio: "16:9", web_search: false, video_loop: false, session_id: "s1", current_node_id: "" },
     makeContext(image),
     () => {},
   );
@@ -65,7 +65,7 @@ test("search mode: the built image prompt includes the house style, authored_pro
 test("emits ordered stage events, with the page title available from `drawing` onwards", async () => {
   const events: { event: string; data: unknown }[] = [];
   await runGenerate(
-    { mode: "search", query: "lighthouse lenses", aspect_ratio: "16:9", web_search: false, session_id: "s-stage", current_node_id: "" },
+    { mode: "search", query: "lighthouse lenses", aspect_ratio: "16:9", web_search: false, video_loop: false, session_id: "s-stage", current_node_id: "" },
     makeContext(new SpyImageProvider()),
     (event) => {
       events.push({ event: event.event, data: event.data });
@@ -91,7 +91,7 @@ test("a web-search generation reports the lookup as its own stage", async () => 
   const events: string[] = [];
   const search: SearchProvider = { available: true, search: async () => ({ summary: "some findings" }) };
   await runGenerate(
-    { mode: "search", query: "lighthouse lenses", aspect_ratio: "16:9", web_search: true, session_id: "s-stage-search", current_node_id: "" },
+    { mode: "search", query: "lighthouse lenses", aspect_ratio: "16:9", web_search: true, video_loop: false, session_id: "s-stage-search", current_node_id: "" },
     { ...makeContext(new SpyImageProvider()), providers: { ...makeContext(new SpyImageProvider()).providers, search } },
     (event) => {
       if (event.event === "stage") events.push(event.data.stage);
@@ -131,6 +131,7 @@ test("edit mode: the built image prompt includes the house style and passes the 
       currentImage: currentImageDataUrl,
       aspect_ratio: "16:9",
       web_search: false,
+      video_loop: false,
       parent_title: "Ha Noi Street Food",
       session_id: "s1",
       current_node_id: "parent-edit",
@@ -183,6 +184,7 @@ test("tap mode: the built image prompt includes the house style and reuses the p
       y: 0.5,
       aspect_ratio: "16:9",
       web_search: false,
+      video_loop: false,
       parent_title: "Ha Noi Street Food",
       session_id: "s1",
       current_node_id: "parent-tap",

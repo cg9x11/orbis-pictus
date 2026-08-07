@@ -2,7 +2,7 @@ import type { AspectRatio, Node } from "@flipbook/shared";
 import type { Providers } from "../providers/index.js";
 import { getMorphInfo, getNode, markMorphFailed, markMorphPending, markMorphReady } from "../storage/nodes.js";
 import { saveMorph } from "./morphStorage.js";
-import { getMorphMaxPerSession, isMorphEnabled } from "./morphConfig.js";
+import { getMorphMaxPerSession, getMorphVideoModel, isMorphEnabled } from "./morphConfig.js";
 import { MORPH_TRANSITION_MOTION_PROMPT } from "./videoPrompt.js";
 import { createBackgroundClipPipeline } from "./backgroundClip.js";
 
@@ -52,6 +52,7 @@ export function createMorphPipeline(): MorphPipeline {
     markReady: markMorphReady,
     markFailed: markMorphFailed,
     save: saveMorph,
+    videoModel: getMorphVideoModel,
   });
 
   return { maybeStartMorph: pipeline.maybeStart };

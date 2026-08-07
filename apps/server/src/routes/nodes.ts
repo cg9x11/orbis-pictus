@@ -12,7 +12,7 @@ import {
   listGalleryNodes,
 } from "../storage/nodes.js";
 import { listTapCache } from "../storage/tapCache.js";
-import { saveImageVariant } from "../pipeline/imageStorage.js";
+import { saveImageVariantResized } from "../pipeline/imageStorage.js";
 import { normalizeSubject } from "../pipeline/normalize.js";
 import { getTapDedupMode, isUploadEnabled } from "../pipeline/config.js";
 import { InFlight } from "../lib/coalesce.js";
@@ -105,7 +105,7 @@ export function nodesRoute(providers: Providers, imagesDir: string): Hono {
     const { title, description } = await providers.llm.titleImage(image);
 
     const id = crypto.randomUUID().replace(/-/g, "");
-    const imageUrl = saveImageVariant(imagesDir, id, aspect_ratio, bytes, contentType);
+    const imageUrl = await saveImageVariantResized(imagesDir, id, aspect_ratio, bytes, contentType);
 
     const node: Node = {
       id,
@@ -193,7 +193,7 @@ export function nodesRoute(providers: Providers, imagesDir: string): Hono {
         prompt: node.authored_prompt,
         aspectRatio: ratio,
       });
-      const imageUrl = saveImageVariant(imagesDir, id, ratio, bytes, contentType);
+      const imageUrl = await saveImageVariantResized(imagesDir, id, ratio, bytes, contentType);
       return addImageVariant(id, ratio, imageUrl);
     });
     return c.json({ node: updated });

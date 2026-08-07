@@ -85,6 +85,25 @@ test("generate(): full create -> poll -> download flow, using fixtures captured 
   );
 });
 
+// A morph runs on a different (flf2v-capable) model than the idle loop via input.modelOverride,
+// without constructing a second provider — the create body must carry the override, not the
+// provider's own configured model.
+test("generate(): input.modelOverride wins over the provider's configured model in the create body", async () => {
+  await withFetchSequence(
+    [
+      { status: 200, body: { id: "cgt-ov" } },
+      { status: 200, body: { id: "cgt-ov", status: "succeeded", content: { video_url: "https://example.com/m.mp4" } } },
+      { status: 200, body: null, isVideoDownload: true },
+    ],
+    async (calls) => {
+      const provider = new ArkVideoProvider("test-key", "https://ark.example.com", "seedance-1-0-pro-fast");
+      await provider.generate({ ...input, lastFrameDataUrl: "data:image/jpeg;base64,YmFy", modelOverride: "seedance-1-0-pro-250528" });
+      const createBody = JSON.parse(calls[0]!.init!.body as string);
+      assert.equal(createBody.model, "seedance-1-0-pro-250528");
+    },
+  );
+});
+
 test("generate(): a quota/rate-limit error at task creation is surfaced distinguishably, not hung", async () => {
   await withFetchSequence(
     [{ status: 429, body: { error: { code: "TooManyRequests", message: "rate limit exceeded" } } }],

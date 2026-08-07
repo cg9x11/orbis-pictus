@@ -37,7 +37,7 @@ page. This is the same trick the original site uses, discovered by reading its n
 the layout, every exact string to render, which regions get callouts. It is explicitly forbidden
 from describing style, palette, material, or lighting. A second, fixed file,
 `apps/server/src/prompts/house-style.md`, owns the visual identity (a needle-felted-wool diorama
-by default, three alternate styles available via `HOUSE_STYLE`) and gets appended to every image
+by default, four alternate styles available via `HOUSE_STYLE`) and gets appended to every image
 prompt server-side. The split means every page shares one consistent look regardless of topic,
 and swapping the entire app's aesthetic is a one-file edit. It also encodes a governing rule
 learned the hard way: every text-bearing region on the page must be filled with an exact string a
@@ -117,7 +117,7 @@ inline comments). Nothing but a single LLM provider and a single image provider 
 | `FAL_KEY`, `IMAGE_MODEL` | Credentials/model for `fal` | — |
 | `SEARCH_PROVIDER` | Optional web search grounding for page content | `llm` (uses the Anthropic-compatible provider's server-side web-search tool) · `none` |
 | `SEARCH_MODEL` | Model used for search | — |
-| `HOUSE_STYLE` | Fixed visual style applied to every page | `felt` (default) · `papercut` · `riso` · `pixel` |
+| `HOUSE_STYLE` | Fixed visual style applied to every page | `felt` (default) · `papercut` · `riso` · `pixel` · `editorial` |
 | `TAP_DEDUP` | Tap caching mode (see above) | `reuse` (default) · `variant` · `off` |
 | `VIDEO_ENABLED` | Master switch for idle-loop video | `false` (default) |
 | `VIDEO_PROVIDER` | Video generation | `ark` (BytePlus Seedance) · `mock` (default even if `ARK_API_KEY` is set — video is opt-in separately from images) |

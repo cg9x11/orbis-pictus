@@ -81,6 +81,11 @@ export interface VideoGenInput {
   durationSeconds: number;
   /** Dev default 480p (PLAN §3 Phase 5: "never 1080p in this session"). */
   resolution: "480p" | "720p" | "1080p";
+  /** Overrides the provider's configured model for this one call. Used so morphs (which need
+   *  first-last-frame `flf2v` support) can run on a different model than the idle loop (single-frame
+   *  `i2v`) — e.g. an idle loop on a fast i2v-only model while morph uses a flf2v-capable one. When
+   *  absent, the provider uses its own configured model. */
+  modelOverride?: string;
 }
 
 export interface VideoGenResult {

@@ -27,6 +27,8 @@ interface AppConfig {
   uploadAvailable: boolean;
   houseStyles: HouseStyleOption[];
   houseStyle: string;
+  compositions: HouseStyleOption[];
+  composition: string;
 }
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -36,6 +38,8 @@ const DEFAULT_CONFIG: AppConfig = {
   uploadAvailable: false,
   houseStyles: [],
   houseStyle: "",
+  compositions: [],
+  composition: "",
 };
 
 /**
@@ -58,6 +62,7 @@ export function useFlipbookController(initialNodeId?: string) {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const setWebSearch = (webSearch: boolean) => setConfig((c) => ({ ...c, webSearch }));
   const setHouseStyle = (houseStyle: string) => setConfig((c) => ({ ...c, houseStyle }));
+  const setComposition = (composition: string) => setConfig((c) => ({ ...c, composition }));
   const [videoLoopEnabled, setVideoLoopEnabled] = useState(false);
   const [lastRequest, setLastRequest] = useState<GenerateRequest | null>(null);
   // Surfaces a non-generation failure (open a cached tap, switch ratio, upload) in the same error
@@ -76,6 +81,8 @@ export function useFlipbookController(initialNodeId?: string) {
           uploadAvailable: fetched.uploadEnabled,
           houseStyles: fetched.houseStyles,
           houseStyle: fetched.houseStyle,
+          compositions: fetched.compositions,
+          composition: fetched.composition,
         });
       })
       .catch((err) => console.error(err));
@@ -128,7 +135,14 @@ export function useFlipbookController(initialNodeId?: string) {
     // Injected in one place rather than at each call site, so no generation path can silently fall
     // back to the server's default style. Empty until /api/config has answered, and omitted rather
     // than sent blank so the server keeps its own default in that window.
-    const withStyle = { ...request, house_style: config.houseStyle || undefined };
+    const withStyle = {
+      ...request,
+      house_style: config.houseStyle || undefined,
+      composition: config.composition || undefined,
+      // Gates background idle-loop and morph generation server-side: no video quota is spent unless
+      // the user actually has Live video on. Mirrors the toggle that already controls display.
+      video_loop: videoLoopEnabled,
+    };
     setLastRequest(withStyle);
     setActionError(null);
     try {
@@ -268,6 +282,7 @@ export function useFlipbookController(initialNodeId?: string) {
     config,
     setWebSearch,
     setHouseStyle,
+    setComposition,
     state,
     isStreaming,
     lastRequest,

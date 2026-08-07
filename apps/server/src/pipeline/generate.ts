@@ -10,13 +10,14 @@ import type {
 import type { Providers } from "../providers/index.js";
 import { getNode, insertNode, findChildBySubject, findNodeByPromptHash } from "../storage/nodes.js";
 import { findTapCacheHit, recordTapCache } from "../storage/tapCache.js";
-import { loadReferenceImageDataUrl, saveImageVariant } from "./imageStorage.js";
+import { loadReferenceImageDataUrl, saveImageVariantResized } from "./imageStorage.js";
 import { normalizeSubject } from "./normalize.js";
 import { computePromptHash } from "./promptHash.js";
 import type { VideoPipeline } from "./video.js";
 import type { MorphPipeline } from "./morph.js";
 import { getTapDedupMode } from "./config.js";
 import { buildImagePrompt } from "./houseStyle.js";
+import { boolEnvFlag } from "../lib/env.js";
 import { withRetry } from "../lib/retry.js";
 import { InFlight } from "../lib/coalesce.js";
 import type { ImageGenResult } from "../providers/types.js";
@@ -152,10 +153,12 @@ export async function runGenerate(
   const { topic, parentNodeId, parentTitle, parentAuthoredPrompt, tapReferenceImageDataUrl } = resolution.context;
 
   let webSearchSummary: string | undefined;
+  let webSearchDegraded = false;
   if (req.web_search) {
     await emit({ event: "stage", data: { stage: "searching" } });
     const searchResult = await ctx.providers.search.search(topic);
     webSearchSummary = searchResult?.summary;
+    webSearchDegraded = Boolean(searchResult?.degraded);
     if (searchResult?.degraded) {
       // The provider already logged the underlying cause once at startup (see
       // providers/search/llm.ts's logNoWebSearch) — this ties a specific generation's authored
@@ -190,7 +193,12 @@ export async function runGenerate(
   // PLAN §2 VISUAL IDENTITY: authoredPrompt is content-only (title, layout, exact text) — the
   // house style (materials/palette/lighting/composition) is a fixed constant appended here, never
   // authored by the LLM, so every page shares one house look regardless of topic.
-  const imagePrompt = buildImagePrompt(authoredPrompt, req.house_style);
+  // search never carries a reference image; tap and edit both do (parent frame / current image), so
+  // the framing asks the model to keep that reference's scene as the base.
+  const imagePrompt = buildImagePrompt(authoredPrompt, req.house_style, {
+    reference: req.mode === "search" ? "none" : "reuse",
+    composition: req.composition,
+  });
 
   // Layer 3 (PLAN §2.3): prompt-hash image cache, keyed on the full built prompt so a HOUSE_STYLE
   // change invalidates it too. Excluded for edit mode — edits are conditioned on the current
@@ -200,6 +208,30 @@ export async function runGenerate(
   const promptHash = computePromptHash(imagePrompt, req.aspect_ratio, ctx.providers.image.modelId, ctx.providers.image.providerId);
   const cachedImageNode = canReuseImage ? findNodeByPromptHash(promptHash) : null;
   const cachedImageUrl = cachedImageNode?.image_variants[req.aspect_ratio];
+
+  // Opt-in prompt inspection (env DEBUG_IMAGE_PROMPT=true): print the exact, fully-built prompt sent
+  // to the image model — content (authored) + house style appended — plus the knobs that shaped it.
+  // Logged whether or not the layer-3 cache serves it back, so `served_from_cache` tells which happened.
+  if (boolEnvFlag("DEBUG_IMAGE_PROMPT")) {
+    const reference =
+      req.mode === "edit" ? "current page image (edit)" : tapReferenceImageDataUrl ? "parent page frame (tap)" : "none";
+    // The web search summary (call 1) is what grounds the authored content (call 2), so logging it
+    // next to the final prompt lets you see exactly what the search returned vs. what the author LLM
+    // then wrote — the difference is where any embellishment beyond the sources creeps in.
+    const search = !req.web_search
+      ? "off"
+      : webSearchSummary
+        ? `on${webSearchDegraded ? " (DEGRADED — model knowledge only, not real web results)" : ""}`
+        : "on (no summary returned)";
+    console.log(
+      `\n[image-prompt] mode=${req.mode} aspect=${req.aspect_ratio} style=${req.house_style ?? "(server default)"} ` +
+        `reference=${reference} served_from_cache=${Boolean(cachedImageUrl)} model=${ctx.providers.image.modelId}\n` +
+        `[image-prompt] web_search=${search}\n` +
+        `[image-prompt] web_search summary: ${webSearchSummary ?? "(none)"}\n` +
+        `[image-prompt] page_title: ${pageTitle}\n` +
+        `[image-prompt] full prompt:\n${imagePrompt}\n`,
+    );
+  }
 
   let imageUrl: string;
   if (cachedImageUrl) {
@@ -215,7 +247,7 @@ export async function runGenerate(
     // page's actual pixels, so two edits with byte-identical prompts can still need different
     // images and must each run — the same reason they are excluded from the persistent cache above.
     const { bytes, contentType } = canReuseImage ? await imageInFlight.run(promptHash, genImage) : await genImage();
-    imageUrl = saveImageVariant(ctx.imagesDir, nodeId, req.aspect_ratio, bytes, contentType);
+    imageUrl = await saveImageVariantResized(ctx.imagesDir, nodeId, req.aspect_ratio, bytes, contentType);
   }
 
   await emit({ event: "preview", data: { aspectRatio: req.aspect_ratio, imageUrl } });
@@ -247,8 +279,15 @@ export async function runGenerate(
   // null, which the client is required to read as "no clip will ever exist", and the page would
   // never pick up the loop it is about to have. Neither call can block or fail the page: every
   // guard is inside, and a root node simply no-ops the morph (no parent to morph from).
-  ctx.video.maybeStartIdleLoop(node, ctx.providers, ctx.imagesDir);
-  ctx.morph.maybeStartMorph(node, ctx.providers, ctx.imagesDir);
+  //
+  // Only spend video quota when the user actually has Live video on (req.video_loop). Without this,
+  // every generation burned idle-loop AND morph quota even with the toggle off — display was gated
+  // client-side but generation was not. When skipped, video_status/morph_status stay null, which the
+  // client already reads as "no clip will ever exist" (it never polls), so nothing waits on them.
+  if (req.video_loop) {
+    ctx.video.maybeStartIdleLoop(node, ctx.providers, ctx.imagesDir);
+    ctx.morph.maybeStartMorph(node, ctx.providers, ctx.imagesDir);
+  }
 
   const completed = getNode(nodeId) ?? node;
   await emit({ event: "complete", data: completed });

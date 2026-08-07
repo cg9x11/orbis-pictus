@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildImagePrompt, getHouseStyleBlock, listHouseStyles } from "./houseStyle.js";
+import { buildImagePrompt, getHouseStyleBlock, listHouseStyles, listCompositions } from "./houseStyle.js";
 
 test("default style (no HOUSE_STYLE env) is felt", () => {
   delete process.env.HOUSE_STYLE;
@@ -19,6 +19,9 @@ test("HOUSE_STYLE selects an alternate style block", () => {
 
     process.env.HOUSE_STYLE = "pixel";
     assert.match(getHouseStyleBlock(), /pixel art/);
+
+    process.env.HOUSE_STYLE = "editorial";
+    assert.match(getHouseStyleBlock(), /editorial illustration/);
   } finally {
     if (prev === undefined) delete process.env.HOUSE_STYLE;
     else process.env.HOUSE_STYLE = prev;
@@ -70,7 +73,7 @@ test("listHouseStyles reports every style with a label taken from house-style.md
   const styles = listHouseStyles();
   assert.deepEqual(
     styles.map((s) => s.name),
-    ["felt", "papercut", "riso", "pixel"],
+    ["felt", "papercut", "riso", "pixel", "editorial"],
   );
   assert.equal(styles[0]?.label, "Needle-felted wool");
   for (const style of styles) {
@@ -80,11 +83,61 @@ test("listHouseStyles reports every style with a label taken from house-style.md
 });
 
 test("the house style block is always included in the layout contract", () => {
+  // The layout-furniture cap survives in every block; the isometric phrase now lives in the diorama
+  // composition, which is the default composition, so getHouseStyleBlock() (no args) still carries it.
+  assert.match(getHouseStyleBlock(), /five or six labelled elements/);
   assert.match(getHouseStyleBlock(), /isometric three-quarter aerial view/);
 });
 
-test("buildImagePrompt appends the house style block after the content prompt", () => {
+// Composition is an axis orthogonal to style: the same style block renders flat or dioramic.
+test("getHouseStyleBlock selects the requested composition block", () => {
+  const flat = getHouseStyleBlock("felt", "flat");
+  assert.match(flat, /flat, front-on educational infographic/i);
+  assert.doesNotMatch(flat, /isometric three-quarter aerial view/);
+
+  const diorama = getHouseStyleBlock("felt", "diorama");
+  assert.match(diorama, /isometric three-quarter aerial view/);
+  assert.doesNotMatch(diorama, /flat, front-on educational infographic/i);
+
+  // "isometric" is the third pole: axonometric projection without the miniature-diorama framing.
+  const isometric = getHouseStyleBlock("felt", "isometric");
+  assert.match(isometric, /clean isometric \(axonometric\) diagram/i);
+  assert.doesNotMatch(isometric, /miniature diorama scene/i);
+});
+
+test("an unrecognized composition falls back to the default (diorama)", () => {
+  assert.match(getHouseStyleBlock("felt", "no-such-composition"), /isometric three-quarter aerial view/);
+});
+
+test("listCompositions reports flat and diorama with labels from house-style.md", () => {
+  const comps = listCompositions();
+  assert.deepEqual(
+    comps.map((c) => c.name),
+    ["flat", "isometric", "diorama"],
+  );
+  for (const comp of comps) {
+    assert.ok(comp.label.length > 0, `${comp.name} should have a label`);
+    assert.doesNotMatch(comp.label, /^##/, "the markdown heading marker should be stripped");
+  }
+});
+
+test("buildImagePrompt threads the composition through to the built prompt", () => {
+  assert.match(buildImagePrompt("A page about cats.", "felt", { composition: "flat" }), /flat, front-on educational infographic/i);
+  assert.match(buildImagePrompt("A page about cats.", "felt", { composition: "diorama" }), /isometric three-quarter aerial view/);
+});
+
+// flipbook.page's proven order for modern image models: framing -> style -> quality -> `Content:`.
+test("buildImagePrompt wraps content: framing first, house style embedded, content last", () => {
   const built = buildImagePrompt("A page about cats.");
-  assert.match(built, /^A page about cats\./);
-  assert.equal(built, `A page about cats.\n\n${getHouseStyleBlock()}`);
+  assert.match(built, /^You can generate a new visual article expanding on the chosen topic/, "framing leads");
+  assert.ok(built.includes(getHouseStyleBlock()), "embeds the house style block");
+  assert.match(built, /\nContent: A page about cats\.$/, "content comes last, after the Content: marker");
+});
+
+// The reference-reuse clause is what keeps tap/edit continuity (parent scene as the base); search,
+// which carries no reference image, must not ask for it.
+test("buildImagePrompt requests reference reuse only when a reference image is provided", () => {
+  assert.match(buildImagePrompt("A page about cats.", undefined, { reference: "reuse" }), /reference image is provided/i);
+  assert.doesNotMatch(buildImagePrompt("A page about cats.", undefined, { reference: "none" }), /reference image is provided/i);
+  assert.doesNotMatch(buildImagePrompt("A page about cats."), /reference image is provided/i);
 });
