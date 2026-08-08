@@ -1,10 +1,10 @@
 /**
- * Idle-loop motion prompt (PLAN §3 Phase 5) — the GENERIC FALLBACK used only when the per-page VLM
+ * Idle-loop motion prompt — the GENERIC FALLBACK used only when the per-page VLM
  * motion prompt (LlmProvider.describeIdleMotion / idle-motion.md) is unavailable or errors; the
  * primary path tailors the motion to what's actually in each page. Style-agnostic on purpose: this
  * is i2v, so the model already sees the rendered frame — naming a specific medium here would only
  * fight it. Pages are mostly dense, readable text, so it still leans hard on "nothing textual moves"
- * — a known residual risk, not fully solved (PLAN §2 Video findings: a text line visibly mutated
+ * — a known residual risk, not fully solved (a text line visibly mutated
  * across frames even with this instruction present).
  */
 export const IDLE_LOOP_MOTION_PROMPT =
@@ -19,8 +19,8 @@ export const IDLE_LOOP_MOTION_PROMPT =
   "not a new scene.";
 
 /**
- * Page-transition morph prompt (PLAN §3 Phase 5, gate-tested 2026-08-06 — see PLAN §2 for the
- * frame-by-frame judgment that produced this wording) — the GENERIC FALLBACK used only when the
+ * Page-transition morph prompt (gate-tested 2026-08-06 against the frame-by-frame judgment that
+ * produced this wording) — the GENERIC FALLBACK used only when the
  * per-transition VLM prompt (LlmProvider.describeMorphMotion / morph-motion.md) is unavailable or
  * errors. First frame = parent page image, last frame = child page image; the two differ completely
  * in on-page text since they're different pages, so unlike the idle-loop prompt this one *asks* for

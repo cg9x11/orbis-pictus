@@ -19,7 +19,7 @@ function pickImageVariant(node: Node): { ratio: AspectRatio; url: string } | nul
 export interface VideoPipeline {
   /**
    * Fire-and-forget: kicks off background idle-loop generation for `node` if the feature is on
-   * and every guard passes (PLAN §3 Phase 5). Never awaited by callers — a page must never wait
+   * and every guard passes. Never awaited by callers — a page must never wait
    * on video. Safe to call for every completed page unconditionally; all gating happens inside.
    */
   maybeStartIdleLoop(node: Node, providers: Providers, imagesDir: string): void;

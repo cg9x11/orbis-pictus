@@ -9,14 +9,14 @@ interface ArkTaskCreateResponse {
 
 interface ArkTaskStatusResponse {
   id: string;
-  status: string; // "queued" | "running" | "succeeded" | "failed" | "cancelled" (only queued/running/succeeded verified live — PLAN §2)
+  status: string; // "queued" | "running" | "succeeded" | "failed" | "cancelled" (only queued/running/succeeded verified live)
   content?: { video_url?: string };
   error?: { message?: string };
 }
 
 /**
  * Generation parameters are dash-flags embedded in the text prompt (Midjourney-style), not
- * separate JSON fields — verified empirically 2026-08-06 (PLAN §2 Video findings).
+ * separate JSON fields — verified empirically 2026-08-06.
  */
 function buildDashParamPrompt(input: VideoGenInput): string {
   const flags = [
@@ -51,8 +51,8 @@ export class ArkVideoProvider implements VideoProvider {
     const content: Record<string, unknown>[] = [{ type: "text", text: buildDashParamPrompt(input) }];
     if (input.lastFrameDataUrl) {
       // Ark rejects multi-image content without a role distinguishing which frame is which
-      // ("role must be specified for image contents", found live 2026-08-06, PLAN §2 Video
-      // findings) — but the single-image idle-loop path was already verified working without a
+      // ("role must be specified for image contents", found live 2026-08-06) — but the
+      // single-image idle-loop path was already verified working without a
       // role, so only add it once there are two images.
       content.push(
         { type: "image_url", image_url: { url: input.firstFrameDataUrl }, role: "first_frame" },

@@ -1,13 +1,13 @@
 import type { AspectRatio } from "@flipbook/shared";
 
-/** ~4% grid (PLAN §2.3 layer 1): cell = round(ratio * 24). */
+/** ~4% grid (layer 1): cell = round(ratio * 24). */
 export const TAP_CACHE_GRID = 24;
 
 export function tapCellIndex(ratio: number): number {
   return Math.round(ratio * TAP_CACHE_GRID);
 }
 
-/** The cell and its 8 neighbors (PLAN §2.3: "check the cell and its 8 neighboring cells"). */
+/** The cell and its 8 neighbors ("check the cell and its 8 neighboring cells"). */
 export function neighborCells(cell: number): number[] {
   return [cell - 1, cell, cell + 1];
 }
@@ -20,7 +20,7 @@ const ASPECT_PROPORTIONS: Record<AspectRatio, [number, number]> = {
   "1:1": [1, 1],
 };
 
-/** Matches the visual tap marker: radius = 8.5% of the image's min dimension (PLAN §1.3/§2.3). */
+/** Matches the visual tap marker: radius = 8.5% of the image's min dimension. */
 const TAP_RADIUS_FRACTION = 0.085;
 
 /**
@@ -36,7 +36,7 @@ export function tapRadiusRatios(aspectRatio: AspectRatio): { rx: number; ry: num
 
 /**
  * Whether (x2,y2) falls under the same tap marker as (x1,y1) — i.e. within the visual circle's
- * radius, honestly matching "anything under the same circle is the same click" (PLAN §2.3).
+ * radius, honestly matching "anything under the same circle is the same click".
  * Coordinates are normalized [0,1] fractions of image width/height.
  */
 export function isWithinTapRadius(aspectRatio: AspectRatio, x1: number, y1: number, x2: number, y2: number): boolean {

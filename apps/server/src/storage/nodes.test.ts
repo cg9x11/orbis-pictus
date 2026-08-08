@@ -117,7 +117,7 @@ test("listGalleryNodes lists every root, keeping two roots that share a page_tit
 // child is a mid-exploration page with a title of its own ("Roadway Deck"), which the page_title
 // dedup above would happily let through — it has to be excluded by being a child, not by title.
 // Two taps landing under one visual marker are the same click as far as findTapCacheHit is
-// concerned, so drawing both would put two dots on one target (PLAN §2.3).
+// concerned, so drawing both would put two dots on one target.
 test("listTapCache collapses points that fall under the same tap marker", () => {
   recordTapCache("tapcache-node", "16:9", 0.5, 0.5, "Main Tower");
   recordTapCache("tapcache-node", "16:9", 0.505, 0.502, "Main Tower");

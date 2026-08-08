@@ -8,7 +8,7 @@ interface ArtStylePickerProps {
 }
 
 /**
- * Picks which block of art-style.md gets appended to the image prompt (PLAN §2 VISUAL IDENTITY).
+ * Picks which block of art-style.md gets appended to the image prompt.
  * The list and the labels both come from the server, which parses them out of art-style.md
  * itself, so adding a style there makes it appear here with no client change.
  *

@@ -1,7 +1,7 @@
 import { imageToCanvas } from "./canvas";
 
 /**
- * Draws the current page image with a tap marker at the given point, exactly per PLAN §1.3:
+ * Draws the current page image with a tap marker at the given point, exactly as follows:
  * red (#ff3b30) circle, radius ≈ 8.5% of min dimension (min 64px), white outer halo +
  * white crosshair ticks, exported as JPEG quality 0.92.
  *

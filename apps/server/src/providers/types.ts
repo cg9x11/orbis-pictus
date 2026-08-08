@@ -5,7 +5,7 @@ import type { AspectRatio } from "@flipbook/shared";
  *  client to react to directly, instead of pattern-matching the error message text. */
 export class QuotaExhaustedError extends Error {}
 
-// --- LLM provider: prompt author + tap VLM (PLAN §2.2 [A]/[B]) ---
+// --- LLM provider: prompt author + tap VLM ---
 export interface AuthorPromptInput {
   /** The query text (search mode) or the tapped subject name (tap mode). */
   topic: string;
@@ -46,7 +46,7 @@ export interface TitleImageOutput {
 export interface LlmProvider {
   readonly modelId: string;
   authorPrompt(input: AuthorPromptInput): Promise<AuthorPromptOutput>;
-  /** Rewrites a parent page's authored_prompt per an edit command (PLAN §4 edit-author.md). */
+  /** Rewrites a parent page's authored_prompt per an edit command (see edit-author.md). */
   authorEdit(input: AuthorEditInput): Promise<AuthorPromptOutput>;
   /** markedImageDataUrl: the current page image with the red tap marker drawn on it. */
   describeTap(markedImageDataUrl: string): Promise<DescribeTapOutput>;
@@ -55,14 +55,14 @@ export interface LlmProvider {
   /** Looks at a page's own rendered image and returns a short idle-loop motion prompt tailored to
    *  what THIS image actually contains (see idle-motion.md). The static-camera / unchanged-text
    *  guardrails live in the prompt; the background clip pipeline falls back to a generic prompt if
-   *  this throws (PLAN §3 Phase 5). */
+   *  this throws. */
   describeIdleMotion(imageDataUrl: string): Promise<MotionPromptOutput>;
   /** Looks at a page-transition's two frames (parent -> child) and returns a short morph prompt
    *  describing how the first repaints into the second (see morph-motion.md). */
   describeMorphMotion(firstFrameDataUrl: string, lastFrameDataUrl: string): Promise<MotionPromptOutput>;
 }
 
-// --- Image provider (PLAN §2.2 [C]/[D]) ---
+// --- Image provider ---
 export interface ImageGenInput {
   prompt: string;
   aspectRatio: AspectRatio;
@@ -88,14 +88,14 @@ export interface ImageGenResult {
 
 export interface ImageProvider {
   readonly modelId: string;
-  /** Short provider identifier (e.g. "ark", "fal", "mock") — part of the prompt-hash cache key (PLAN §2.3 layer 3), distinct from modelId so a provider swap invalidates the cache even if a model id string happens to collide. */
+  /** Short provider identifier (e.g. "ark", "fal", "mock") — part of the prompt-hash cache key, distinct from modelId so a provider swap invalidates the cache even if a model id string happens to collide. */
   readonly providerId: string;
   generate(input: ImageGenInput): Promise<ImageGenResult>;
 }
 
-// --- Video provider (PLAN §3 Phase 5, idle-loop background animation) ---
+// --- Video provider (idle-loop background animation) ---
 export interface VideoGenInput {
-  /** Content-only motion prompt (PLAN §2 VISUAL IDENTITY content/style split applies here too — no art-style words baked in by callers). */
+  /** Content-only motion prompt (the VISUAL IDENTITY content/style split applies here too — no art-style words baked in by callers). */
   prompt: string;
   aspectRatio: AspectRatio;
   /** First frame — for the idle loop this is the page's own rendered image (data: URL). */
@@ -103,7 +103,7 @@ export interface VideoGenInput {
   /** Last frame — reserved for the optional Phase 5 transition-morph task; providers without first-last-frame support may ignore it. */
   lastFrameDataUrl?: string;
   durationSeconds: number;
-  /** Dev default 480p (PLAN §3 Phase 5: "never 1080p in this session"). */
+  /** Dev default 480p ("never 1080p in this session"). */
   resolution: "480p" | "720p" | "1080p";
   /** Overrides the provider's configured model for this one call. Used so morphs (which need
    *  first-last-frame `flf2v` support) can run on a different model than the idle loop (single-frame

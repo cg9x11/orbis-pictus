@@ -14,7 +14,7 @@ export function recordTapCache(nodeId: string, aspectRatio: AspectRatio, x: numb
 }
 
 // Candidates from the tapped cell and its 8 neighbors (cell ± 1 on each axis), scoped to the
-// same node + aspect ratio (the marker geometry depends on aspect ratio — PLAN §2.3).
+// same node + aspect ratio (the marker geometry depends on aspect ratio).
 const candidatesStmt = db.prepare(`
   SELECT * FROM tap_cache
   WHERE node_id = ? AND aspect_ratio = ?

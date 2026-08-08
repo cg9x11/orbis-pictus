@@ -32,7 +32,7 @@ test("page-author.md keeps image_prompt content-only: no style, palette, materia
   assert.match(PAGE_AUTHOR, /never mention it|Do not write any style, palette, material, lighting/i);
 });
 
-// PLAN §2 (2026-08-06 post-launch fix): page-author.md previously told the author LLM to
+// 2026-08-06 post-launch fix: page-author.md previously told the author LLM to
 // "Include 4 to 8" sub-topics while art-style.md capped the scene at "five or six labelled
 // elements" — the contradiction let a 7-callout page ship where labels drifted onto the wrong
 // descriptions. Both files must now agree on a 6-callout ceiling.

@@ -20,9 +20,9 @@ const MORPH_WAIT_MAX_MS = 2500;
 
 interface PageImageProps {
   imageUrl?: string;
-  /** PLAN §3 Phase 5: the ready idle-loop clip, or null while none is available/enabled. */
+  /** The ready idle-loop clip, or null while none is available/enabled. */
   videoUrl?: string | null;
-  /** PLAN §3 Phase 5: a ready transition-morph clip to play once over the already-current image, or null. */
+  /** A ready transition-morph clip to play once over the already-current image, or null. */
   morphUrl?: string | null;
   /** A transition is under way — its clip is being looked up, or is playing. While this is true the
    *  page being left stays painted over the destination, so the destination is never glimpsed before
@@ -36,7 +36,7 @@ interface PageImageProps {
   loadingContent?: ReactNode;
   /** Overlay pinned to the image's own coordinate space — the already-explored tap markers. */
   markers?: ReactNode;
-  /** PLAN §3 Phase 5: a background idle-loop clip is being generated for this page. Unlike
+  /** A background idle-loop clip is being generated for this page. Unlike
    *  `loading`, the page is already finished and stays fully interactive — the indicator only says
    *  "a clip is coming", it must never block a tap. */
   videoGenerating?: boolean;

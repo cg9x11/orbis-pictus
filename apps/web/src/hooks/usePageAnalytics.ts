@@ -13,7 +13,7 @@ function readCount(): number {
   }
 }
 
-/** PLAN §1.4/§3: page-generated counter + milestone tracking, sessionStorage only, no external service. */
+/** Page-generated counter + milestone tracking, sessionStorage only, no external service. */
 export function usePageAnalytics() {
   const [count, setCount] = useState(readCount);
   const [milestone, setMilestone] = useState<number | null>(null);

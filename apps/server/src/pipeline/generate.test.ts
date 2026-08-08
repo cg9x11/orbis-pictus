@@ -49,7 +49,7 @@ class SpyLlmProvider extends MockLlmProvider {
   }
 }
 
-// PLAN §2 KNOWN OPEN ISSUE: a numeral badge stamped next to each callout ("numbered 1-6") is
+// KNOWN OPEN ISSUE: a numeral badge stamped next to each callout ("numbered 1-6") is
 // reliably duplicated/skipped by the image model. No built prompt, in any mode, should ask for one.
 const NUMERAL_BADGE_INSTRUCTION = /numbered\s+1-\d+|numeral badge|pin number|digit badge/i;
 

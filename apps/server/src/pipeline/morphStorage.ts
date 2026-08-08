@@ -5,7 +5,7 @@ import path from "node:path";
 const REVERSE_FILENAME = "morph-reverse.mp4";
 
 /** Writes a generated transition-morph clip to disk beside the child node's own images and
- *  returns its same-origin URL (PLAN §3 Phase 5) — same storage/serving pattern as videoStorage.ts. */
+ *  returns its same-origin URL — same storage/serving pattern as videoStorage.ts. */
 export function saveMorph(imagesDir: string, childNodeId: string, bytes: Buffer): string {
   const nodeDir = path.join(imagesDir, childNodeId);
   fs.mkdirSync(nodeDir, { recursive: true });
@@ -15,7 +15,7 @@ export function saveMorph(imagesDir: string, childNodeId: string, bytes: Buffer)
 
 /**
  * Re-encodes a saved morph backwards, so stepping back from a child to its parent can play the same
- * transition in reverse (PLAN §3 Phase 5). A morph is a first-frame/last-frame interpolation from
+ * transition in reverse. A morph is a first-frame/last-frame interpolation from
  * the parent's image to the child's, so its reverse is exactly the parent-ward transition — no
  * second video generation, and no video quota, just a re-encode.
  *

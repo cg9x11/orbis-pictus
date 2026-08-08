@@ -40,7 +40,7 @@ const insertStmt = db.prepare(`
     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
-/** Internal cache-layer metadata (PLAN §2.3), stored alongside the node but not part of the public Node schema. */
+/** Internal cache-layer metadata, stored alongside the node but not part of the public Node schema. */
 export interface NodeCacheMeta {
   normalizedSubject: string;
   /** Null when the node's image shouldn't be offered for prompt-hash reuse (e.g. edit mode — see generate.ts). */
@@ -117,7 +117,7 @@ const findChildBySubjectStmt = db.prepare(`
   SELECT * FROM nodes WHERE parent_id = ? AND normalized_subject = ? ORDER BY created_at ASC LIMIT 1
 `);
 
-/** PLAN §2.3 layer 2: an existing child of `parentId` already covering this normalized subject. */
+/** Layer 2: an existing child of `parentId` already covering this normalized subject. */
 export function findChildBySubject(parentId: string, normalizedSubject: string): Node | null {
   const row = findChildBySubjectStmt.get(parentId, normalizedSubject) as NodeRow | undefined;
   return row ? rowToNode(row) : null;
@@ -127,13 +127,13 @@ const findByPromptHashStmt = db.prepare(`
   SELECT * FROM nodes WHERE prompt_hash = ? ORDER BY created_at ASC LIMIT 1
 `);
 
-/** PLAN §2.3 layer 3: any earlier node whose authored_prompt (+ ratio/model/provider) matches exactly. */
+/** Layer 3: any earlier node whose authored_prompt (+ ratio/model/provider) matches exactly. */
 export function findNodeByPromptHash(hash: string): Node | null {
   const row = findByPromptHashStmt.get(hash) as NodeRow | undefined;
   return row ? rowToNode(row) : null;
 }
 
-// --- PLAN §3 Phase 5: idle-loop video state. `video_status` is part of the public Node schema
+// --- Idle-loop video state. `video_status` is part of the public Node schema
 // (the client needs it to tell "a clip is coming" from "none will ever exist"); `video_url` is
 // internal and reachable only through GET /api/nodes/:id/video. VideoStatus itself is defined
 // once, in @flipbook/shared, and re-exported here for the existing server-side importers.
@@ -169,7 +169,7 @@ export function markVideoReady(id: string, url: string): void {
   setVideoReadyStmt.run(VideoStatusSchema.enum.ready, url, id);
 }
 
-// --- PLAN §3 Phase 5: page-transition morph state. `morph_status` is part of the public Node
+// --- Page-transition morph state. `morph_status` is part of the public Node
 // schema (same rationale as video_status); `morph_url` is internal and reachable only through
 // GET /api/nodes/:id/morph. MorphStatus itself is defined once, in @flipbook/shared, and
 // re-exported here for the existing server-side importers.

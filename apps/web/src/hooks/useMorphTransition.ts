@@ -5,7 +5,7 @@ import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
 import { useCancellableEffect } from "./useCancellableEffect";
 
 /**
- * PLAN §3 Phase 5 page-transition morphs: a single non-blocking check (never a poll loop, never
+ * Page-transition morphs: a single non-blocking check (never a poll loop, never
  * awaited here) for a pre-generated clip when the user moves exactly one step along the trail. If
  * nothing is ready, this returns null and the page the caller already rendered synchronously is all
  * that shows — PageImage's crossfade then covers the change.

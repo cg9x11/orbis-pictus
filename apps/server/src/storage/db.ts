@@ -43,7 +43,7 @@ export function migrate(): void {
     CREATE INDEX IF NOT EXISTS nodes_session_id_idx ON nodes(session_id);
   `);
 
-  // PLAN §2.3 layers 2 & 3: subject-level child dedup + prompt-hash image cache.
+  // Subject-level child dedup + prompt-hash image cache.
   ensureColumn("nodes", "normalized_subject", "normalized_subject TEXT NOT NULL DEFAULT ''");
   ensureColumn("nodes", "prompt_hash", "prompt_hash TEXT");
   db.exec(`
@@ -51,7 +51,7 @@ export function migrate(): void {
     CREATE INDEX IF NOT EXISTS nodes_prompt_hash_idx ON nodes(prompt_hash);
   `);
 
-  // PLAN §2.3 layer 1: coordinate-quantization VLM cache.
+  // Coordinate-quantization VLM cache.
   db.exec(`
     CREATE TABLE IF NOT EXISTS tap_cache (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,13 +67,13 @@ export function migrate(): void {
     CREATE INDEX IF NOT EXISTS tap_cache_node_cell_idx ON tap_cache(node_id, aspect_ratio, cell_x, cell_y);
   `);
 
-  // PLAN §3 Phase 5: idle-loop video. video_status null = never attempted (only state that may
+  // Idle-loop video. video_status null = never attempted (only state that may
   // start a background generation); "pending"/"ready"/"failed" all short-circuit so a node is
   // never regenerated (a failed attempt just stays a static image, no auto-retry).
   ensureColumn("nodes", "video_status", "video_status TEXT");
   ensureColumn("nodes", "video_url", "video_url TEXT");
 
-  // PLAN §3 Phase 5: page-transition morphs. Same null/pending/ready/failed contract as video
+  // Page-transition morphs. Same null/pending/ready/failed contract as video
   // above, stored on the child node itself (a child has exactly one parent, so one morph per row).
   ensureColumn("nodes", "morph_status", "morph_status TEXT");
   ensureColumn("nodes", "morph_url", "morph_url TEXT");

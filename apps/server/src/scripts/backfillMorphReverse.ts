@@ -6,7 +6,7 @@ import { writeReversedMorph } from "../pipeline/morphStorage.js";
 
 /**
  * One-off backfill: writes the reversed copy of every morph already on disk, so stepping back up to
- * a parent replays the transition on pages generated before reverse morphs existed (PLAN §3 Phase 5).
+ * a parent replays the transition on pages generated before reverse morphs existed.
  * Without it those pages crossfade back forever — the reverse clip is only written at generation
  * time, and nothing regenerates a morph that is already `ready`.
  *

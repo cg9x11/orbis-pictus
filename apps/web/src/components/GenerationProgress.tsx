@@ -32,7 +32,7 @@ function label(stage: GenerationStage | undefined, tapSubject: string | undefine
 
 /**
  * Replaces a single static "Generating…" pill with the phase the server is actually in. Every
- * value here already travels over the existing SSE stream (PLAN §1.3) — the client used to receive
+ * value here already travels over the existing SSE stream — the client used to receive
  * and discard it. Nothing about this speeds a generation up; it just stops a 30-60 second wait from
  * looking like a frozen page.
  */

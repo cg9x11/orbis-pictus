@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-/** Writes a generated idle-loop clip to disk beside the page's images and returns its same-origin URL (PLAN §3 Phase 5). */
+/** Writes a generated idle-loop clip to disk beside the page's images and returns its same-origin URL. */
 export function saveVideo(imagesDir: string, nodeId: string, bytes: Buffer): string {
   const nodeDir = path.join(imagesDir, nodeId);
   fs.mkdirSync(nodeDir, { recursive: true });

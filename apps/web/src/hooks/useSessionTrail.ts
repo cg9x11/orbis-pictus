@@ -6,7 +6,7 @@ interface TrailState {
   currentIndex: number;
 }
 
-/** Linear session history with back/forward navigation, truncate-on-branch (PLAN §1.4/§3). */
+/** Linear session history with back/forward navigation, truncate-on-branch. */
 export function useSessionTrail(initial: Node[] = []) {
   const [state, setState] = useState<TrailState>(() => ({
     trail: initial,

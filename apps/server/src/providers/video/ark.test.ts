@@ -43,7 +43,7 @@ const input: VideoGenInput = {
   resolution: "480p",
 };
 
-test("generate(): full create -> poll -> download flow, using fixtures captured from a real Ark call (PLAN §2 Video findings)", async () => {
+test("generate(): full create -> poll -> download flow, using fixtures captured from a real Ark call", async () => {
   // Only one poll iteration (straight to "succeeded") to keep this test fast — the multi-iteration
   // backoff/timing behavior itself is covered in isolation by lib/poll.test.ts with an injected
   // fast sleep; this test's job is verifying request/response *shape* fidelity against real fixtures.

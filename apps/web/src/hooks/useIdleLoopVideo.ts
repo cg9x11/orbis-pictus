@@ -4,8 +4,8 @@ import { fetchNodeVideo } from "../lib/api";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
 import { useCancellableEffect } from "./useCancellableEffect";
 
-// Server-side generation of a 480p/5s clip took ~32s in the verified live test (PLAN §2 Video
-// findings); this schedule starts checking a bit before that and backs off from there. Capped at
+// Server-side generation of a 480p/5s clip took ~32s in the verified live test; this schedule
+// starts checking a bit before that and backs off from there. Capped at
 // ~15 attempts (a few minutes) so a stalled/failed generation is abandoned quietly rather than
 // polled forever — the static image is always a fine fallback.
 const BACKOFF_MS = [4000, 4000, 6000, 8000, 10000, 15000, 20000, 20000];
@@ -13,7 +13,7 @@ const MAX_ATTEMPTS = 15;
 
 /**
  * Polls `GET /api/nodes/:id/video` with backoff while `enabled`, returning the clip URL once
- * ready (or null while pending/disabled/reduced-motion). PLAN §3 Phase 5: never gates page
+ * ready (or null while pending/disabled/reduced-motion). Never gates page
  * render — this is purely additive UI state layered on top of the already-visible static image.
  *
  * `status` comes from the node payload and decides whether polling happens at all. Without it this

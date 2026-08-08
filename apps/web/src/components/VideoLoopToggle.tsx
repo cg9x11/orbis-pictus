@@ -46,7 +46,7 @@ function describe(enabled: boolean, status: VideoStatus | null | undefined): { l
   }
 }
 
-/** PLAN §3 Phase 5 — experimental, off by default; wording echoes the original's "live video stream" feature. */
+/** Experimental, off by default; wording echoes the original's "live video stream" feature. */
 export function VideoLoopToggle({ enabled, onChange, disabled, status }: VideoLoopToggleProps) {
   const { label, title } = describe(enabled, status);
   const working = enabled && status === "pending";

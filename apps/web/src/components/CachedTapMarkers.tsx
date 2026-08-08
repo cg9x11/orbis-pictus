@@ -9,7 +9,7 @@ interface CachedTapMarkersProps {
 }
 
 /**
- * Marks the spots on a page that have already been explored (PLAN §2.3). These are pure navigation:
+ * Marks the spots on a page that have already been explored. These are pure navigation:
  * clicking one opens the existing child page instantly and costs nothing, which is the whole point
  * of showing them — without a marker the only way to discover that a tap is free is to make it.
  *

@@ -41,8 +41,8 @@ export async function fetchNode(id: string): Promise<NodesGetResponse> {
 }
 
 /**
- * Points on this page that have already been explored and whose child page still exists (PLAN
- * §2.3). Tapping one opens that child immediately with no generation, so they are worth marking
+ * Points on this page that have already been explored and whose child page still exists.
+ * Tapping one opens that child immediately with no generation, so they are worth marking
  * on the image. Empty when the server is not in TAP_DEDUP=reuse mode.
  */
 export async function fetchNodeTaps(id: string, ratio: AspectRatio): Promise<CachedTap[]> {
@@ -60,8 +60,8 @@ export async function fetchVariant(id: string, ratio: AspectRatio): Promise<Node
 }
 
 /**
- * Already-generated nodes for the landing-page example gallery — zero new generations
- * (PLAN §3 Phase 3). Pass `"all"` to load the whole gallery with no cap; a number is clamped
+ * Already-generated nodes for the landing-page example gallery — zero new generations.
+ * Pass `"all"` to load the whole gallery with no cap; a number is clamped
  * server-side to MAX_GALLERY_LIMIT (24).
  */
 export async function fetchGallery(limit: number | "all" = 8): Promise<Node[]> {
@@ -80,7 +80,7 @@ export async function fetchConfig(): Promise<ConfigResponse> {
   return ConfigResponseSchema.parse(await res.json());
 }
 
-/** Idle-loop video (PLAN §3 Phase 5): null until the background clip is ready — the caller polls with backoff. */
+/** Idle-loop video: null until the background clip is ready — the caller polls with backoff. */
 export async function fetchNodeVideo(id: string): Promise<string | null> {
   const res = await fetch(`/api/nodes/${id}/video`);
   if (!res.ok) return null;
@@ -89,7 +89,7 @@ export async function fetchNodeVideo(id: string): Promise<string | null> {
 }
 
 /**
- * On-demand idle-loop generation (PLAN §3 Phase 5): asks the server to make a clip for a page that
+ * On-demand idle-loop generation: asks the server to make a clip for a page that
  * was created without one (Live video was off at the time). Returns "pending" once generation is
  * under way (the caller then polls via fetchNodeVideo) or "ready" if one already existed; throws
  * with the server's message on a real failure (disabled, session cap, no image to animate).
@@ -119,7 +119,7 @@ export async function requestNodeMorph(id: string): Promise<{ status: "pending" 
 }
 
 /**
- * Transition morph (PLAN §3 Phase 5): a single non-blocking check, never polled — morphs are
+ * Transition morph: a single non-blocking check, never polled — morphs are
  * pre-generated in the background and either exist by the time you navigate here or they don't;
  * null just means "play the instant crossfade instead", not "come back later".
  */

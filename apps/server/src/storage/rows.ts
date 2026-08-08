@@ -8,22 +8,22 @@ import type { Node } from "@flipbook/shared";
  *  exposed via NodeSchema at all. */
 export interface NodeRow extends Omit<Node, "image_variants" | "video_status" | "morph_status"> {
   image_variants: string; // JSON-encoded ImageVariants
-  // Internal cache-layer metadata (PLAN §2.3) — never exposed via the public Node zod schema.
+  // Internal cache-layer metadata — never exposed via the public Node zod schema.
   normalized_subject: string;
   prompt_hash: string | null;
-  // Idle-loop video state (PLAN §3 Phase 5). `video_status` IS surfaced on the public Node schema
+  // Idle-loop video state. `video_status` IS surfaced on the public Node schema
   // (the client needs to distinguish "a clip is coming" from "none will ever exist"); `video_url`
   // stays internal and is served only by GET /api/nodes/:id/video.
   video_status: string | null;
   video_url: string | null;
-  // Transition-morph state (PLAN §3 Phase 5). `morph_status` is now also on the public Node schema
+  // Transition-morph state. `morph_status` is now also on the public Node schema
   // (same rationale as video_status); `morph_url` stays internal, served only by
   // GET /api/nodes/:id/morph.
   morph_status: string | null;
   morph_url: string | null;
 }
 
-/** Row shape of the `tap_cache` table (see db.ts for DDL) — layer 1 of PLAN §2.3. */
+/** Row shape of the `tap_cache` table (see db.ts for DDL) — layer 1 of the cache. */
 export interface TapCacheRow {
   id: number;
   node_id: string;

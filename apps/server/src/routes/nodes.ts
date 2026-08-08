@@ -28,7 +28,7 @@ const MAX_GALLERY_LIMIT = 24;
 export function nodesRoute(providers: Providers, imagesDir: string, video: VideoPipeline, morph: MorphPipeline): Hono {
   const app = new Hono();
 
-  // PLAN §2.3 stampede guard for lazy variant generation: two concurrent requests for the same
+  // Stampede guard for lazy variant generation: two concurrent requests for the same
   // missing (node, ratio) both pass the `image_variants[ratio]` check and would each pay for a
   // full image generation. Coalescing lets the second ride the first's result. Lives in the
   // factory closure so it persists for the process, one map shared across all requests.
@@ -61,12 +61,12 @@ export function nodesRoute(providers: Providers, imagesDir: string, video: Video
       version: 1,
     };
     // No providerId available on this generic persistence request, so this node is never
-    // offered for prompt-hash reuse (PLAN §2.3 layer 3) — only the generate pipeline populates it.
+    // offered for prompt-hash reuse — only the generate pipeline populates it.
     insertNode(node, { normalizedSubject: normalizeSubject(node.query), promptHash: null });
     return c.json({ node }, 201);
   });
 
-  // Landing-page example gallery (PLAN §3 Phase 3) — a random sample of already-generated
+  // Landing-page example gallery — a random sample of already-generated
   // nodes, zero new generations. `?limit=all` returns every gallery-eligible page with no cap;
   // any other value is clamped to MAX_GALLERY_LIMIT. The uncapped form exists because the cap is
   // a presentation choice, not a safety one, and a self-hosted instance may legitimately want the
@@ -85,7 +85,7 @@ export function nodesRoute(providers: Providers, imagesDir: string, video: Video
     return c.json({ nodes });
   });
 
-  // User-uploaded photo becomes a root node (parent_id null), titled by the VLM (PLAN §3 Phase 2).
+  // User-uploaded photo becomes a root node (parent_id null), titled by the VLM.
   // Gated behind UPLOAD_ENABLED (default off) — enforced here as well as by hiding the button, so a
   // stale client or a direct API call can't upload when the feature is turned off.
   app.post("/upload", async (c) => {
@@ -130,7 +130,7 @@ export function nodesRoute(providers: Providers, imagesDir: string, video: Video
     return c.json({ node }, 201);
   });
 
-  // Already-explored tap points (PLAN §2.3). Returns only spots that resolve all the way to an
+  // Already-explored tap points. Returns only spots that resolve all the way to an
   // existing child page, because those are the ones where a tap costs nothing — a tap-cache row on
   // its own merely skips the VLM call and still generates an image, which is not what the marker
   // promises. For the same reason the list is empty unless TAP_DEDUP is "reuse": in "variant" or
@@ -148,7 +148,7 @@ export function nodesRoute(providers: Providers, imagesDir: string, video: Video
     return c.json({ taps });
   });
 
-  // Idle-loop video polling (PLAN §3 Phase 5): 404 until the background clip is ready, whether
+  // Idle-loop video polling: 404 until the background clip is ready, whether
   // it's still pending, failed, or was never attempted — the client just keeps polling with
   // backoff and gives up on its own after a while, so no separate "failed" signal is needed here.
   app.get("/:id/video", (c) => {
@@ -163,7 +163,7 @@ export function nodesRoute(providers: Providers, imagesDir: string, video: Video
     return c.json({ ready: true, video_url: info.url });
   });
 
-  // On-demand idle-loop generation (PLAN §3 Phase 5): the two automatic paths (new node, morph)
+  // On-demand idle-loop generation: the two automatic paths (new node, morph)
   // only make a clip at creation time and only while Live video is on, so any page created with it
   // off never gets one. This lets a user, viewing such a page, ask for the clip now. It still spends
   // real video quota, so it stays gated by VIDEO_ENABLED and the per-session cap; a `failed` node is
@@ -192,7 +192,7 @@ export function nodesRoute(providers: Providers, imagesDir: string, video: Video
     }
   });
 
-  // Transition-morph polling (PLAN §3 Phase 5): 404 until the pre-generated clip is ready — same
+  // Transition-morph polling: 404 until the pre-generated clip is ready — same
   // shape and reasoning as /video above. Morphs are never generated on demand, so a 404 here just
   // means "use the instant crossfade", not "come back later and block on it". The `status` field on
   // the not-ready branch lets the first-step-morph gate (useFlipbookController) tell "still pending,
@@ -245,7 +245,7 @@ export function nodesRoute(providers: Providers, imagesDir: string, video: Video
     return c.json({ node, history });
   });
 
-  // Lazily generates and caches a missing aspect-ratio variant of an existing node (PLAN §3 Phase 2).
+  // Lazily generates and caches a missing aspect-ratio variant of an existing node.
   app.get("/:id/variant", async (c) => {
     const id = c.req.param("id");
     const ratioParsed = AspectRatioSchema.safeParse(c.req.query("ratio"));

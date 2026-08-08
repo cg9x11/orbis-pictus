@@ -5,7 +5,7 @@ import { streamGenerate } from "../lib/api";
 export interface GenerationState {
   status: "idle" | "streaming" | "done" | "error";
   tapSubject?: string;
-  /** Latest phase reported by the server (PLAN §1.3 `stage` event). */
+  /** Latest phase reported by the server (the `stage` event). */
   stage?: GenerationStage;
   /** Known from the "drawing" stage onwards, once the authoring model has named the page. */
   pageTitle?: string;

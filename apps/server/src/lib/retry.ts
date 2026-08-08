@@ -1,5 +1,5 @@
 /** Retry backoff: the initial attempt plus 3 retries, backed off [1s, 3s, 7s]. Originally sized
- *  for DB persistence (PLAN §1.3) but reused as-is for outbound provider HTTP calls below. */
+ *  for DB persistence but reused as-is for outbound provider HTTP calls below. */
 const DEFAULT_BACKOFF_MS = [1000, 3000, 7000];
 
 export async function withRetry<T>(fn: () => T | Promise<T>, backoffMs: number[] = DEFAULT_BACKOFF_MS): Promise<T> {

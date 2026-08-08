@@ -1,4 +1,4 @@
-/** PLAN §3 Phase 5 guards for page-transition morphs — same guard shape as videoConfig.ts (idle
+/** Guards for page-transition morphs — same guard shape as videoConfig.ts (idle
  *  loops), kept as a separate flag/cap so the two experimental features can be enabled and
  *  budgeted independently even though they share the same Ark video quota. */
 

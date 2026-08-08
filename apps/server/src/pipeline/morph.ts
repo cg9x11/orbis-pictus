@@ -19,7 +19,7 @@ function pickSharedRatio(parent: Node, child: Node): AspectRatio | null {
 export interface MorphPipeline {
   /**
    * Fire-and-forget: kicks off background transition-morph generation for `child` if the feature
-   * is on and every guard passes (PLAN §3 Phase 5). Never awaited by callers — navigation must
+   * is on and every guard passes. Never awaited by callers — navigation must
    * never wait on a morph. Safe to call for every completed page unconditionally; a node with no
    * parent (a root/search result) is simply skipped inside.
    */

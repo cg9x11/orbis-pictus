@@ -1,5 +1,5 @@
 /** Backoff schedule for polling an async task; last value repeats once exhausted. Tuned against
- *  the real Ark video API (PLAN §2 Video findings): a 480p/5s clip took ~32s end-to-end. */
+ *  the real Ark video API: a 480p/5s clip took ~32s end-to-end. */
 const DEFAULT_INTERVALS_MS = [2000, 3000, 5000, 5000, 8000, 8000, 10000];
 const DEFAULT_MAX_ATTEMPTS = 40; // ~ up to several minutes with the schedule above capped at its last value
 

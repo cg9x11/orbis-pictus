@@ -8,7 +8,7 @@ import type { ImageProviderFactory } from "./registry.js";
 
 /**
  * Draft-tier (Phase 1 single-tier) sizes. BytePlus Ark rejects named sizes like "1K" for
- * seedream-4.x and enforces a minimum of 3,686,400 total pixels — well above PLAN §1.3's
+ * seedream-4.x and enforces a minimum of 3,686,400 total pixels — well above the
  * original draft dimensions (1280x720 / 960x1280 / 960x960), so these are the same aspect
  * ratios scaled up to just clear that floor. Verified empirically 2026-08 against the live API.
  */
@@ -17,15 +17,6 @@ const DRAFT_SIZE_BY_ASPECT: Record<AspectRatio, string> = {
   "3:4": "1665x2220",
   "1:1": "1920x1920",
 };
-
-// Phase 3: final tier (larger size, same aspect ratios). PLAN §1.3's original final dimensions
-// (1920x1088 / 1088x1920 / 1088x1088) are themselves below Ark's minimum, so re-derive at that
-// time rather than reusing them verbatim.
-// const FINAL_SIZE_BY_ASPECT: Record<AspectRatio, string> = {
-//   "16:9": "3840x2160",
-//   "3:4": "2500x3332",
-//   "1:1": "2880x2880",
-// };
 
 export class ArkImageProvider implements ImageProvider {
   readonly modelId: string;

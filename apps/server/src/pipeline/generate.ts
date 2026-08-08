@@ -30,7 +30,7 @@ export interface GenerateContext {
   morph: MorphPipeline;
 }
 
-// PLAN §2.3 stampede guard: coalesce concurrent image generations that resolve to the same
+// Stampede guard: coalesce concurrent image generations that resolve to the same
 // prompt-hash (the same key the persistent layer-3 cache uses). Two identical requests that both
 // miss the cache now share a single provider call instead of each paying for it. Keyed by
 // promptHash alone — matching the persistent cache's own reuse identity — so a reference image is
@@ -50,7 +50,7 @@ interface ModeContext {
   tapReferenceImageDataUrl: string | undefined;
 }
 
-// Only tap mode can short-circuit the rest of generation (PLAN §2.3 layer 2: an existing child
+// Only tap mode can short-circuit the rest of generation (layer 2: an existing child
 // already covers this subject) — search and edit always resolve to a context, never a cache hit.
 type ModeResolution = { kind: "resolved"; context: ModeContext } | { kind: "cache-hit"; node: Node };
 
@@ -97,7 +97,7 @@ async function resolveTapContext(
   const parentNodeId = req.current_node_id;
   const tapDedup = getTapDedupMode();
 
-  // Layer 1 (PLAN §2.3): coordinate-quantization VLM cache — skip the VLM call entirely on a hit.
+  // Layer 1: coordinate-quantization VLM cache — skip the VLM call entirely on a hit.
   const cacheHit = tapDedup !== "off" ? findTapCacheHit(parentNodeId, req.aspect_ratio, req.x, req.y) : null;
   let subject: string;
   if (cacheHit) {
@@ -122,7 +122,7 @@ async function resolveTapContext(
       parentNodeId,
       parentTitle: req.parent_title,
       parentAuthoredPrompt: parentNode?.authored_prompt,
-      // Tap-mode scene continuity (PLAN §4 tap mode): the parent page's own rendered image, passed
+      // Tap-mode scene continuity: the parent page's own rendered image, passed
       // to the image provider as a reference the same way edit mode passes the current page's
       // image — verified against the real flipbook.page, whose tap child reuses the parent's exact
       // scene.
@@ -144,7 +144,7 @@ function buildSearchQuery(topic: string, parentTitle: string | undefined): strin
   return `${topic} (in the context of ${parent})`;
 }
 
-/** Runs the full generation pipeline (PLAN §2.2), calling `emit` for each SSE event, and persists the resulting node. */
+/** Runs the full generation pipeline, calling `emit` for each SSE event, and persists the resulting node. */
 export async function runGenerate(
   req: GenerateRequest,
   ctx: GenerateContext,
@@ -208,7 +208,7 @@ export async function runGenerate(
 
   const nodeId = crypto.randomUUID().replace(/-/g, "");
 
-  // PLAN §2 VISUAL IDENTITY: authoredPrompt is content-only (title, layout, exact text) — the
+  // VISUAL IDENTITY: authoredPrompt is content-only (title, layout, exact text) — the
   // art style (materials/palette/lighting/composition) is a fixed constant appended here, never
   // authored by the LLM, so every page shares one house look regardless of topic.
   // search never carries a reference image; tap and edit both do (parent frame / current image), so
@@ -218,7 +218,7 @@ export async function runGenerate(
     composition: req.composition,
   });
 
-  // Layer 3 (PLAN §2.3): prompt-hash image cache, keyed on the full built prompt so an ART_STYLE
+  // Layer 3: prompt-hash image cache, keyed on the full built prompt so an ART_STYLE
   // change invalidates it too. Excluded for edit mode — edits are conditioned on the current
   // page's actual pixels (referenceImageDataUrl), so two edits that happen to author byte-identical
   // prompt text can still need genuinely different output images.
@@ -306,7 +306,7 @@ export async function runGenerate(
     insertNode(node, { normalizedSubject: normalizeSubject(topic), promptHash: canReuseImage ? promptHash : null }),
   );
 
-  // Fire-and-forget background clips (PLAN §3 Phase 5), started BEFORE `complete` is announced.
+  // Fire-and-forget background clips, started BEFORE `complete` is announced.
   // Both calls are synchronous up to the point where they mark the node pending — only the actual
   // provider request is deferred — so re-reading the node below yields video_status "pending"
   // whenever a clip is genuinely on its way. Emitting `complete` first would ship a payload saying

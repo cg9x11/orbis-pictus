@@ -100,7 +100,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
               status={idleLoopVideoUrl ? "ready" : current?.video_status}
             />
           )}
-          {/* On-demand path (PLAN §3 Phase 5): a distinct, explicit action shown only when Live video
+          {/* On-demand path: a distinct, explicit action shown only when Live video
               is on and this page is missing a clip — turning the toggle's honest "none on this page"
               into something the user can act on, without conflating the global on/off toggle's
               meaning. Covers both clips, so the label names the outcome rather than just the video. */}

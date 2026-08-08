@@ -25,7 +25,7 @@ export type VideoStatus = z.infer<typeof VideoStatusSchema>;
 export const MorphStatusSchema = z.enum(["pending", "ready", "failed"]);
 export type MorphStatus = z.infer<typeof MorphStatusSchema>;
 
-// --- Node (PLAN §1.2) ---
+// --- Node ---
 export const NodeSchema = z.object({
   id: z.string(),
   parent_id: z.string().nullable(),
@@ -50,7 +50,7 @@ export const NodeSchema = z.object({
 });
 export type Node = z.infer<typeof NodeSchema>;
 
-// --- Generate request (PLAN §1.3) ---
+// --- Generate request ---
 // mode "search": user typed a query
 export const GenerateSearchRequestSchema = z.object({
   mode: z.literal("search"),
@@ -82,8 +82,8 @@ export const GenerateTapRequestSchema = z.object({
   // VLM resolves the tapped subject visually from the marker, not from x/y.
   markedImage: z.string().startsWith("data:image/"),
   // Click point as a fraction (0..1) of the displayed image's width/height — same coordinate
-  // space as the marker drawn into `markedImage`. Used server-side for the tap-cache lookup (PLAN
-  // §2.3): the VLM never sees these, it still resolves the subject visually from the marker.
+  // space as the marker drawn into `markedImage`. Used server-side for the tap-cache lookup:
+  // the VLM never sees these, it still resolves the subject visually from the marker.
   x: z.number().min(0).max(1).default(0.5),
   y: z.number().min(0).max(1).default(0.5),
   aspect_ratio: AspectRatioSchema.default("16:9"),
@@ -146,7 +146,7 @@ export const GenerateRequestSchema = z.preprocess(
 );
 export type GenerateRequest = z.infer<typeof GenerateRequestSchema>;
 
-// --- SSE events (PLAN §1.3) ---
+// --- SSE events ---
 export const StartEventSchema = z.object({
   event: z.literal("start"),
   data: z.object({}).default({}),
@@ -223,7 +223,7 @@ export type NodesGetResponse = z.infer<typeof NodesGetResponseSchema>;
 export const NodeVariantResponseSchema = z.object({ node: NodeSchema });
 export type NodeVariantResponse = z.infer<typeof NodeVariantResponseSchema>;
 
-// --- Gallery listing (landing page, PLAN §3 Phase 3) — reuses already-generated nodes, zero new generations ---
+// --- Gallery listing (landing page) — reuses already-generated nodes, zero new generations ---
 export const NodesListResponseSchema = z.object({ nodes: z.array(NodeSchema) });
 export type NodesListResponse = z.infer<typeof NodesListResponseSchema>;
 
@@ -257,7 +257,7 @@ export const ConfigResponseSchema = z.object({
 });
 export type ConfigResponse = z.infer<typeof ConfigResponseSchema>;
 
-// --- Cached tap points (PLAN §2.3) ---
+// --- Cached tap points ---
 /**
  * A spot on a page that has already been tapped and whose child page still exists, so tapping it
  * again opens that child immediately and generates nothing. Coordinates are normalized [0,1]
@@ -274,12 +274,12 @@ export type CachedTap = z.infer<typeof CachedTapSchema>;
 export const NodeTapsResponseSchema = z.object({ taps: z.array(CachedTapSchema) });
 export type NodeTapsResponse = z.infer<typeof NodeTapsResponseSchema>;
 
-// --- Idle-loop video (PLAN §3 Phase 5) ---
+// --- Idle-loop video ---
 // GET /api/nodes/:id/video: 404 with { ready: false } until the background clip is ready.
 export const NodeVideoResponseSchema = z.object({ ready: z.literal(true), video_url: z.string() });
 export type NodeVideoResponse = z.infer<typeof NodeVideoResponseSchema>;
 
-// --- Page-transition morphs (PLAN §3 Phase 5) ---
+// --- Page-transition morphs ---
 // GET /api/nodes/:id/morph: 404 with { ready: false } until the pre-generated clip is ready.
 // Pre-generated and cached only — never generated on demand, so navigation never waits on one.
 export const NodeMorphResponseSchema = z.object({ ready: z.literal(true), morph_url: z.string() });

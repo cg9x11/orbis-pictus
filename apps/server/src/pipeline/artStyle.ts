@@ -74,7 +74,7 @@ export function isCompositionName(raw: string | undefined | null): raw is Compos
 }
 
 /** The style used when a request doesn't name one — `ART_STYLE` env / `artStyle` in config.yml,
- *  or felt (PLAN §2). */
+ *  or felt. */
 export function getDefaultArtStyleName(): ArtStyleName {
   const raw = strConfig("ART_STYLE", (c) => c.artStyle, "felt");
   return isArtStyleName(raw) ? raw : "felt";
@@ -107,7 +107,7 @@ export function listCompositions(): { name: CompositionName; label: string }[] {
 }
 
 /**
- * Layout furniture + one composition block + one style block (PLAN §2 VISUAL IDENTITY) — the text
+ * Layout furniture + one composition block + one style block — the text
  * wrapped into every image prompt. An unknown or absent `style`/`composition` falls back to the
  * server default rather than erroring: a bad value should render the house look, never break a
  * generation.
@@ -155,8 +155,8 @@ const QUALITY =
 /**
  * Wraps a content-only prompt (authored by page-author.md / edit-author.md) in the art style and
  * framing to form the full image prompt. Order is framing -> art style -> quality -> `Content: …`.
- * Because the style text ends up inside the built prompt, the prompt-hash image cache (PLAN §2.3
- * layer 3) keys on it automatically — switching style can never serve back an image drawn in the
+ * Because the style text ends up inside the built prompt, the prompt-hash image cache (layer 3)
+ * keys on it automatically — switching style can never serve back an image drawn in the
  * previous one.
  */
 export function buildImagePrompt(contentPrompt: string, style?: string, opts?: BuildImagePromptOptions): string {

@@ -92,7 +92,7 @@ function buildArkVideo(missingKeys: string[]): VideoProvider {
 
 function buildVideoProvider(missingKeys: string[]): VideoProvider {
   // Defaults to "mock" even when ARK_API_KEY is already set (unlike LLM/image), because video is
-  // an opt-in experimental feature gated separately by VIDEO_ENABLED (PLAN §3 Phase 5) — a user
+  // an opt-in experimental feature gated separately by VIDEO_ENABLED — a user
   // shouldn't start burning real video quota just because they already configured Ark for images.
   return selectProvider(
     strConfig("VIDEO_PROVIDER", (c) => c.video?.provider, "mock"),

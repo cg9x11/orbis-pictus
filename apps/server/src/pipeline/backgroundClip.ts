@@ -19,7 +19,7 @@ export type StartNowResult =
 export interface BackgroundClipPipeline<TNode extends Node = Node> {
   maybeStart(node: TNode, providers: Providers, imagesDir: string): void;
   /**
-   * Explicit, user-triggered counterpart to `maybeStart` (PLAN §3 Phase 5): starts a clip for a
+   * Explicit, user-triggered counterpart to `maybeStart`: starts a clip for a
    * node that doesn't have one yet, on demand rather than at creation time. Unlike `maybeStart` it
    * returns a result the caller can surface, and it will (re)start a node whose previous attempt
    * `failed` — a deliberate retry — while still refusing to double-start a `pending`/in-flight one,
@@ -68,7 +68,7 @@ export interface BackgroundClipConfig<TNode extends Node> {
 }
 
 /**
- * Shared control flow for PLAN §3 Phase 5's two background-clip features (idle-loop video,
+ * Shared control flow for the two background-clip features (idle-loop video,
  * transition morph): same enabled / in-flight / already-attempted / session-cap guard chain, same
  * fire-and-forget generate -> save -> mark-ready/failed shape. They differ only in what "this
  * node's clip request" means (config.buildRequest) and where the result is written

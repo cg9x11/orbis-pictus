@@ -127,12 +127,12 @@ export function useFlipbookController(initialNodeId?: string) {
   // rather than isStreaming alone so nothing new can start during the morph wait; streaming-only
   // rendering (the progress overlay, preview image, tap-subject banner) still keys off isStreaming.
   const busy = isStreaming || preparingClips;
-  // Real generations and cache-hit instant navigations both count as a "page" (PLAN §1.4).
+  // Real generations and cache-hit instant navigations both count as a "page".
   const showLoadingIndicator = useDelayedFlag(isStreaming || variantLoading, 150);
-  // PLAN §3 Phase 5: purely additive — polls for a background idle-loop clip once the page is
+  // Purely additive — polls for a background idle-loop clip once the page is
   // settled (never while still streaming in a new one) and the experimental toggle is on.
   const idleLoopVideoUrl = useIdleLoopVideo(current?.id, videoLoopEnabled && !isStreaming, current?.video_status);
-  // PLAN §3 Phase 5: the parent page is already shown, but its idle-loop clip is still rendering in
+  // The parent page is already shown, but its idle-loop clip is still rendering in
   // the background (video_status "pending", not yet fetched). Mirror the toggle's own "generating"
   // state onto the image so the wait is visible there too — this stops right when the clip either
   // arrives (idleLoopVideoUrl set) or the page is left. It never blocks tapping; see PageImage.
@@ -146,7 +146,7 @@ export function useFlipbookController(initialNodeId?: string) {
       updateNode({ ...current, video_status: "ready" });
     }
   }, [idleLoopVideoUrl, current, updateNode]);
-  // PLAN §3 Phase 5 on-demand path: a page created while Live video was off has no clips and never
+  // On-demand path: a page created while Live video was off has no clips and never
   // will automatically (both statuses null), and a prior on-demand attempt may have failed — all
   // retryable by explicit request. The two clips are tracked separately because a page can genuinely
   // be missing just one of them, so the action stays on offer while EITHER is absent. A morph needs
@@ -157,7 +157,7 @@ export function useFlipbookController(initialNodeId?: string) {
   // Offer the action only when the feature is actually available and the toggle is on, never mid-generation.
   const canGenerateVideo =
     config.videoAvailable && videoLoopEnabled && !isStreaming && !!current && (missingIdleLoop || missingMorph);
-  // PLAN §3 Phase 5: a single non-blocking check per navigation, never gates the page render.
+  // A single non-blocking check per navigation, never gates the page render.
   const { morphUrl, morphPending, clearMorph } = useMorphTransition(current, config.morphAvailable);
   // A transition is under way: its clip is being looked up, or is on screen. The destination image
   // stays covered and its tap markers stay hidden for this whole window — during a morph the pixels
@@ -165,7 +165,7 @@ export function useFlipbookController(initialNodeId?: string) {
   // the user cannot currently see. Deliberately NOT folded into `busy`: the toolbar and breadcrumbs
   // stay live, this only governs what the picture itself accepts and shows.
   const morphActive = morphPending || morphUrl !== null;
-  // PLAN §2.3: spots on this page already explored, shown as markers so a free tap is visible
+  // Spots on this page already explored, shown as markers so a free tap is visible
   // before it is made.
   const cachedTaps = useCachedTaps(current?.id, aspectRatio);
 
@@ -284,7 +284,7 @@ export function useFlipbookController(initialNodeId?: string) {
   };
 
   /**
-   * Opens an already-generated child from a cached-tap marker (PLAN §2.3). Deliberately does not go
+   * Opens an already-generated child from a cached-tap marker. Deliberately does not go
    * through runRequest: the whole point of the marker is that this path touches no provider at all,
    * so it fetches the stored node and appends it to the trail directly.
    */
@@ -351,7 +351,7 @@ export function useFlipbookController(initialNodeId?: string) {
   };
 
   /**
-   * On-demand animation (PLAN §3 Phase 5) for the current page, which was created without clips.
+   * On-demand animation for the current page, which was created without clips.
    * Asks for whichever of the two is missing, mirroring what generate.ts does automatically when a
    * page is made with Live video on: one `video_loop` flag there starts both the idle loop and the
    * morph, so one action here does the same. Each status is optimistically flipped to "pending" (or
