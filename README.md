@@ -130,19 +130,10 @@ npm install
 cp .env.example .env          # secrets (API keys) go here
 cp config.example.yml config.yml   # everything else (providers, models, flags) — optional
 npm run dev:server   # http://localhost:8787
-npm run dev:web      # http://localhost:5173 — proxies /api, /images, /n to the server above
+npm run dev:web      # http://localhost:5173 — proxies /api, /images to the server above
 ```
 
 Open http://localhost:5173, type a query, and click anywhere in the generated image.
-
-**No API keys? It still runs.** Every provider — the prompt-authoring LLM, the tap vision model,
-the image generator, web search, video — falls back to a deterministic mock when its key is
-missing, so the whole loop works end to end with zero configuration. The server logs exactly
-which keys are missing (and which capability fell back) on startup.
-
-**Windows note:** if the Vite dev server misbehaves, `npm run build` once and hit the single Hono
-server directly at http://localhost:8787 — `npm start` serves the built SPA and the API from the
-same origin, no proxy involved.
 
 ### Configuration
 
@@ -173,11 +164,6 @@ has a safe fallback. The table below lists each setting as its **env-override na
 | `FAL_KEY`, `IMAGE_MODEL` | Credentials/model for `fal` | — |
 | `GEMINI_API_KEY`, `GEMINI_IMAGE_MODEL` | Credentials/model for `gemini` image | e.g. `gemini-3.1-flash-lite-image` · `gemini-3.1-flash-image` · `gemini-3-pro-image` |
 | `OPENAI_API_KEY`, `OPENAI_IMAGE_MODEL`, `OPENAI_IMAGE_QUALITY` | Credentials/model/quality for `openai` image | e.g. `gpt-image-1.5` · quality `low`/`medium`/`high` |
-
-Adding another image provider is a one-file change: create a module under `apps/server/src/providers/image/`
-that exports an `ImageProviderFactory` (see `registry.ts`) and add it to the array in `image/index.ts` —
-no `switch`/`if` to touch. Each factory owns its own key lookup and config, and `referenceImageDataUrl`
-(tap/edit continuity) is optional per provider (`gemini` uses it; `openai` currently ignores it).
 | `SEARCH_PROVIDER` | Optional web search grounding for page content | `llm` (uses the Anthropic-compatible provider's server-side web-search tool) · `none` |
 | `SEARCH_MODEL` | Model used for search | — |
 | `ART_STYLE` | Fixed visual style applied to every page | `felt` (default) · `papercut` · `riso` · `pixel` · `editorial` |
@@ -191,9 +177,14 @@ no `switch`/`if` to touch. Each factory owns its own key lookup and config, and 
 | `MORPH_REVERSE` | Re-encode each morph backwards (needs `ffmpeg` on PATH) so stepping back replays it in reverse. Costs no video quota. Off = back-navigation crossfades | `true` (default) |
 | `PORT`, `DATABASE_URL`, `IMAGES_DIR` | Server port, SQLite file path, disk path for generated images | — |
 
+Adding another image provider is a one-file change: create a module under `apps/server/src/providers/image/`
+that exports an `ImageProviderFactory` (see `registry.ts`) and add it to the array in `image/index.ts` —
+no `switch`/`if` to touch. Each factory owns its own key lookup and config, and `referenceImageDataUrl`
+(tap/edit continuity) is optional per provider (`gemini` uses it; `openai` currently ignores it).
+
 ## Cost
 
-Real generation (not the mock providers) costs roughly one LLM call, one image generation, and —
+Real generation costs roughly one LLM call, one image generation, and —
 for a tap — one extra vision-model call per page. With BytePlus Ark's Seedream 4.5, a single image
 runs about **$0.03**. LLM cost depends entirely on which model you point `LLM_PROVIDER` at; the
 defaults above assume a proxy/account you already have configured. There's no draft/final two-tier
@@ -204,22 +195,23 @@ page than an image and are each capped per session (`VIDEO_MAX_PER_SESSION`,
 
 ## Known limitations
 
-- **Compound Vietnamese diacritics get mangled by Seedream.** Base modifier + tone mark combined
-  ("Hà Nội" → "Hà Nỗi", "Hoàn Kiếm" → "Hoàn Kiêm") render wrong more often than not, even when the
+- **Compound Vietnamese diacritics can get mangled, depending on the image model.** Base modifier +
+  tone mark combined ("Hà Nội" → "Hà Nỗi", "Hoàn Kiếm" → "Hoàn Kiêm") render wrong more often than
+  not on a lower-tier model such as the default Seedream tier this project targets, even when the
   prompt explicitly spells the name without diacritics — the model tends to "auto-correct" it back
   to an accented (and often wrong) spelling. The current mitigation is aggressive: proper nouns
   from heavily diacritic-marked scripts are spelled in plain ASCII with an explicit anti-example
   telling the model which accented variants *not* to render. It measurably helps but isn't
-  airtight. A model with genuinely reliable diacritic rendering would make this moot.
-- **Dense pages (7-8 callouts) can still merge or drop a label**, independent of the numeral-badge
-  fix above — two adjacent callouts' text occasionally blends into one garbled plaque, or a label
-  goes missing while its leader line and drawn subject still render fine. Lower callout counts
-  (4-6) are visibly more reliable.
-- **Idle-loop video text instability.** Small, secondary text can visibly mutate frame-to-frame
-  during video generation even with an explicit "don't redraw any text" instruction — the title
-  card and footer caption hold up well, but anything smaller and lower-contrast is at risk. Since
-  the house style forbids inventing secondary text regions at all now, this mostly shows up as a
-  residual risk rather than a routine failure.
+  airtight; a higher-tier image model renders these correctly without needing the workaround at all.
+- **Dense pages (7-8 callouts) can still merge or drop a label on a weaker image model** — two
+  adjacent callouts' text occasionally blends into one garbled plaque, or a label goes missing
+  while its leader line and drawn subject still render fine. Lower callout counts (4-6) are more
+  reliable regardless of model; a stronger image model handles the higher end better.
+- **Idle-loop video text instability, depending on the video model.** Small, secondary text can
+  visibly mutate frame-to-frame during video generation even with an explicit "don't redraw any
+  text" instruction — the title card and footer caption hold up well, but anything smaller and
+  lower-contrast is at risk on a weaker model. Since the art style forbids inventing secondary text
+  regions at all now, this mostly shows up as a residual risk rather than a routine failure.
 - **Page-transition morphs are pre-generated, not real-time.** The original streams a live video
   transition over a WebSocket to a self-hosted model as you tap; this project intentionally
   doesn't reproduce that architecture. Instead the clip is generated as a whole file after the
@@ -227,7 +219,6 @@ page than an image and are each capped per session (`VIDEO_MAX_PER_SESSION`,
   takes noticeably longer with morphs on than with them off, where the original stays interactive
   throughout. The model also doesn't hold the camera perfectly fixed despite the prompt asking for
   it (see **How it works**).
-- **No true two-tier draft/final rendering.** Dropped by design — see **Cost**.
 
 ## Roadmap
 
