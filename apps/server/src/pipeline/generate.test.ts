@@ -18,7 +18,7 @@ import type {
 process.env.DATABASE_URL = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-generate-")), "test.db");
 
 const { runGenerate } = await import("./generate.js");
-const { getHouseStyleBlock } = await import("./houseStyle.js");
+const { getArtStyleBlock } = await import("./artStyle.js");
 const { saveImageVariant } = await import("./imageStorage.js");
 const { insertNode } = await import("../storage/nodes.js");
 const { MockLlmProvider } = await import("../providers/llm/mock.js");
@@ -70,9 +70,9 @@ test("search mode: the built image prompt includes the house style, authored_pro
     () => {},
   );
 
-  const houseStyle = getHouseStyleBlock();
-  assert.ok(image.lastInput?.prompt.includes(houseStyle), "image prompt sent to the provider should include the house style block");
-  assert.ok(!node.authored_prompt.includes(houseStyle), "stored authored_prompt (content-only) should not include the house style block");
+  const artStyle = getArtStyleBlock();
+  assert.ok(image.lastInput?.prompt.includes(artStyle), "image prompt sent to the provider should include the art style block");
+  assert.ok(!node.authored_prompt.includes(artStyle), "stored authored_prompt (content-only) should not include the art style block");
   assert.doesNotMatch(image.lastInput!.prompt, NUMERAL_BADGE_INSTRUCTION);
 });
 
@@ -220,9 +220,9 @@ test("edit mode: the built image prompt includes the house style and passes the 
     () => {},
   );
 
-  const houseStyle = getHouseStyleBlock();
-  assert.ok(image.lastInput?.prompt.includes(houseStyle));
-  assert.ok(!node.authored_prompt.includes(houseStyle));
+  const artStyle = getArtStyleBlock();
+  assert.ok(image.lastInput?.prompt.includes(artStyle));
+  assert.ok(!node.authored_prompt.includes(artStyle));
   assert.equal(image.lastInput?.referenceImageDataUrl, currentImageDataUrl);
   assert.doesNotMatch(image.lastInput!.prompt, NUMERAL_BADGE_INSTRUCTION);
 
@@ -273,9 +273,9 @@ test("tap mode: the built image prompt includes the house style and reuses the p
     () => {},
   );
 
-  const houseStyle = getHouseStyleBlock();
-  assert.ok(image.lastInput?.prompt.includes(houseStyle));
-  assert.ok(!node.authored_prompt.includes(houseStyle));
+  const artStyle = getArtStyleBlock();
+  assert.ok(image.lastInput?.prompt.includes(artStyle));
+  assert.ok(!node.authored_prompt.includes(artStyle));
 
   // The reference image must be the parent's own stored page image, not the marked tap image.
   const expectedReference = `data:image/jpeg;base64,${parentImageBytes.toString("base64")}`;

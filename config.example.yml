@@ -68,7 +68,7 @@ search:
   cacheEnabled: false          # in-memory reuse of summaries across repeated queries
 
 # --- Visual identity (PLAN §2) ---
-houseStyle: felt               # felt | papercut | riso | pixel | editorial
+artStyle: felt                 # felt | papercut | riso | pixel | editorial
 composition: diorama           # flat | isometric | diorama
 
 # --- Photo upload (PLAN §3 Phase 2) ---

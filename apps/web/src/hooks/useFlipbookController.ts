@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { AspectRatio, CachedTap, GenerateRequest, HouseStyleOption, Node } from "@flipbook/shared";
+import type { AspectRatio, CachedTap, GenerateRequest, ArtStyleOption, Node } from "@flipbook/shared";
 import { useCachedTaps } from "./useCachedTaps";
 import { useGenerationStream } from "./useGenerationStream";
 import { useSessionTrail } from "./useSessionTrail";
@@ -25,7 +25,7 @@ function newSessionId(): string {
   return `session_${crypto.randomUUID()}`;
 }
 
-// Fetched (and, for webSearch/houseStyle, later user-adjusted) as one unit — grouped into a single
+// Fetched (and, for webSearch/artStyle, later user-adjusted) as one unit — grouped into a single
 // state object rather than one useState per field, matching useGenerationStream's GenerationState
 // and useSessionTrail's TrailState.
 interface AppConfig {
@@ -33,9 +33,9 @@ interface AppConfig {
   videoAvailable: boolean;
   morphAvailable: boolean;
   uploadAvailable: boolean;
-  houseStyles: HouseStyleOption[];
-  houseStyle: string;
-  compositions: HouseStyleOption[];
+  artStyles: ArtStyleOption[];
+  artStyle: string;
+  compositions: ArtStyleOption[];
   composition: string;
 }
 
@@ -44,8 +44,8 @@ const DEFAULT_CONFIG: AppConfig = {
   videoAvailable: false,
   morphAvailable: false,
   uploadAvailable: false,
-  houseStyles: [],
-  houseStyle: "",
+  artStyles: [],
+  artStyle: "",
   compositions: [],
   composition: "",
 };
@@ -69,7 +69,7 @@ export function useFlipbookController(initialNodeId?: string) {
   const [variantLoading, setVariantLoading] = useState(false);
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const setWebSearch = (webSearch: boolean) => setConfig((c) => ({ ...c, webSearch }));
-  const setHouseStyle = (houseStyle: string) => setConfig((c) => ({ ...c, houseStyle }));
+  const setArtStyle = (artStyle: string) => setConfig((c) => ({ ...c, artStyle }));
   const setComposition = (composition: string) => setConfig((c) => ({ ...c, composition }));
   const [videoLoopEnabled, setVideoLoopEnabled] = useState(false);
   // First-step animation flow: true while navigation is being held on the parent, waiting for the
@@ -93,8 +93,8 @@ export function useFlipbookController(initialNodeId?: string) {
           videoAvailable: fetched.videoEnabled,
           morphAvailable: fetched.morphEnabled,
           uploadAvailable: fetched.uploadEnabled,
-          houseStyles: fetched.houseStyles,
-          houseStyle: fetched.houseStyle,
+          artStyles: fetched.artStyles,
+          artStyle: fetched.artStyle,
           compositions: fetched.compositions,
           composition: fetched.composition,
         });
@@ -197,7 +197,7 @@ export function useFlipbookController(initialNodeId?: string) {
     // than sent blank so the server keeps its own default in that window.
     const withStyle = {
       ...request,
-      house_style: config.houseStyle || undefined,
+      art_style: config.artStyle || undefined,
       composition: config.composition || undefined,
       // Gates background idle-loop and morph generation server-side: no video quota is spent unless
       // the user actually has Live video on. Mirrors the toggle that already controls display.
@@ -418,7 +418,7 @@ export function useFlipbookController(initialNodeId?: string) {
     current,
     config,
     setWebSearch,
-    setHouseStyle,
+    setArtStyle,
     setComposition,
     state,
     isStreaming,

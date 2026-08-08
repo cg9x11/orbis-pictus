@@ -75,7 +75,7 @@ export async function fetchConfig(): Promise<ConfigResponse> {
   const res = await fetch("/api/config");
   if (!res.ok) throw new Error("Failed to fetch config");
   // Parse (not raw-cast) so the schema's defaults actually run: an older/mismatched server that
-  // omits e.g. `houseStyles` would otherwise leave it undefined and crash HouseStylePicker's
+  // omits e.g. `artStyles` would otherwise leave it undefined and crash ArtStylePicker's
   // `styles.length`. The `.default([])`/`.default(false)` exist precisely to degrade gracefully.
   return ConfigResponseSchema.parse(await res.json());
 }

@@ -15,7 +15,7 @@ import { videoPipeline } from "./pipeline/video.js";
 import { morphPipeline } from "./pipeline/morph.js";
 import { isVideoEnabled } from "./pipeline/videoConfig.js";
 import { isMorphEnabled } from "./pipeline/morphConfig.js";
-import { getDefaultHouseStyleName, listHouseStyles, getDefaultCompositionName, listCompositions } from "./pipeline/houseStyle.js";
+import { getDefaultArtStyleName, listArtStyles, getDefaultCompositionName, listCompositions } from "./pipeline/artStyle.js";
 import { isUploadEnabled } from "./pipeline/config.js";
 import { intConfig, strConfig } from "./config/index.js";
 
@@ -43,8 +43,8 @@ app.get("/api/config", (c) =>
     videoEnabled: isVideoEnabled(),
     morphEnabled: isMorphEnabled(),
     uploadEnabled: isUploadEnabled(),
-    houseStyles: listHouseStyles(),
-    houseStyle: getDefaultHouseStyleName(),
+    artStyles: listArtStyles(),
+    artStyle: getDefaultArtStyleName(),
     compositions: listCompositions(),
     composition: getDefaultCompositionName(),
   }),

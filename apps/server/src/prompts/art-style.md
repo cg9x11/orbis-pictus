@@ -1,7 +1,7 @@
-Rendering style and layout contract. `pipeline/houseStyle.ts` wraps the LLM's content-only prompt in
+Rendering style and layout contract. `pipeline/artStyle.ts` wraps the LLM's content-only prompt in
 flipbook.page's proven order for modern image models (Gemini / GPT Image / nano-banana): task framing
 → this style block → quality directives → `Content: <authored text>`. The framing and quality
-directives live in `houseStyle.ts`; this file owns the layout furniture + one composition block
+directives live in `artStyle.ts`; this file owns the layout furniture + one composition block
 (flat / diorama) + one style block, assembled in that order.
 
 This file is the single source of the app's visual identity. The page-author LLM writes CONTENT
@@ -28,14 +28,14 @@ models — they cost nothing and still prevent avoidable failures):
    matching instructions in page-author.md/edit-author.md for supplying that region's exact text —
    never leave one implicit.
 
-The sections below are machine-parsed by `pipeline/houseStyle.ts` via the `<!-- house-style:* -->`
-anchor comments — keep them intact when editing prose. Style selected by env `HOUSE_STYLE=felt|
+The sections below are machine-parsed by `pipeline/artStyle.ts` via the `<!-- art-style:* -->`
+anchor comments — keep them intact when editing prose. Style selected by env `ART_STYLE=felt|
 papercut|riso|pixel|editorial` (default `felt`); composition by env `COMPOSITION=flat|isometric|diorama`
 (default `diorama`). The layout section is style-independent and always included.
 
 ---
 
-<!-- house-style:layout -->
+<!-- art-style:layout -->
 ## Layout (style-independent)
 
 The page is an educational infographic. Callout labels connect to their subject with thin leader
@@ -52,7 +52,7 @@ caption sitting on top of it — no outer border, panel, mat or margin framing t
 Keep the scene to five or six labelled elements — fewer, larger subjects read far better than a
 crowded page.
 
-<!-- house-style:composition-flat -->
+<!-- art-style:composition-flat -->
 ## Composition: flat infographic
 
 Arrange the page as a flat, front-on educational infographic: clean two-dimensional panels and
@@ -60,7 +60,7 @@ vignettes laid out on an open background with generous negative space, the main 
 largest, the other elements placed clearly around it. No perspective and no isometric tilt — a crisp,
 diagrammatic, poster-like plane.
 
-<!-- house-style:composition-isometric -->
+<!-- art-style:composition-isometric -->
 ## Composition: isometric diagram
 
 A highly detailed isometric (axonometric) illustration of one single scene, drawn like an architectural
@@ -76,14 +76,14 @@ Environment-rich and intricate, yet composed, uncluttered and legible: the main 
 and most central, the rest arranged clearly around it on the same ground. Precise, editorial and
 diagrammatic — not a handmade miniature-diorama world.
 
-<!-- house-style:composition-diorama -->
+<!-- art-style:composition-diorama -->
 ## Composition: isometric diorama
 
 Arrange the page as an isometric three-quarter aerial view of a miniature diorama scene: the main
 subject rendered oversized and hero-scale inside a small believable environment, the other elements
 as little dimensional scenes around it — never flat icons on a blank background.
 
-<!-- house-style:felt -->
+<!-- art-style:felt -->
 ## Style: needle-felted wool
 
 Rendering style: needle-felted wool craft, photographed as a handmade miniature diorama. Every
@@ -92,7 +92,7 @@ visible stitches and seams. Cosy palette of oatmeal, dusty rose, sage green, mus
 blue on a warm ivory backdrop. Soft diffused window light, gentle shadows, shallow depth of field.
 Warm, tactile, handmade and imperfect — nothing sleek, glossy, or digital.
 
-<!-- house-style:papercut -->
+<!-- art-style:papercut -->
 ## Style: layered cut-paper
 
 Rendering style: layered cut-paper craft — best legibility of the craft styles; a shadow box built
@@ -100,21 +100,21 @@ from stacked sheets of coloured construction paper, each layer dropping a small 
 one below, with torn and scissor-cut edges and faint paper fibre. Bright flat colours, no gradients:
 coral, marigold, leaf green, sky blue, cream.
 
-<!-- house-style:riso -->
+<!-- art-style:riso -->
 ## Style: risograph
 
 Rendering style: risograph print — highest legibility overall; no outlines, forms are flat blocks of
 overprinted ink with deliberate slight misregistration, coarse halftone grain and visible paper
 tooth. Four inks only on warm cream paper: fluorescent pink, teal, deep navy, turmeric.
 
-<!-- house-style:pixel -->
+<!-- art-style:pixel -->
 ## Style: cosy pixel art
 
 Rendering style: cosy pixel art — strongest nostalgia; a 16-bit farming-game world with a visible
 chunky pixel grid, hard pixel edges, dithered shading, and a limited retro palette of warm brown,
 leaf green, sky blue, cream and soft red. The plaques stay smooth, like a game UI overlay.
 
-<!-- house-style:editorial -->
+<!-- art-style:editorial -->
 ## Style: editorial line illustration
 
 Rendering style: refined editorial illustration in the manner of an architectural plate or museum
@@ -123,4 +123,4 @@ legible, never cartoonish and never photographic. Restrained, desaturated palett
 natural greens and muted slate blue with sparing warm accents, all on a plain cream paper ground. Soft
 diffuse light, no harsh shadows; a calm, composed, technical-drawing quality throughout.
 
-<!-- house-style:end -->
+<!-- art-style:end -->

@@ -27,20 +27,20 @@ function clearEnv(): void {
 }
 
 test("precedence: env var wins over the file, which wins over the default", () => {
-  useConfig(`houseStyle: papercut`);
+  useConfig(`artStyle: papercut`);
   clearEnv();
   // no env -> file value
-  assert.equal(strConfig("CFG_STR", (c) => c.houseStyle, "felt"), "papercut");
+  assert.equal(strConfig("CFG_STR", (c) => c.artStyle, "felt"), "papercut");
   // env set -> env wins
   process.env.CFG_STR = "riso";
-  assert.equal(strConfig("CFG_STR", (c) => c.houseStyle, "felt"), "riso");
+  assert.equal(strConfig("CFG_STR", (c) => c.artStyle, "felt"), "riso");
   clearEnv();
 });
 
 test("strConfig falls back to the default when neither env nor file provides a value", () => {
-  useConfig(`houseStyle: papercut`);
+  useConfig(`artStyle: papercut`);
   clearEnv();
-  // file has houseStyle but this picker reads composition, which is absent -> default
+  // file has artStyle but this picker reads composition, which is absent -> default
   assert.equal(strConfig("CFG_STR", (c) => c.composition, "diorama"), "diorama");
 });
 
@@ -48,7 +48,7 @@ test("strConfig treats a blank env value as unset (does not blank out a real def
   useConfig(null);
   clearEnv();
   process.env.CFG_STR = "   ";
-  assert.equal(strConfig("CFG_STR", (c) => c.houseStyle, "felt"), "felt");
+  assert.equal(strConfig("CFG_STR", (c) => c.artStyle, "felt"), "felt");
   clearEnv();
 });
 
@@ -86,7 +86,7 @@ test("intConfig: valid positive env wins, else positive file number, else defaul
 test("a missing config file is fine: everything falls back to env/default", () => {
   useConfig(null);
   clearEnv();
-  assert.equal(strConfig("CFG_STR", (c) => c.houseStyle, "felt"), "felt");
+  assert.equal(strConfig("CFG_STR", (c) => c.artStyle, "felt"), "felt");
   assert.equal(boolConfig("CFG_BOOL", (c) => c.upload?.enabled, false), false);
   assert.equal(intConfig("CFG_INT", (c) => c.video?.maxPerSession, 5), 5);
 });
@@ -94,13 +94,13 @@ test("a missing config file is fine: everything falls back to env/default", () =
 test("a wrong-typed value in the file throws a helpful error at load", () => {
   useConfig(`video:\n  enabled: "yes"`); // enabled must be boolean, not a string
   clearEnv();
-  assert.throws(() => strConfig("CFG_STR", (c) => c.houseStyle, "felt"), /Invalid config file/);
+  assert.throws(() => strConfig("CFG_STR", (c) => c.artStyle, "felt"), /Invalid config file/);
 });
 
 test("an unknown top-level key in the file is rejected (strict), not silently ignored", () => {
   useConfig(`vidoe:\n  enabled: true`); // typo'd section name
   clearEnv();
-  assert.throws(() => strConfig("CFG_STR", (c) => c.houseStyle, "felt"), /Invalid config file/);
+  assert.throws(() => strConfig("CFG_STR", (c) => c.artStyle, "felt"), /Invalid config file/);
 });
 
 test("the default config path resolves to the repo root, not the server's cwd (regression)", () => {

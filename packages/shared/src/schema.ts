@@ -62,13 +62,13 @@ export const GenerateSearchRequestSchema = z.object({
   // user isn't using video — display was already gated client-side, but generation was not. Optional
   // (injected by the client in one place); absent/undefined is treated as off, the safe default.
   video_loop: z.boolean().optional(),
-  // Which block of house-style.md to append to the image prompt. Left as a free string rather than
-  // an enum so the style list stays defined in exactly one place (house-style.md, parsed by
-  // pipeline/houseStyle.ts); the server falls back to its HOUSE_STYLE default for anything it does
+  // Which block of art-style.md to append to the image prompt. Left as a free string rather than
+  // an enum so the style list stays defined in exactly one place (art-style.md, parsed by
+  // pipeline/artStyle.ts); the server falls back to its ART_STYLE default for anything it does
   // not recognise, so a stale client can never break a generation.
-  house_style: z.string().optional(),
+  art_style: z.string().optional(),
   // Which composition block (flat / diorama) to use — same free-string + server-default rationale
-  // as house_style above; the server falls back to its COMPOSITION default for anything unrecognised.
+  // as art_style above; the server falls back to its COMPOSITION default for anything unrecognised.
   composition: z.string().optional(),
   session_id: z.string(),
   current_node_id: z.string().default(""),
@@ -93,13 +93,13 @@ export const GenerateTapRequestSchema = z.object({
   // user isn't using video — display was already gated client-side, but generation was not. Optional
   // (injected by the client in one place); absent/undefined is treated as off, the safe default.
   video_loop: z.boolean().optional(),
-  // Which block of house-style.md to append to the image prompt. Left as a free string rather than
-  // an enum so the style list stays defined in exactly one place (house-style.md, parsed by
-  // pipeline/houseStyle.ts); the server falls back to its HOUSE_STYLE default for anything it does
+  // Which block of art-style.md to append to the image prompt. Left as a free string rather than
+  // an enum so the style list stays defined in exactly one place (art-style.md, parsed by
+  // pipeline/artStyle.ts); the server falls back to its ART_STYLE default for anything it does
   // not recognise, so a stale client can never break a generation.
-  house_style: z.string().optional(),
+  art_style: z.string().optional(),
   // Which composition block (flat / diorama) to use — same free-string + server-default rationale
-  // as house_style above; the server falls back to its COMPOSITION default for anything unrecognised.
+  // as art_style above; the server falls back to its COMPOSITION default for anything unrecognised.
   composition: z.string().optional(),
   parent_title: z.string(),
   session_id: z.string(),
@@ -121,13 +121,13 @@ export const GenerateEditRequestSchema = z.object({
   // user isn't using video — display was already gated client-side, but generation was not. Optional
   // (injected by the client in one place); absent/undefined is treated as off, the safe default.
   video_loop: z.boolean().optional(),
-  // Which block of house-style.md to append to the image prompt. Left as a free string rather than
-  // an enum so the style list stays defined in exactly one place (house-style.md, parsed by
-  // pipeline/houseStyle.ts); the server falls back to its HOUSE_STYLE default for anything it does
+  // Which block of art-style.md to append to the image prompt. Left as a free string rather than
+  // an enum so the style list stays defined in exactly one place (art-style.md, parsed by
+  // pipeline/artStyle.ts); the server falls back to its ART_STYLE default for anything it does
   // not recognise, so a stale client can never break a generation.
-  house_style: z.string().optional(),
+  art_style: z.string().optional(),
   // Which composition block (flat / diorama) to use — same free-string + server-default rationale
-  // as house_style above; the server falls back to its COMPOSITION default for anything unrecognised.
+  // as art_style above; the server falls back to its COMPOSITION default for anything unrecognised.
   composition: z.string().optional(),
   parent_title: z.string(),
   session_id: z.string(),
@@ -236,8 +236,8 @@ export const NodesUploadRequestSchema = z.object({
 export type NodesUploadRequest = z.infer<typeof NodesUploadRequestSchema>;
 
 // --- Server config, for feature-availability toggles in the UI ---
-export const HouseStyleOptionSchema = z.object({ name: z.string(), label: z.string() });
-export type HouseStyleOption = z.infer<typeof HouseStyleOptionSchema>;
+export const ArtStyleOptionSchema = z.object({ name: z.string(), label: z.string() });
+export type ArtStyleOption = z.infer<typeof ArtStyleOptionSchema>;
 
 export const ConfigResponseSchema = z.object({
   searchAvailable: z.boolean(),
@@ -246,12 +246,12 @@ export const ConfigResponseSchema = z.object({
   /** Whether the Upload-photo control is offered (server UPLOAD_ENABLED). Defaults off so an
    *  older server that doesn't send the field hides the button rather than showing a dead one. */
   uploadEnabled: z.boolean().default(false),
-  /** Every style block available in house-style.md, for the picker. */
-  houseStyles: z.array(HouseStyleOptionSchema).default([]),
-  /** The server's own default (the HOUSE_STYLE env), used as the picker's initial value. */
-  houseStyle: z.string().default("felt"),
-  /** Every composition block available in house-style.md (flat / diorama), for the picker. */
-  compositions: z.array(HouseStyleOptionSchema).default([]),
+  /** Every style block available in art-style.md, for the picker. */
+  artStyles: z.array(ArtStyleOptionSchema).default([]),
+  /** The server's own default (the ART_STYLE env), used as the picker's initial value. */
+  artStyle: z.string().default("felt"),
+  /** Every composition block available in art-style.md (flat / diorama), for the picker. */
+  compositions: z.array(ArtStyleOptionSchema).default([]),
   /** The server's own default (the COMPOSITION env), used as the picker's initial value. */
   composition: z.string().default("diorama"),
 });

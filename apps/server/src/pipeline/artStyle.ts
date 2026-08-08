@@ -4,68 +4,68 @@ import { fileURLToPath } from "node:url";
 import { strConfig } from "../config/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const HOUSE_STYLE_PATH = path.resolve(__dirname, "../prompts/house-style.md");
+const ART_STYLE_PATH = path.resolve(__dirname, "../prompts/art-style.md");
 
-export type HouseStyleName = "felt" | "papercut" | "riso" | "pixel" | "editorial";
-const STYLE_NAMES: HouseStyleName[] = ["felt", "papercut", "riso", "pixel", "editorial"];
+export type ArtStyleName = "felt" | "papercut" | "riso" | "pixel" | "editorial";
+const STYLE_NAMES: ArtStyleName[] = ["felt", "papercut", "riso", "pixel", "editorial"];
 
 export type CompositionName = "flat" | "isometric" | "diorama";
 const COMPOSITION_NAMES: CompositionName[] = ["flat", "isometric", "diorama"];
 
 function anchor(name: string): string {
-  return `<!-- house-style:${name} -->`;
+  return `<!-- art-style:${name} -->`;
 }
 
 /** Text between an anchor comment and the next one (or EOF), trimmed. */
 function extractSection(source: string, name: string): string {
   const marker = anchor(name);
   const start = source.indexOf(marker);
-  if (start === -1) throw new Error(`house-style.md is missing anchor ${marker}`);
+  if (start === -1) throw new Error(`art-style.md is missing anchor ${marker}`);
   const afterMarker = start + marker.length;
-  const nextMarkerStart = source.indexOf("<!-- house-style:", afterMarker);
+  const nextMarkerStart = source.indexOf("<!-- art-style:", afterMarker);
   const end = nextMarkerStart === -1 ? source.length : nextMarkerStart;
   return source.slice(afterMarker, end).trim();
 }
 
-interface ParsedHouseStyle {
+interface ParsedArtStyle {
   layout: string;
-  styles: Record<HouseStyleName, string>;
+  styles: Record<ArtStyleName, string>;
   compositions: Record<CompositionName, string>;
 }
 
-function parseHouseStyle(source: string): ParsedHouseStyle {
+function parseArtStyle(source: string): ParsedArtStyle {
   return {
     layout: extractSection(source, "layout"),
-    styles: Object.fromEntries(STYLE_NAMES.map((n) => [n, extractSection(source, n)])) as Record<HouseStyleName, string>,
+    styles: Object.fromEntries(STYLE_NAMES.map((n) => [n, extractSection(source, n)])) as Record<ArtStyleName, string>,
     compositions: Object.fromEntries(
       COMPOSITION_NAMES.map((n) => [n, extractSection(source, `composition-${n}`)]),
     ) as Record<CompositionName, string>,
   };
 }
 
-// Hot-reload the prompt file when it changes on disk, so tuning house-style.md takes effect with no
+// Hot-reload the prompt file when it changes on disk, so tuning art-style.md takes effect with no
 // server restart (dev iteration; the md isn't imported, so `tsx watch` won't restart on its edits).
 // Stat at most once per second — building a prompt reads a few sections, so this costs one stat.
-let cached: ParsedHouseStyle | undefined;
+let cached: ParsedArtStyle | undefined;
 let cachedMtimeMs = 0;
 let lastStatMs = 0;
 const STAT_THROTTLE_MS = 1000;
 
-function sections(): ParsedHouseStyle {
+function sections(): ParsedArtStyle {
   const now = Date.now();
   if (cached !== undefined && now - lastStatMs >= STAT_THROTTLE_MS) {
     lastStatMs = now;
-    if (fs.statSync(HOUSE_STYLE_PATH).mtimeMs !== cachedMtimeMs) cached = undefined;
+    if (fs.statSync(ART_STYLE_PATH).mtimeMs !== cachedMtimeMs) cached = undefined;
   }
   if (cached === undefined) {
     lastStatMs = now;
-    cachedMtimeMs = fs.statSync(HOUSE_STYLE_PATH).mtimeMs;
-    cached = parseHouseStyle(fs.readFileSync(HOUSE_STYLE_PATH, "utf-8"));
+    cachedMtimeMs = fs.statSync(ART_STYLE_PATH).mtimeMs;
+    cached = parseArtStyle(fs.readFileSync(ART_STYLE_PATH, "utf-8"));
   }
   return cached;
 }
 
-export function isHouseStyleName(raw: string | undefined | null): raw is HouseStyleName {
+export function isArtStyleName(raw: string | undefined | null): raw is ArtStyleName {
   return (STYLE_NAMES as string[]).includes(raw ?? "");
 }
 
@@ -73,11 +73,11 @@ export function isCompositionName(raw: string | undefined | null): raw is Compos
   return (COMPOSITION_NAMES as string[]).includes(raw ?? "");
 }
 
-/** The style used when a request doesn't name one — `HOUSE_STYLE` env / `houseStyle` in config.yml,
+/** The style used when a request doesn't name one — `ART_STYLE` env / `artStyle` in config.yml,
  *  or felt (PLAN §2). */
-export function getDefaultHouseStyleName(): HouseStyleName {
-  const raw = strConfig("HOUSE_STYLE", (c) => c.houseStyle, "felt");
-  return isHouseStyleName(raw) ? raw : "felt";
+export function getDefaultArtStyleName(): ArtStyleName {
+  const raw = strConfig("ART_STYLE", (c) => c.artStyle, "felt");
+  return isArtStyleName(raw) ? raw : "felt";
 }
 
 /** The composition used when a request doesn't name one — `COMPOSITION` env / `composition` in
@@ -89,14 +89,14 @@ export function getDefaultCompositionName(): CompositionName {
 }
 
 /** Human label taken from a section's own "## <Keyword>: …" heading, so a picker can never drift
- *  out of sync with the prompt text it selects — there is one source of truth, house-style.md. */
+ *  out of sync with the prompt text it selects — there is one source of truth, art-style.md. */
 function headingLabel(section: string, keyword: string, fallback: string): string {
   const heading = new RegExp(`^##\\s*${keyword}:\\s*(.+)$`, "m").exec(section)?.[1]?.trim();
   const text = heading ?? fallback;
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-export function listHouseStyles(): { name: HouseStyleName; label: string }[] {
+export function listArtStyles(): { name: ArtStyleName; label: string }[] {
   const { styles } = sections();
   return STYLE_NAMES.map((name) => ({ name, label: headingLabel(styles[name], "Style", name) }));
 }
@@ -112,8 +112,8 @@ export function listCompositions(): { name: CompositionName; label: string }[] {
  * server default rather than erroring: a bad value should render the house look, never break a
  * generation.
  */
-export function getHouseStyleBlock(style?: string, composition?: string): string {
-  const styleName = isHouseStyleName(style) ? style : getDefaultHouseStyleName();
+export function getArtStyleBlock(style?: string, composition?: string): string {
+  const styleName = isArtStyleName(style) ? style : getDefaultArtStyleName();
   const compName = isCompositionName(composition) ? composition : getDefaultCompositionName();
   const { layout, compositions, styles } = sections();
   return `${layout}\n\n${compositions[compName]}\n\n${styles[styleName]}`;
@@ -153,13 +153,13 @@ const QUALITY =
   "as written.";
 
 /**
- * Wraps a content-only prompt (authored by page-author.md / edit-author.md) in the house style and
- * framing to form the full image prompt. Order is framing -> house style -> quality -> `Content: …`.
+ * Wraps a content-only prompt (authored by page-author.md / edit-author.md) in the art style and
+ * framing to form the full image prompt. Order is framing -> art style -> quality -> `Content: …`.
  * Because the style text ends up inside the built prompt, the prompt-hash image cache (PLAN §2.3
  * layer 3) keys on it automatically — switching style can never serve back an image drawn in the
  * previous one.
  */
 export function buildImagePrompt(contentPrompt: string, style?: string, opts?: BuildImagePromptOptions): string {
   const framing = opts?.reference === "reuse" ? FRAMING + REFERENCE_REUSE : FRAMING;
-  return `${framing}\n\n${getHouseStyleBlock(style, opts?.composition)}\n\n${QUALITY}\n\nContent: ${contentPrompt}`;
+  return `${framing}\n\n${getArtStyleBlock(style, opts?.composition)}\n\n${QUALITY}\n\nContent: ${contentPrompt}`;
 }

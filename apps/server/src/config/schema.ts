@@ -82,7 +82,7 @@ export const FileConfigSchema = z
         cacheEnabled: z.boolean().optional(),
       })
       .optional(),
-    houseStyle: z.string().optional(),
+    artStyle: z.string().optional(),
     composition: z.string().optional(),
     upload: z.object({ enabled: z.boolean().optional() }).optional(),
     tapDedup: z.string().optional(),

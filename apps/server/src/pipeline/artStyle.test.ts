@@ -1,76 +1,76 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildImagePrompt, getHouseStyleBlock, listHouseStyles, listCompositions } from "./houseStyle.js";
+import { buildImagePrompt, getArtStyleBlock, listArtStyles, listCompositions } from "./artStyle.js";
 
-test("default style (no HOUSE_STYLE env) is felt", () => {
-  delete process.env.HOUSE_STYLE;
-  assert.match(getHouseStyleBlock(), /needle-felted wool/);
+test("default style (no ART_STYLE env) is felt", () => {
+  delete process.env.ART_STYLE;
+  assert.match(getArtStyleBlock(), /needle-felted wool/);
 });
 
-test("HOUSE_STYLE selects an alternate style block", () => {
-  const prev = process.env.HOUSE_STYLE;
+test("ART_STYLE selects an alternate style block", () => {
+  const prev = process.env.ART_STYLE;
   try {
-    process.env.HOUSE_STYLE = "papercut";
-    assert.match(getHouseStyleBlock(), /layered cut-paper/);
-    assert.doesNotMatch(getHouseStyleBlock(), /needle-felted wool/);
+    process.env.ART_STYLE = "papercut";
+    assert.match(getArtStyleBlock(), /layered cut-paper/);
+    assert.doesNotMatch(getArtStyleBlock(), /needle-felted wool/);
 
-    process.env.HOUSE_STYLE = "riso";
-    assert.match(getHouseStyleBlock(), /risograph/);
+    process.env.ART_STYLE = "riso";
+    assert.match(getArtStyleBlock(), /risograph/);
 
-    process.env.HOUSE_STYLE = "pixel";
-    assert.match(getHouseStyleBlock(), /pixel art/);
+    process.env.ART_STYLE = "pixel";
+    assert.match(getArtStyleBlock(), /pixel art/);
 
-    process.env.HOUSE_STYLE = "editorial";
-    assert.match(getHouseStyleBlock(), /editorial illustration/);
+    process.env.ART_STYLE = "editorial";
+    assert.match(getArtStyleBlock(), /editorial illustration/);
   } finally {
-    if (prev === undefined) delete process.env.HOUSE_STYLE;
-    else process.env.HOUSE_STYLE = prev;
+    if (prev === undefined) delete process.env.ART_STYLE;
+    else process.env.ART_STYLE = prev;
   }
 });
 
-test("an unrecognized HOUSE_STYLE value falls back to felt", () => {
-  const prev = process.env.HOUSE_STYLE;
+test("an unrecognized ART_STYLE value falls back to felt", () => {
+  const prev = process.env.ART_STYLE;
   try {
-    process.env.HOUSE_STYLE = "not-a-real-style";
-    assert.match(getHouseStyleBlock(), /needle-felted wool/);
+    process.env.ART_STYLE = "not-a-real-style";
+    assert.match(getArtStyleBlock(), /needle-felted wool/);
   } finally {
-    if (prev === undefined) delete process.env.HOUSE_STYLE;
-    else process.env.HOUSE_STYLE = prev;
+    if (prev === undefined) delete process.env.ART_STYLE;
+    else process.env.ART_STYLE = prev;
   }
 });
 
 // The picker lets a style be chosen per request, so it must win over the server's env default —
 // otherwise switching style in the UI would silently keep rendering the old look.
-test("an explicit style argument overrides the HOUSE_STYLE env", () => {
-  const prev = process.env.HOUSE_STYLE;
+test("an explicit style argument overrides the ART_STYLE env", () => {
+  const prev = process.env.ART_STYLE;
   try {
-    process.env.HOUSE_STYLE = "felt";
-    assert.match(getHouseStyleBlock("riso"), /risograph/);
-    assert.doesNotMatch(getHouseStyleBlock("riso"), /needle-felted wool/);
+    process.env.ART_STYLE = "felt";
+    assert.match(getArtStyleBlock("riso"), /risograph/);
+    assert.doesNotMatch(getArtStyleBlock("riso"), /needle-felted wool/);
     assert.match(buildImagePrompt("A page about cats.", "pixel"), /pixel art/);
   } finally {
-    if (prev === undefined) delete process.env.HOUSE_STYLE;
-    else process.env.HOUSE_STYLE = prev;
+    if (prev === undefined) delete process.env.ART_STYLE;
+    else process.env.ART_STYLE = prev;
   }
 });
 
 // A bad value from a stale client must render the house look, never fail the generation.
 test("an unrecognized explicit style falls back to the server default", () => {
-  const prev = process.env.HOUSE_STYLE;
+  const prev = process.env.ART_STYLE;
   try {
-    process.env.HOUSE_STYLE = "papercut";
-    assert.match(getHouseStyleBlock("no-such-style"), /layered cut-paper/);
-    assert.match(getHouseStyleBlock(undefined), /layered cut-paper/);
+    process.env.ART_STYLE = "papercut";
+    assert.match(getArtStyleBlock("no-such-style"), /layered cut-paper/);
+    assert.match(getArtStyleBlock(undefined), /layered cut-paper/);
   } finally {
-    if (prev === undefined) delete process.env.HOUSE_STYLE;
-    else process.env.HOUSE_STYLE = prev;
+    if (prev === undefined) delete process.env.ART_STYLE;
+    else process.env.ART_STYLE = prev;
   }
 });
 
 // Labels come from each section's own "## Style: …" heading, so the picker cannot drift out of
 // sync with the prompt text it selects.
-test("listHouseStyles reports every style with a label taken from house-style.md", () => {
-  const styles = listHouseStyles();
+test("listArtStyles reports every style with a label taken from art-style.md", () => {
+  const styles = listArtStyles();
   assert.deepEqual(
     styles.map((s) => s.name),
     ["felt", "papercut", "riso", "pixel", "editorial"],
@@ -82,20 +82,20 @@ test("listHouseStyles reports every style with a label taken from house-style.md
   }
 });
 
-test("the house style block is always included in the layout contract", () => {
+test("the art style block is always included in the layout contract", () => {
   // The layout-furniture cap survives in every block; the isometric phrase now lives in the diorama
-  // composition, which is the default composition, so getHouseStyleBlock() (no args) still carries it.
-  assert.match(getHouseStyleBlock(), /five or six labelled elements/);
-  assert.match(getHouseStyleBlock(), /isometric three-quarter aerial view/);
+  // composition, which is the default composition, so getArtStyleBlock() (no args) still carries it.
+  assert.match(getArtStyleBlock(), /five or six labelled elements/);
+  assert.match(getArtStyleBlock(), /isometric three-quarter aerial view/);
 });
 
 // Composition is an axis orthogonal to style: the same style block renders flat or dioramic.
-test("getHouseStyleBlock selects the requested composition block", () => {
-  const flat = getHouseStyleBlock("felt", "flat");
+test("getArtStyleBlock selects the requested composition block", () => {
+  const flat = getArtStyleBlock("felt", "flat");
   assert.match(flat, /flat, front-on educational infographic/i);
   assert.doesNotMatch(flat, /isometric three-quarter aerial view/);
 
-  const diorama = getHouseStyleBlock("felt", "diorama");
+  const diorama = getArtStyleBlock("felt", "diorama");
   assert.match(diorama, /isometric three-quarter aerial view/);
   assert.doesNotMatch(diorama, /flat, front-on educational infographic/i);
 
@@ -103,16 +103,16 @@ test("getHouseStyleBlock selects the requested composition block", () => {
   // Anchored on the section heading rather than a phrase from its prose: this block is the app's
   // main visual lever and gets reworded often, and a prose marker turned every tuning pass into a
   // test edit — which says nothing about whether the selector picked the right block.
-  const isometric = getHouseStyleBlock("felt", "isometric");
+  const isometric = getArtStyleBlock("felt", "isometric");
   assert.match(isometric, /## Composition: isometric diagram/i);
   assert.doesNotMatch(isometric, /isometric three-quarter aerial view/);
 });
 
 test("an unrecognized composition falls back to the default (diorama)", () => {
-  assert.match(getHouseStyleBlock("felt", "no-such-composition"), /isometric three-quarter aerial view/);
+  assert.match(getArtStyleBlock("felt", "no-such-composition"), /isometric three-quarter aerial view/);
 });
 
-test("listCompositions reports flat and diorama with labels from house-style.md", () => {
+test("listCompositions reports flat and diorama with labels from art-style.md", () => {
   const comps = listCompositions();
   assert.deepEqual(
     comps.map((c) => c.name),
@@ -130,10 +130,10 @@ test("buildImagePrompt threads the composition through to the built prompt", () 
 });
 
 // flipbook.page's proven order for modern image models: framing -> style -> quality -> `Content:`.
-test("buildImagePrompt wraps content: framing first, house style embedded, content last", () => {
+test("buildImagePrompt wraps content: framing first, art style embedded, content last", () => {
   const built = buildImagePrompt("A page about cats.");
   assert.match(built, /^You can generate a new visual article expanding on the chosen topic/, "framing leads");
-  assert.ok(built.includes(getHouseStyleBlock()), "embeds the house style block");
+  assert.ok(built.includes(getArtStyleBlock()), "embeds the art style block");
   assert.match(built, /\nContent: A page about cats\.$/, "content comes last, after the Content: marker");
 });
 

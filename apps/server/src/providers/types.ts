@@ -95,7 +95,7 @@ export interface ImageProvider {
 
 // --- Video provider (PLAN §3 Phase 5, idle-loop background animation) ---
 export interface VideoGenInput {
-  /** Content-only motion prompt (PLAN §2 VISUAL IDENTITY content/style split applies here too — no house-style words baked in by callers). */
+  /** Content-only motion prompt (PLAN §2 VISUAL IDENTITY content/style split applies here too — no art-style words baked in by callers). */
   prompt: string;
   aspectRatio: AspectRatio;
   /** First frame — for the idle loop this is the page's own rendered image (data: URL). */

@@ -1,21 +1,21 @@
-import type { HouseStyleOption } from "@flipbook/shared";
+import type { ArtStyleOption } from "@flipbook/shared";
 
-interface HouseStylePickerProps {
-  styles: HouseStyleOption[];
+interface ArtStylePickerProps {
+  styles: ArtStyleOption[];
   value: string;
   onChange: (style: string) => void;
   disabled: boolean;
 }
 
 /**
- * Picks which block of house-style.md gets appended to the image prompt (PLAN §2 VISUAL IDENTITY).
- * The list and the labels both come from the server, which parses them out of house-style.md
+ * Picks which block of art-style.md gets appended to the image prompt (PLAN §2 VISUAL IDENTITY).
+ * The list and the labels both come from the server, which parses them out of art-style.md
  * itself, so adding a style there makes it appear here with no client change.
  *
  * Only affects pages generated from now on. Existing pages keep the style they were drawn in —
  * there is no re-render, because that would mean paying for every page again.
  */
-export function HouseStylePicker({ styles, value, onChange, disabled }: HouseStylePickerProps) {
+export function ArtStylePicker({ styles, value, onChange, disabled }: ArtStylePickerProps) {
   if (styles.length < 2) return null;
 
   return (

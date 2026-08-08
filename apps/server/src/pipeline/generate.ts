@@ -16,7 +16,7 @@ import { computePromptHash } from "./promptHash.js";
 import type { VideoPipeline } from "./video.js";
 import type { MorphPipeline } from "./morph.js";
 import { getTapDedupMode } from "./config.js";
-import { buildImagePrompt } from "./houseStyle.js";
+import { buildImagePrompt } from "./artStyle.js";
 import { boolConfig } from "../config/index.js";
 import { estimateImageCost } from "../providers/image/pricing.js";
 import { withRetry } from "../lib/retry.js";
@@ -209,16 +209,16 @@ export async function runGenerate(
   const nodeId = crypto.randomUUID().replace(/-/g, "");
 
   // PLAN §2 VISUAL IDENTITY: authoredPrompt is content-only (title, layout, exact text) — the
-  // house style (materials/palette/lighting/composition) is a fixed constant appended here, never
+  // art style (materials/palette/lighting/composition) is a fixed constant appended here, never
   // authored by the LLM, so every page shares one house look regardless of topic.
   // search never carries a reference image; tap and edit both do (parent frame / current image), so
   // the framing asks the model to keep that reference's scene as the base.
-  const imagePrompt = buildImagePrompt(authoredPrompt, req.house_style, {
+  const imagePrompt = buildImagePrompt(authoredPrompt, req.art_style, {
     reference: req.mode === "search" ? "none" : "reuse",
     composition: req.composition,
   });
 
-  // Layer 3 (PLAN §2.3): prompt-hash image cache, keyed on the full built prompt so a HOUSE_STYLE
+  // Layer 3 (PLAN §2.3): prompt-hash image cache, keyed on the full built prompt so an ART_STYLE
   // change invalidates it too. Excluded for edit mode — edits are conditioned on the current
   // page's actual pixels (referenceImageDataUrl), so two edits that happen to author byte-identical
   // prompt text can still need genuinely different output images.
@@ -228,7 +228,7 @@ export async function runGenerate(
   const cachedImageUrl = cachedImageNode?.image_variants[req.aspect_ratio];
 
   // Opt-in prompt inspection (env DEBUG_IMAGE_PROMPT=true): print the exact, fully-built prompt sent
-  // to the image model — content (authored) + house style appended — plus the knobs that shaped it.
+  // to the image model — content (authored) + art style appended — plus the knobs that shaped it.
   // Logged whether or not the layer-3 cache serves it back, so `served_from_cache` tells which happened.
   const debugImagePrompt = boolConfig("DEBUG_IMAGE_PROMPT", (c) => c.debug?.imagePrompt, false);
   if (debugImagePrompt) {
@@ -245,7 +245,7 @@ export async function runGenerate(
           ? "on"
           : "on (no summary returned)";
     console.log(
-      `\n[image-prompt] mode=${req.mode} aspect=${req.aspect_ratio} style=${req.house_style ?? "(server default)"} ` +
+      `\n[image-prompt] mode=${req.mode} aspect=${req.aspect_ratio} style=${req.art_style ?? "(server default)"} ` +
         `reference=${reference} served_from_cache=${Boolean(cachedImageUrl)} model=${ctx.providers.image.modelId}\n` +
         `[image-prompt] web_search=${search}\n` +
         `[image-prompt] web_search summary: ${webSearchSummary ?? "(none)"}\n` +

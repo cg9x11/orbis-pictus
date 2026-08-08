@@ -10,9 +10,38 @@ demand as you go.
 This is an **independent, open-source homage** to [flipbook.page](https://flipbook.page) — it
 is not affiliated with, endorsed by, or built by the flipbook.page team. It exists because the
 idea (a whole browsing experience made of nothing but generated images) was interesting enough
-to want to understand and rebuild from scratch. `PLAN.md` documents the reverse-engineering and
-every architectural decision in detail, including several empirical findings about image-model
-text rendering that took real trial and error to pin down.
+to want to understand and rebuild from scratch.
+
+## Features
+
+- **Infinite tap-to-explore navigation** — click anything inside the current page and a new page
+  generates around whatever you tapped, with no predefined map or link graph behind it.
+- **Search and edit, not just tap** — type a query to start anywhere, or type a command over an
+  open page ("make it night time") to regenerate it in place.
+- **Breadcrumb address bar** — every page you visit is a real stop in a trail; step back, forward,
+  or straight to any ancestor.
+- **Page-transition morphs** — an optional generated clip plays the parent page melting into the
+  child as you tap, reversible on the way back, with a crossfade fallback for longer jumps.
+- **Idle-loop video** — an optional short looping clip (water, steam, light) cross-fades in over a
+  finished page's static image.
+- **Tap caching** — repeat clicks near the same spot, or on a subject already explored under the
+  same parent, reuse work instead of regenerating from scratch.
+- **Photo upload** — start exploring from your own image instead of a generated one (optional).
+- **Web search grounding** — page content can be grounded in a real search instead of the model's
+  own knowledge (optional).
+- **Style and composition pickers** — swap the whole app's visual identity (felt, papercut, riso,
+  pixel, editorial) or its projection (flat, isometric, diorama) live, per page.
+
+## Supported providers
+
+| Role | Providers |
+|---|---|
+| Prompt authoring + tap vision (LLM) | Anthropic (or any Anthropic-compatible proxy) · Google Gemini |
+| Image generation | fal.ai · BytePlus Ark (Seedream) · Google Gemini ("nano banana") · OpenAI (gpt-image) |
+| Idle-loop video + page-transition morphs | BytePlus Ark (Seedance) |
+| Web search grounding | Anthropic-compatible provider's server-side web-search tool |
+
+See **Configuration** below for the env vars that select and tune each one.
 
 ## How it works
 
@@ -36,16 +65,18 @@ page. This is the same trick the original site uses, discovered by reading its n
 (`apps/server/src/prompts/page-author.md` / `edit-author.md`) writes *only* content: the title,
 the layout, every exact string to render, which regions get callouts. It is explicitly forbidden
 from describing style, palette, material, or lighting. A second, fixed file,
-`apps/server/src/prompts/house-style.md`, owns the visual identity (a needle-felted-wool diorama
-by default, four alternate styles available via `HOUSE_STYLE`) and gets appended to every image
+`apps/server/src/prompts/art-style.md`, owns the visual identity (a needle-felted-wool diorama
+by default, four alternate styles available via `ART_STYLE`) and gets appended to every image
 prompt server-side. The split means every page shares one consistent look regardless of topic,
-and swapping the entire app's aesthetic is a one-file edit. It also encodes a governing rule
+and swapping the entire app's aesthetic is a one-file edit. A second, independent axis,
+`COMPOSITION` (`flat` · `isometric` · `diorama`, default `diorama`), picks the projection the
+scene is drawn in — the two combine freely, so "editorial style, isometric composition" and "felt
+style, diorama composition" are both valid pages. It also encodes a governing rule
 learned the hard way: every text-bearing region on the page must be filled with an exact string a
 prompt supplied, never left for the image model to invent — an unspecified region is reliably
-either garbled or (for a title's would-be subtitle) fabricated outright. See `PLAN.md` §2 for the
-two failures that established this.
+either garbled or (for a title's would-be subtitle) fabricated outright.
 
-**Three cache layers**, all optional, applied on every tap (`PLAN.md` §2.3):
+**Three cache layers**, all optional, applied on every tap:
 
 1. **Coordinate-grid VLM cache** — clicks are quantized to a coarse grid per page; a nearby
    repeat click reuses the subject the vision model already named, skipping that call entirely.
@@ -84,10 +115,10 @@ re-encode written alongside it (`MORPH_REVERSE`, on by default; without ffmpeg i
 happen). Anything further than one step — a breadcrumb jump to a distant ancestor — spans several
 parent/child pairs, so no single clip could represent it and those get a short crossfade instead.
 
-Verified against the live Ark API before building the feature (see `PLAN.md` §2 for the
-frame-by-frame judgment); the current model doesn't hold the camera perfectly still despite an
-explicit fixed-camera instruction — it reads more like a deliberate zoom into the tapped subject
-than drift, but it's a real deviation from the prompt, not a stylistic choice.
+Verified against the live Ark API before building the feature, frame by frame; the current model
+doesn't hold the camera perfectly still despite an explicit fixed-camera instruction — it reads
+more like a deliberate zoom into the tapped subject than drift, but it's a real deviation from
+the prompt, not a stylistic choice.
 
 ## Setup
 
@@ -149,7 +180,8 @@ no `switch`/`if` to touch. Each factory owns its own key lookup and config, and 
 (tap/edit continuity) is optional per provider (`gemini` uses it; `openai` currently ignores it).
 | `SEARCH_PROVIDER` | Optional web search grounding for page content | `llm` (uses the Anthropic-compatible provider's server-side web-search tool) · `none` |
 | `SEARCH_MODEL` | Model used for search | — |
-| `HOUSE_STYLE` | Fixed visual style applied to every page | `felt` (default) · `papercut` · `riso` · `pixel` · `editorial` |
+| `ART_STYLE` | Fixed visual style applied to every page | `felt` (default) · `papercut` · `riso` · `pixel` · `editorial` |
+| `COMPOSITION` | Projection every page is drawn in, independent of `ART_STYLE` | `diorama` (default) · `flat` · `isometric` |
 | `TAP_DEDUP` | Tap caching mode (see above) | `reuse` (default) · `variant` · `off` |
 | `VIDEO_ENABLED` | Master switch for idle-loop video | `false` (default) |
 | `VIDEO_PROVIDER` | Video generation | `ark` (BytePlus Seedance) · `mock` (default even if `ARK_API_KEY` is set — video is opt-in separately from images) |
@@ -165,7 +197,7 @@ Real generation (not the mock providers) costs roughly one LLM call, one image g
 for a tap — one extra vision-model call per page. With BytePlus Ark's Seedream 4.5, a single image
 runs about **$0.03**. LLM cost depends entirely on which model you point `LLM_PROVIDER` at; the
 defaults above assume a proxy/account you already have configured. There's no draft/final two-tier
-render here (see `PLAN.md` §3) — every page renders at one quality level, which keeps the
+render here — every page renders at one quality level, which keeps the
 per-page cost to that single image call. Video and morphs, when enabled, cost meaningfully more per
 page than an image and are each capped per session (`VIDEO_MAX_PER_SESSION`,
 `MORPH_MAX_PER_SESSION`) for exactly that reason.
@@ -182,27 +214,26 @@ page than an image and are each capped per session (`VIDEO_MAX_PER_SESSION`,
 - **Dense pages (7-8 callouts) can still merge or drop a label**, independent of the numeral-badge
   fix above — two adjacent callouts' text occasionally blends into one garbled plaque, or a label
   goes missing while its leader line and drawn subject still render fine. Lower callout counts
-  (4-6) are visibly more reliable. See `PLAN.md` §2 for the specific reproductions.
+  (4-6) are visibly more reliable.
 - **Idle-loop video text instability.** Small, secondary text can visibly mutate frame-to-frame
   during video generation even with an explicit "don't redraw any text" instruction — the title
   card and footer caption hold up well, but anything smaller and lower-contrast is at risk. Since
-  the house style forbids inventing secondary text regions at all now (see `PLAN.md`), this mostly
-  shows up as a residual risk rather than a routine failure.
+  the house style forbids inventing secondary text regions at all now, this mostly shows up as a
+  residual risk rather than a routine failure.
 - **Page-transition morphs are pre-generated, not real-time.** The original streams a live video
-  transition over a WebSocket to a self-hosted model as you tap (`PLAN.md` §1.5); this project
-  intentionally doesn't reproduce that architecture. Instead the clip is generated as a whole file
-  after the tap/edit completes, and the transition waits for it — which is why stepping into a new
-  page takes noticeably longer with morphs on than with them off, where the original stays
-  interactive throughout. The model also doesn't hold the camera perfectly fixed despite the prompt
-  asking for it (see **How it works**).
-- **No true two-tier draft/final rendering.** Dropped by design (`PLAN.md` §3) — see **Cost**.
+  transition over a WebSocket to a self-hosted model as you tap; this project intentionally
+  doesn't reproduce that architecture. Instead the clip is generated as a whole file after the
+  tap/edit completes, and the transition waits for it — which is why stepping into a new page
+  takes noticeably longer with morphs on than with them off, where the original stays interactive
+  throughout. The model also doesn't hold the camera perfectly fixed despite the prompt asking for
+  it (see **How it works**).
+- **No true two-tier draft/final rendering.** Dropped by design — see **Cost**.
 
 ## Roadmap
 
-See `PLAN.md` for the full phase-by-phase plan and every empirical finding behind it. Roughly, in
-priority order: a real waitroom/rate-limiting layer for public deployments, an S3/R2 storage
-driver, and continued work on the callout-density and diacritics limitations above as image models
-improve.
+Roughly, in priority order: a real waitroom/rate-limiting layer for public deployments, an S3/R2
+storage driver, and continued work on the callout-density and diacritics limitations above as
+image models improve.
 
 ## License
 

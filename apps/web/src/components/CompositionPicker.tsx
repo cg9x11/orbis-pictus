@@ -1,7 +1,7 @@
-import type { HouseStyleOption } from "@flipbook/shared";
+import type { ArtStyleOption } from "@flipbook/shared";
 
 interface CompositionPickerProps {
-  compositions: HouseStyleOption[];
+  compositions: ArtStyleOption[];
   value: string;
   onChange: (composition: string) => void;
   disabled: boolean;
@@ -9,8 +9,8 @@ interface CompositionPickerProps {
 
 /**
  * Picks which composition block (flat infographic / isometric diorama) gets wrapped into the image
- * prompt — an axis orthogonal to the house style. The list and labels come from the server, which
- * parses them out of house-style.md, so adding a composition there makes it appear here with no
+ * prompt — an axis orthogonal to the art style. The list and labels come from the server, which
+ * parses them out of art-style.md, so adding a composition there makes it appear here with no
  * client change.
  *
  * Only affects pages generated from now on; existing pages keep the composition they were drawn in.
