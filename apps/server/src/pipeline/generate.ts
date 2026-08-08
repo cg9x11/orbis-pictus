@@ -30,18 +30,22 @@ export interface GenerateContext {
   morph: MorphPipeline;
 }
 
-// Stampede guard: coalesce concurrent image generations that resolve to the same
-// prompt-hash (the same key the persistent layer-3 cache uses). Two identical requests that both
-// miss the cache now share a single provider call instead of each paying for it. Keyed by
-// promptHash alone — matching the persistent cache's own reuse identity — so a reference image is
-// deliberately not part of the key, exactly as findNodeByPromptHash already treats it.
+// Stampede guard. It coalesces concurrent image generations that resolve to the same prompt hash.
+// That hash is the same key that the persistent layer-3 cache uses. Two identical requests that
+// both miss the cache now share a single provider call, instead of each one paying for it.
+//
+// The key is promptHash alone. This matches the reuse identity of the persistent cache. A
+// reference image is not part of the key, because findNodeByPromptHash also ignores it.
 const imageInFlight = new InFlight<ImageGenResult>();
 
-/** What every mode resolves to before authoring/drawing begins. `topic` is consistently the same
- *  meaning regardless of mode (the search query, the VLM-described tap subject, or the parent's
- *  inherited topic for an edit — never the raw edit command text): used afterwards for the web
- *  search query, node.query, and the cache-layer normalizedSubject. `tapReferenceImageDataUrl` is
- *  only ever set by resolveTapContext. */
+/** What every mode resolves to before the authoring step and the drawing step start.
+ *
+ *  `topic` has the same meaning in every mode. It is the search query, the tap subject that the
+ *  VLM described, or the topic that an edit inherits from its parent. It is never the raw edit
+ *  command text. Later steps use it for the web search query, for node.query, and for the
+ *  normalizedSubject of the cache layer.
+ *
+ *  Only resolveTapContext sets `tapReferenceImageDataUrl`. */
 interface ModeContext {
   topic: string;
   parentNodeId: string | null;
@@ -50,8 +54,9 @@ interface ModeContext {
   tapReferenceImageDataUrl: string | undefined;
 }
 
-// Only tap mode can short-circuit the rest of generation (layer 2: an existing child
-// already covers this subject) — search and edit always resolve to a context, never a cache hit.
+// Only tap mode can short-circuit the rest of generation. Layer 2 does this when an existing
+// child already covers the subject. Search and edit always resolve to a context, never to a
+// cache hit.
 type ModeResolution = { kind: "resolved"; context: ModeContext } | { kind: "cache-hit"; node: Node };
 
 function resolveSearchContext(req: GenerateSearchRequest): ModeResolution {
@@ -76,10 +81,11 @@ function resolveEditContext(req: GenerateEditRequest): ModeResolution {
   return {
     kind: "resolved",
     context: {
-      // An edit has no topic of its own — it's a re-render of the same page, so it inherits the
-      // parent's topic rather than using the edit command itself (req.prompt, e.g. "make it night
-      // time"). That command is passed separately to authorEdit() in runGenerate; using it here
-      // instead would mean web-searching the edit instruction and persisting it as this node's query.
+      // An edit has no topic of its own. It is a re-render of the same page, so it inherits the
+      // topic of the parent. It does not use the edit command itself (req.prompt, for example
+      // "make it night time"). runGenerate passes that command to authorEdit() separately. If the
+      // code used the edit command here, web search receives the edit instruction and this node
+      // stores it as its query.
       topic: parent.query,
       parentNodeId,
       parentTitle: req.parent_title || parent.page_title,
@@ -97,7 +103,7 @@ async function resolveTapContext(
   const parentNodeId = req.current_node_id;
   const tapDedup = getTapDedupMode();
 
-  // Layer 1: coordinate-quantization VLM cache — skip the VLM call entirely on a hit.
+  // Layer 1: the coordinate-quantization VLM cache. On a hit, skip the VLM call entirely.
   const cacheHit = tapDedup !== "off" ? findTapCacheHit(parentNodeId, req.aspect_ratio, req.x, req.y) : null;
   let subject: string;
   if (cacheHit) {
@@ -108,7 +114,8 @@ async function resolveTapContext(
   }
   await emit({ event: "tap_subject", data: { subject } });
 
-  // Layer 2: subject-level child dedup — instant navigation to an existing child, zero generation.
+  // Layer 2: subject-level child dedup. Navigation to an existing child is instant, and it starts
+  // no generation.
   if (tapDedup === "reuse") {
     const existingChild = findChildBySubject(parentNodeId, normalizeSubject(subject));
     if (existingChild) return { kind: "cache-hit", node: existingChild };
@@ -122,20 +129,26 @@ async function resolveTapContext(
       parentNodeId,
       parentTitle: req.parent_title,
       parentAuthoredPrompt: parentNode?.authored_prompt,
-      // Tap-mode scene continuity: the parent page's own rendered image, passed
-      // to the image provider as a reference the same way edit mode passes the current page's
-      // image — the tap child reuses the parent's exact scene.
+      // Tap-mode scene continuity. This is the rendered image of the parent page. The code passes
+      // it to the image provider as a reference, in the same way that edit mode passes the image
+      // of the current page. The tap child then reuses the exact scene of the parent.
       tapReferenceImageDataUrl: parentNode ? loadReferenceImageDataUrl(ctx.imagesDir, parentNode, req.aspect_ratio) : undefined,
     },
   };
 }
 
-/** Sharpens the web-search query with the parent page's title as context, so an ambiguous tap
- *  subject or inherited topic ("the red tower") is searched as what it actually is within the page
- *  it came from ("the red tower (in the context of Temples of Kyoto)"). Left unchanged when there is
- *  no parent, or when the topic already contains the parent title (e.g. a full search query the user
- *  typed, or an edit whose inherited topic equals the parent). Only the *search* query is affected —
- *  node.query and the layer-2/3 cache identity still use the bare `topic`. */
+/** Sharpens the web-search query with the title of the parent page as context.
+ *
+ *  Take an ambiguous tap subject or inherited topic, such as "the red tower". It then goes to
+ *  search as what it really is inside the page that it came from. The result is "the red tower
+ *  (in the context of Temples of Kyoto)".
+ *
+ *  The topic stays unchanged when there is no parent, or when it already contains the parent
+ *  title. A full search query that the user typed is one such case. An edit whose inherited topic
+ *  equals the parent is another.
+ *
+ *  This affects the *search* query only. node.query and the identity of the layer-2 cache and the
+ *  layer-3 cache still use the bare `topic`. */
 function buildSearchQuery(topic: string, parentTitle: string | undefined): string {
   const parent = parentTitle?.trim();
   if (!parent) return topic;
@@ -143,7 +156,7 @@ function buildSearchQuery(topic: string, parentTitle: string | undefined): strin
   return `${topic} (in the context of ${parent})`;
 }
 
-/** Runs the full generation pipeline, calling `emit` for each SSE event, and persists the resulting node. */
+/** Runs the full generation pipeline and persists the resulting node. Calls `emit` for each SSE event. */
 export async function runGenerate(
   req: GenerateRequest,
   ctx: GenerateContext,
@@ -171,11 +184,13 @@ export async function runGenerate(
     await emit({ event: "stage", data: { stage: "searching" } });
     const searchResult = await ctx.providers.search.search(buildSearchQuery(topic, parentTitle));
     if (searchResult?.degraded) {
-      // Degraded = the summary is model-knowledge-only, not verified web results (see
-      // providers/search/llm.ts). Do NOT feed it to the author as if it were grounded facts — that is
-      // exactly the case where invented dates/prices/hours slip onto the page. Drop it so the author
-      // writes a general page from widely-known facts instead, and say so. (The provider already
-      // logged the underlying cause once at startup; this ties it to a specific generation.)
+      // Degraded means that the summary holds model knowledge only, not verified web results
+      // (see providers/search/llm.ts). Do NOT feed it to the author as grounded facts. That is
+      // exactly the case where invented dates, prices, and hours slip onto the page.
+      //
+      // Drop the summary, so the author writes a general page from widely-known facts instead.
+      // Also log the event. The provider already logged the underlying cause one time at startup.
+      // This log line ties that cause to a specific generation.
       webSearchDegraded = true;
       console.warn(
         `[orbis] web search degraded to model-knowledge-only for topic "${topic}" — dropping summary; page will be written from general knowledge`,
@@ -201,47 +216,52 @@ export async function runGenerate(
           webSearchSummary,
         });
 
-  // The authoring model has now named the page, so the longest stretch of the wait — the image
-  // model actually drawing — can at least say what it is drawing.
+  // The authoring model named the page, so the longest part of the wait can now say what the
+  // image model draws. That part is the image generation itself.
   await emit({ event: "stage", data: { stage: "drawing", pageTitle } });
 
   const nodeId = crypto.randomUUID().replace(/-/g, "");
 
-  // VISUAL IDENTITY: authoredPrompt is content-only (title, layout, exact text) — the
-  // art style (materials/palette/lighting/composition) is a fixed constant appended here, never
-  // authored by the LLM, so every page shares one house look regardless of topic.
-  // search never carries a reference image; tap and edit both do (parent frame / current image), so
-  // the framing asks the model to keep that reference's scene as the base.
+  // VISUAL IDENTITY: authoredPrompt holds content only, that is the title, the layout, and the
+  // exact text. The art style covers materials, palette, lighting, and composition. It is a fixed
+  // constant that the code appends here. The LLM never authors it, so every page shares one house
+  // look, whatever the topic is.
+  //
+  // Search never carries a reference image. Tap and edit both carry one, the parent frame or the
+  // current image. For those two modes, the framing asks the model to keep the scene of that
+  // reference as the base.
   const imagePrompt = buildImagePrompt(authoredPrompt, req.art_style, {
     reference: req.mode === "search" ? "none" : "reuse",
     composition: req.composition,
   });
 
-  // Layer 3: prompt-hash image cache, keyed on the full built prompt so an ART_STYLE
-  // change invalidates it too. Excluded for edit mode — edits are conditioned on the current
-  // page's actual pixels (referenceImageDataUrl), so two edits that happen to author byte-identical
-  // prompt text can still need genuinely different output images.
+  // Layer 3: the prompt-hash image cache. Its key is the full built prompt, so a change to
+  // ART_STYLE also invalidates it. Edit mode is excluded. An edit is conditioned on the actual
+  // pixels of the current page (referenceImageDataUrl). Two edits that author byte-identical
+  // prompt text can therefore still need genuinely different output images.
   //
-  // Also excluded when the tap panel asked for a new version outright. That request is the user
-  // spending on purpose, so serving stored pixels back would be a broken promise, not a saving.
-  // The flag drops BOTH the cache read and the in-flight coalescing below: two such clicks landing
-  // together must produce two drawings, or the second user still gets the first one's image.
+  // The cache is also excluded when the tap panel asked for a new version outright. That request
+  // is a deliberate spend by the user. Stored pixels in return are a broken promise, not a saving.
+  // The flag drops BOTH the cache read and the in-flight coalescing below. Two such clicks that
+  // land together must produce two drawings. If they do not, the second user gets the image of
+  // the first one.
   const forceNewImage = req.mode === "tap" && req.force_new_image;
   const canReuseImage = req.mode !== "edit" && !forceNewImage;
   const promptHash = computePromptHash(imagePrompt, req.aspect_ratio, ctx.providers.image.modelId, ctx.providers.image.providerId);
   const cachedImageNode = canReuseImage ? findNodeByPromptHash(promptHash) : null;
   const cachedImageUrl = cachedImageNode?.image_variants[req.aspect_ratio];
 
-  // Opt-in prompt inspection (env DEBUG_IMAGE_PROMPT=true): print the exact, fully-built prompt sent
-  // to the image model — content (authored) + art style appended — plus the knobs that shaped it.
-  // Logged whether or not the layer-3 cache serves it back, so `served_from_cache` tells which happened.
+  // Opt-in prompt inspection (env DEBUG_IMAGE_PROMPT=true). It prints the exact, fully-built
+  // prompt that goes to the image model. That prompt is the authored content plus the appended
+  // art style. It also prints the settings that shaped the prompt. The log runs whether or not
+  // the layer-3 cache serves the image back, so `served_from_cache` tells which case happened.
   const debugImagePrompt = boolConfig("DEBUG_IMAGE_PROMPT", (c) => c.debug?.imagePrompt, false);
   if (debugImagePrompt) {
     const reference =
       req.mode === "edit" ? "current page image (edit)" : tapReferenceImageDataUrl ? "parent page frame (tap)" : "none";
-    // The web search summary (call 1) is what grounds the authored content (call 2), so logging it
-    // next to the final prompt lets you see exactly what the search returned vs. what the author LLM
-    // then wrote — the difference is where any embellishment beyond the sources creeps in.
+    // The web search summary (call 1) grounds the authored content (call 2). A log of the summary
+    // next to the final prompt shows exactly what the search returned and what the author LLM then
+    // wrote. Any embellishment beyond the sources appears in the difference between the two.
     const search = !req.web_search
       ? "off"
       : webSearchDegraded
@@ -260,17 +280,20 @@ export async function runGenerate(
   }
 
   let imageUrl: string;
-  // Which model actually drew these pixels. Starts as the model we asked for and is corrected below
-  // whenever that isn't the truth — a provider-internal fallback (Ark's quota retry) or an
-  // unknown-model fallback both report the substitute via `usedModelId`. Kept separate from
-  // `providers.image.modelId` because the prompt hash above is computed from the REQUESTED model,
-  // before generation runs, and must stay that way for the cache key to be stable.
+  // Which model actually drew these pixels. It starts as the model that the code asked for. The
+  // code below corrects it whenever that is not the truth. A provider-internal fallback (the
+  // quota retry of Ark) and an unknown-model fallback both report the substitute in
+  // `usedModelId`.
+  //
+  // This stays separate from `providers.image.modelId`. The code computes the prompt hash above
+  // from the REQUESTED model, before generation runs. It must stay that way, so that the cache
+  // key is stable.
   let drawnModelId = ctx.providers.image.modelId;
   if (cachedImageUrl) {
     imageUrl = cachedImageUrl;
-    // These pixels came from an earlier node, so credit whichever model drew them there. The hash
-    // keys on the requested model, so a hit means the same request — but that earlier generation
-    // may itself have fallen back, and its record is the accurate one.
+    // These pixels came from an earlier node, so credit the model that drew them there. The hash
+    // keys on the requested model, so a hit means the same request. In some cases that earlier
+    // generation itself used a fallback, and only its record is accurate.
     if (cachedImageNode?.image_model) drawnModelId = cachedImageNode.image_model;
   } else {
     const genImage = (): Promise<ImageGenResult> =>
@@ -279,19 +302,21 @@ export async function runGenerate(
         aspectRatio: req.aspect_ratio,
         referenceImageDataUrl: req.mode === "edit" ? req.currentImage : tapReferenceImageDataUrl,
       });
-    // Only reusable (non-edit) generations are coalesced: an edit is conditioned on the current
-    // page's actual pixels, so two edits with byte-identical prompts can still need different
-    // images and must each run — the same reason they are excluded from the persistent cache above.
+    // The code coalesces reusable (non-edit) generations only. An edit is conditioned on the
+    // actual pixels of the current page. Two edits with byte-identical prompts can therefore still
+    // need different images, and each one must run. This is the same reason that excludes them
+    // from the persistent cache above.
     const { bytes, contentType, usage, usedModelId } = canReuseImage ? await imageInFlight.run(promptHash, genImage) : await genImage();
     if (usedModelId) drawnModelId = usedModelId;
     imageUrl = await saveImageVariantResized(ctx.imagesDir, nodeId, req.aspect_ratio, bytes, contentType);
 
-    // Same DEBUG_IMAGE_PROMPT flag: after a real generation, log the provider's reported token usage
-    // and an estimated cost from the published per-model rate table (providers/image/pricing.ts).
-    // Only for providers that return usage (Gemini, OpenAI); others log "n/a". Never for a cache hit.
+    // The same DEBUG_IMAGE_PROMPT flag. After a real generation, log the token usage that the
+    // provider reported and an estimated cost from the published per-model rate table
+    // (providers/image/pricing.ts). This applies only to providers that return usage (Gemini,
+    // OpenAI). Other providers log "n/a". A cache hit never logs this line.
     if (debugImagePrompt) {
-      // Priced against the model that actually drew, not the one that was asked for — a fallback
-      // to a different model is billed at the fallback's rate.
+      // The price uses the model that actually drew the image, not the model that the code asked
+      // for. A fallback to a different model is billed at the rate of the fallback.
       const cost = estimateImageCost(drawnModelId, usage);
       const tokens = usage
         ? `in=${usage.inputTokens ?? "?"} out=${usage.outputTokens ?? "?"} total=${usage.totalTokens ?? "?"}`
@@ -312,10 +337,11 @@ export async function runGenerate(
     page_title: pageTitle,
     image_variants: { [req.aspect_ratio]: imageUrl },
     image_model: drawnModelId,
-    // Provenance, so a lazily-generated aspect-ratio variant can reproduce this page rather than
-    // being drawn with whatever the server is configured with whenever that variant is first asked
-    // for. The style/composition are the RESOLVED names, not the raw request values, so an
-    // unrecognised request value records what was actually drawn.
+    // Provenance. A lazily-generated aspect-ratio variant can reproduce this page from these
+    // values. Without them, it uses whatever the server configuration holds at the moment of the
+    // first request for that variant. The style and the composition are the RESOLVED names, not
+    // the raw request values, so an unrecognized request value records what the code actually
+    // drew.
     image_provider: ctx.providers.image.providerId,
     art_style: resolveArtStyleName(req.art_style),
     composition: resolveCompositionName(req.composition),
@@ -331,23 +357,27 @@ export async function runGenerate(
     insertNode(node, { normalizedSubject: normalizeSubject(topic), promptHash: canReuseImage ? promptHash : null }),
   );
 
-  // Fire-and-forget background clips, started BEFORE `complete` is announced.
-  // Both calls are synchronous up to the point where they mark the node pending — only the actual
-  // provider request is deferred — so re-reading the node below yields video_status "pending"
-  // whenever a clip is genuinely on its way. Emitting `complete` first would ship a payload saying
-  // null, which the client is required to read as "no clip will ever exist", and the page would
-  // never pick up the loop it is about to have. Neither call can block or fail the page: every
-  // guard is inside, and a root node simply no-ops the morph (no parent to morph from).
+  // Fire-and-forget background clips. They start BEFORE the code announces `complete`.
   //
-  // Only spend video quota when the user actually has Live video on (req.video_loop). Without this,
-  // every generation burned idle-loop AND morph quota even with the toggle off — display was gated
-  // client-side but generation was not. When skipped, video_status/morph_status stay null, which the
-  // client already reads as "no clip will ever exist" (it never polls), so nothing waits on them.
+  // Both calls are synchronous up to the point where they mark the node pending. Only the actual
+  // provider request is deferred. The re-read of the node below therefore returns video_status
+  // "pending" whenever a clip is genuinely on its way. An emit of `complete` first ships a payload
+  // with null, and the client must read that as "no clip will ever exist". The page then never
+  // picks up the loop that it is about to have.
+  //
+  // Neither call can block the page or fail it. Every guard is inside the call, and a root node
+  // makes the morph a no-op, because there is no parent to morph from.
+  //
+  // Spend video quota only when the user has Live video on (req.video_loop). Without this check,
+  // every generation burned idle-loop quota AND morph quota even with the toggle off. The client
+  // gated the display, but nothing gated the generation. When the code skips the calls,
+  // video_status and morph_status stay null. The client already reads that as "no clip will ever
+  // exist" and never polls, so nothing waits on them.
   if (req.video_loop) {
-    // The UI's clip settings ride the same request, so both background clips use what the user
-    // picked. Unusable values are not filtered here — videoConfig.ts falls an unknown resolution
-    // back to the configured one and caps a client-supplied duration, so whatever these carry is
-    // always something the provider accepts.
+    // The clip settings of the UI ride the same request, so both background clips use what the
+    // user picked. This code does not filter unusable values. videoConfig.ts falls an unknown
+    // resolution back to the configured one, and it caps a client-supplied duration. Whatever
+    // these values carry is therefore always something that the provider accepts.
     const clipOptions = { resolution: req.video_resolution, durationSeconds: req.video_duration_seconds };
     ctx.video.maybeStartIdleLoop(node, ctx.providers, ctx.imagesDir, clipOptions);
     ctx.morph.maybeStartMorph(node, ctx.providers, ctx.imagesDir, clipOptions);

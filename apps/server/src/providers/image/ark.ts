@@ -7,10 +7,11 @@ import { strConfig } from "../../config/index.js";
 import type { ImageProviderFactory } from "./registry.js";
 
 /**
- * Draft-tier (Phase 1 single-tier) sizes. BytePlus Ark rejects named sizes like "1K" for
- * seedream-4.x and enforces a minimum of 3,686,400 total pixels — well above the
- * original draft dimensions (1280x720 / 960x1280 / 960x960), so these are the same aspect
- * ratios scaled up to just clear that floor. Verified empirically 2026-08 against the live API.
+ * Draft-tier sizes. BytePlus Ark rejects named sizes such as "1K"
+ * for seedream-4.x. Ark also requires a minimum of 3,686,400 total pixels. That minimum is well
+ * above the original draft dimensions (1280x720, 960x1280, 960x960). These values are therefore
+ * the same aspect ratios, scaled up to the smallest size that clears that floor. A test against
+ * the live API in 2026-08 confirmed this behavior.
  */
 const DRAFT_SIZE_BY_ASPECT: Record<AspectRatio, string> = {
   "16:9": "2560x1440",
@@ -36,9 +37,10 @@ export class ArkImageProvider implements ImageProvider {
     try {
       return await this.generateWithModel(this.modelId, input);
     } catch (err) {
-      // Checked before the quota branch: an unrecognised model id is not a budget problem, so the
-      // configured fallback model (which exists for quota) is the wrong remedy. Retrying a bad name
-      // on a second model belongs to modelFallback.ts, which knows the server's configured default.
+      // This check comes before the quota branch. An unrecognized model id is not a budget
+      // problem, so the configured fallback model (which exists for quota) is the wrong remedy.
+      // A retry of a bad name on a second model belongs to modelFallback.ts, which knows the
+      // configured default of the server.
       if (err instanceof ArkRequestError && err.isUnknownModelError) {
         throw new UnknownModelError(`Ark does not recognise image model "${this.modelId}" (${err.code ?? err.message}).`);
       }
@@ -49,17 +51,19 @@ export class ArkImageProvider implements ImageProvider {
         throw new QuotaExhaustedError(`Image quota exhausted: "${this.modelId}" was rejected (${err.code ?? err.message}).`);
       }
       try {
-        // usedModelId, so the node records the model that actually drew rather than the one that
-        // was rejected — the prompt hash and node row are both built from `modelId` before this
-        // point, so without it every quota fallback silently credits the wrong model.
+        // Set usedModelId, so the node records the model that actually drew the image, not the
+        // model that Ark rejected. The code builds the prompt hash and the node row from
+        // `modelId` before this point. Without usedModelId, every quota fallback silently
+        // credits the wrong model.
         const result = await this.generateWithModel(this.fallbackModelId, input);
         return { ...result, usedModelId: this.fallbackModelId };
       } catch (fallbackErr) {
-        // Same reasoning as the primary-model check above, applied to the fallback. The fallback id
-        // is user-settable from the settings panel's free-text field, so it can be a name Ark has
-        // never heard of — and calling that "quota exhausted" is both untrue and harmful:
-        // modelFallback.ts routes on the error CLASS alone and catches only UnknownModelError, so a
-        // QuotaExhaustedError here would fail the page outright while blaming the user's budget.
+        // This is the same reasoning as the primary-model check above, applied to the fallback.
+        // The user sets the fallback id in the free-text field of the settings panel, so it can
+        // be a name that Ark does not know. A "quota exhausted" error for that name is untrue and
+        // harmful. modelFallback.ts routes on the error CLASS alone, and it catches only
+        // UnknownModelError. A QuotaExhaustedError here fails the page outright and blames the
+        // budget of the user.
         if (fallbackErr instanceof ArkRequestError && fallbackErr.isUnknownModelError) {
           throw new UnknownModelError(
             `Ark does not recognise fallback image model "${this.fallbackModelId}" ` +
@@ -105,7 +109,8 @@ export class ArkImageProvider implements ImageProvider {
     const b64 = json.data?.[0]?.b64_json;
     if (!b64) throw new Error(`Ark response missing image data: ${JSON.stringify(json)}`);
 
-    // Verified empirically: Ark returns JPEG bytes even though the API is generic about format.
+    // Ark returns JPEG bytes, even though the API is generic about the format. A test against the
+    // live API confirmed this behavior.
     return { bytes: Buffer.from(b64, "base64"), contentType: "image/jpeg" };
   }
 }

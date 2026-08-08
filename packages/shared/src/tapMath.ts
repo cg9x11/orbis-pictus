@@ -7,21 +7,23 @@ export function tapCellIndex(ratio: number): number {
   return Math.round(ratio * TAP_CACHE_GRID);
 }
 
-// Proportions only (not pixel dimensions) — the tap-cache radius must be a pure function
-// independent of the actual rendered image size, which varies by provider (mock vs. Ark).
+// These are proportions, not pixel dimensions. The tap-cache radius must be a pure function.
+// It cannot depend on the rendered image size, which changes with the provider (mock or Ark).
 const ASPECT_PROPORTIONS: Record<AspectRatio, [number, number]> = {
   "16:9": [16, 9],
   "3:4": [3, 4],
   "1:1": [1, 1],
 };
 
-/** Matches the visual tap marker: radius = 8.5% of the image's min dimension. */
+/** Matches the visual tap marker. The radius is 8.5% of the minimum image dimension. */
 const TAP_RADIUS_FRACTION = 0.085;
 
 /**
- * The marker radius expressed as a fraction of image width (rx) and height (ry), derived from
- * the aspect ratio's proportions alone. A real pixel-space radius R (= 0.085 * min(w,h)) maps to
- * an ellipse in normalized ratio-space with radii R/w and R/h — that's what these are.
+ * The marker radius as a fraction of the image width (rx) and the image height (ry). Only the
+ * proportions of the aspect ratio determine these two values.
+ *
+ * A pixel-space radius R (= 0.085 * min(w,h)) maps to an ellipse in normalized ratio-space. That
+ * ellipse has the radii R/w and R/h. Those radii are rx and ry.
  */
 export function tapRadiusRatios(aspectRatio: AspectRatio): { rx: number; ry: number } {
   const [w, h] = ASPECT_PROPORTIONS[aspectRatio];
@@ -30,13 +32,14 @@ export function tapRadiusRatios(aspectRatio: AspectRatio): { rx: number; ry: num
 }
 
 /**
- * Whether (x2,y2) falls under the same tap marker as (x1,y1) — i.e. within the visual circle's
- * radius, honestly matching "anything under the same circle is the same click".
- * Coordinates are normalized [0,1] fractions of image width/height.
+ * Returns true when (x2,y2) falls under the same tap marker as (x1,y1). That is, the point is
+ * within the radius of the visual circle. Anything under the same circle is the same click. The
+ * coordinates are normalized [0,1] fractions of the image width and the image height.
  *
- * Lives in the shared package because both sides must agree on it: the server uses it for the
- * layer-1 cache lookup, and the web client uses it to decide, before spending anything, whether a
- * tap lands on an already-explored spot. A second implementation on either side would drift.
+ * This function is in the shared package because both sides must agree on it. The server uses it
+ * for the layer-1 cache lookup. The web client uses it to decide whether a tap lands on an
+ * already-explored spot, before the client spends anything. Two separate implementations drift
+ * apart over time.
  */
 export function isWithinTapRadius(aspectRatio: AspectRatio, x1: number, y1: number, x2: number, y2: number): boolean {
   const { rx, ry } = tapRadiusRatios(aspectRatio);

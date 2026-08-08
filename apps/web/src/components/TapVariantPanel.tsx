@@ -3,37 +3,40 @@ import type { CachedTap } from "@orbis/shared";
 
 interface TapVariantPanelProps {
   tap: CachedTap;
-  /** Opens one of the existing versions. Costs nothing. */
+  /** Opens one of the existing versions. This action costs nothing. */
   onOpen: (childId: string) => void;
-  /** Draws a new version of this subject. Spends real quota, so it is never the default action. */
+  /** Draws a new version of this subject. This action spends real quota, so it is never the
+   *  default action. */
   onDrawNew: (tap: CachedTap) => void;
   onClose: () => void;
-  /** A generation is already running. Both actions are refused while it is, so say so rather than
-   *  letting every click do nothing and leave the panel looking frozen. */
+  /** True while a generation already runs. The panel refuses both actions during that time, and
+   *  it must say so. If it stays silent, every click does nothing and the panel looks frozen. */
   busy: boolean;
 }
 
 /**
- * Shown when a tap lands on a spot already explored, while the server is in `variant` mode.
+ * The panel appears when a tap lands on an already-explored spot and the server is in `variant`
+ * mode.
  *
- * It exists because that tap is ambiguous in a way a `reuse`-mode tap is not. The subject is known,
- * so the vision call is free, but the drawing is not — and there can be several earlier versions of
- * the same subject, none of which is the "right" one to jump to. Rather than guess, the panel puts
- * the choice in front of the user before anything is spent.
+ * That tap is ambiguous in a way that a `reuse`-mode tap is not. The subject is known, so the
+ * vision call is free. The drawing is not free. There can also be several earlier versions of the
+ * same subject, and none of them is the "right" one to open. The panel does not guess. It gives
+ * the choice to the user before it spends anything.
  */
 export function TapVariantPanel({ tap, onOpen, onDrawNew, onClose, busy }: TapVariantPanelProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
-  // Read through a ref so the listener below can depend on nothing. `onClose` is rebuilt on every
-  // controller render, and the controller re-renders often while the panel is open (the tap ripple
-  // clearing after ~600ms, idle-loop video polling). An effect that depended on it would re-run on
-  // each of those and yank focus back to the close button mid-interaction.
+  // The effect below reads `onClose` through a ref, so it can depend on nothing. React rebuilds
+  // `onClose` on every controller render, and the controller re-renders often while the panel is
+  // open (the tap ripple clears after ~600ms, the idle-loop video polls). An effect with
+  // `onClose` in its dependency list re-runs on each of those renders. Each re-run pulls focus
+  // back to the close button in the middle of an interaction.
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
-  // The panel interrupts a tap, so Escape must undo that interruption. Without it the only way out
-  // is the close button, and a user who tapped by accident is stuck looking at a decision they did
-  // not ask for.
+  // The panel interrupts a tap, so Escape must undo that interruption. Without Escape, the only
+  // way out is the close button. A user who tapped by accident is then stuck with a decision that
+  // they did not ask for.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onCloseRef.current();
@@ -42,13 +45,14 @@ export function TapVariantPanel({ tap, onOpen, onDrawNew, onClose, busy }: TapVa
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Mount only: moving focus into the panel is a one-time hand-off, not something to redo whenever
-  // the parent happens to render.
+  // This effect runs on mount only. The focus hand-off into the panel happens one time. It must
+  // not repeat whenever the parent renders.
   useEffect(() => {
     closeRef.current?.focus();
   }, []);
 
-  // Newest first: the most recent version is the one the user most likely wants to see again.
+  // Sort newest first. The most recent version is the one that the user most likely wants to see
+  // again.
   const versions = [...tap.children].sort((a, b) => b.created_at.localeCompare(a.created_at));
 
   return (
@@ -77,9 +81,9 @@ export function TapVariantPanel({ tap, onOpen, onDrawNew, onClose, busy }: TapVa
                 {child.image_url ? (
                   <img className="tap-panel-thumb" src={child.image_url} alt="" loading="lazy" />
                 ) : (
-                  // The child exists but was drawn at another aspect ratio, so this one has no image
-                  // yet. Kept in the list as a placeholder: opening it still works, and the server
-                  // fills in the missing variant on demand.
+                  // The child exists, but it was drawn at another aspect ratio, so it has no image
+                  // for this ratio yet. The list keeps it as a placeholder. The child still opens,
+                  // and the server fills in the missing variant on demand.
                   <span className="tap-panel-thumb tap-panel-thumb--empty" aria-hidden="true" />
                 )}
                 <span className="tap-panel-version-text">
