@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { strConfig, optStrConfig, boolConfig, intConfig, resolveConfigPath, DEFAULT_CONFIG_PATH, __resetConfigCacheForTests } from "./index.js";
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-config-"));
@@ -105,10 +104,17 @@ test("an unknown top-level key in the file is rejected (strict), not silently ig
 
 test("the default config path resolves to the repo root, not the server's cwd (regression)", () => {
   // The server runs with cwd = apps/server, but config.yml lives at the repo root next to .env.
-  // This test file sits at apps/server/src/config/, so the repo root is four levels up.
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const expected = path.resolve(here, "../../../../config.yml");
-  assert.equal(DEFAULT_CONFIG_PATH, expected);
+  // Assert the resolved directory against independent markers (files only the repo root has)
+  // instead of re-deriving the same "../.." expression the code uses: that would only prove the
+  // code equals itself, and would stay green if the module and its target moved together.
+  const rootDir = path.dirname(DEFAULT_CONFIG_PATH);
+  assert.equal(path.basename(DEFAULT_CONFIG_PATH), "config.yml");
+  for (const marker of ["package-lock.json", "config.example.yml"]) {
+    assert.ok(
+      fs.existsSync(path.join(rootDir, marker)),
+      `config.yml must resolve next to the repo-root ${marker}, got ${DEFAULT_CONFIG_PATH}`,
+    );
+  }
   // Guard against regressing to a cwd/apps-server-relative lookup.
   assert.ok(!DEFAULT_CONFIG_PATH.includes(`${path.sep}apps${path.sep}server${path.sep}config.yml`));
 });

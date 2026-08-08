@@ -1,7 +1,6 @@
 import "./env.js";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
@@ -18,8 +17,7 @@ import { isMorphEnabled } from "./pipeline/morphConfig.js";
 import { getDefaultArtStyleName, listArtStyles, getDefaultCompositionName, listCompositions } from "./pipeline/artStyle.js";
 import { isUploadEnabled } from "./pipeline/config.js";
 import { intConfig, strConfig } from "./config/index.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { WEB_DIST, WEB_SRC_INDEX_HTML } from "./paths.js";
 
 const { providers, missingKeys } = createProviders();
 if (missingKeys.length > 0) {
@@ -62,13 +60,11 @@ app.use(
   }),
 );
 
-const webDist = path.resolve(__dirname, "../../web/dist");
-const webDistIndexHtml = path.join(webDist, "index.html");
-// In dev, dist/ doesn't exist yet — fall back to the raw source index.html. This route is not
-// reached by a real browser in dev (Vite serves /n/:id itself via its SPA fallback; it is
-// deliberately NOT proxied here — see vite.config.ts), so the fallback exists only for a direct hit
-// on this server, e.g. a link-unfurling bot reading the OG tags below.
-const webSrcIndexHtml = path.resolve(__dirname, "../../web/index.html");
+const webDistIndexHtml = path.join(WEB_DIST, "index.html");
+// In dev, dist/ doesn't exist yet — fall back to the raw source index.html (WEB_SRC_INDEX_HTML).
+// This route is not reached by a real browser in dev (Vite serves /n/:id itself via its SPA
+// fallback; it is deliberately NOT proxied here — see vite.config.ts), so the fallback exists only
+// for a direct hit on this server, e.g. a link-unfurling bot reading the OG tags below.
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -77,7 +73,7 @@ function escapeHtml(s: string): string {
 // Server-rendered so link-unfurling bots (which don't run JS) see the right title + image.
 app.get("/n/:id", (c) => {
   const id = c.req.param("id");
-  const indexPath = fs.existsSync(webDistIndexHtml) ? webDistIndexHtml : webSrcIndexHtml;
+  const indexPath = fs.existsSync(webDistIndexHtml) ? webDistIndexHtml : WEB_SRC_INDEX_HTML;
   let html = fs.readFileSync(indexPath, "utf-8");
 
   const node = getNode(id);
@@ -107,8 +103,8 @@ app.get("/n/:id", (c) => {
 });
 
 // In production, serve the built SPA for everything else.
-app.use("/*", serveStatic({ root: path.relative(process.cwd(), webDist) }));
-app.get("*", serveStatic({ path: path.join(path.relative(process.cwd(), webDist), "index.html") }));
+app.use("/*", serveStatic({ root: path.relative(process.cwd(), WEB_DIST) }));
+app.get("*", serveStatic({ path: path.join(path.relative(process.cwd(), WEB_DIST), "index.html") }));
 
 const port = intConfig("PORT", (c) => c.server?.port, 8787);
 serve({ fetch: app.fetch, port }, (info) => {

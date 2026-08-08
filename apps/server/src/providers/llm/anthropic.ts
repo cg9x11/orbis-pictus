@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { PROMPTS_DIR } from "../../paths.js";
 // Unlike the other providers (image/ark.ts, image/fal.ts, llm/gemini.ts, providers/video/ark.ts),
 // this one goes through the official SDK rather than a raw fetch(), so it doesn't need
 // lib/retry.ts's fetchWithRetry: the SDK already retries transient errors (connection errors,
@@ -17,15 +17,12 @@ import type {
   TitleImageOutput,
 } from "../types.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const promptsDir = path.resolve(__dirname, "../../prompts");
-
-const PAGE_AUTHOR_SYSTEM = fs.readFileSync(path.join(promptsDir, "page-author.md"), "utf-8");
-const EDIT_AUTHOR_SYSTEM = fs.readFileSync(path.join(promptsDir, "edit-author.md"), "utf-8");
-const TAP_SUBJECT_SYSTEM = fs.readFileSync(path.join(promptsDir, "tap-subject.md"), "utf-8");
-const IMAGE_TITLE_SYSTEM = fs.readFileSync(path.join(promptsDir, "image-title.md"), "utf-8");
-const IDLE_MOTION_SYSTEM = fs.readFileSync(path.join(promptsDir, "idle-motion.md"), "utf-8");
-const MORPH_MOTION_SYSTEM = fs.readFileSync(path.join(promptsDir, "morph-motion.md"), "utf-8");
+const PAGE_AUTHOR_SYSTEM = fs.readFileSync(path.join(PROMPTS_DIR, "page-author.md"), "utf-8");
+const EDIT_AUTHOR_SYSTEM = fs.readFileSync(path.join(PROMPTS_DIR, "edit-author.md"), "utf-8");
+const TAP_SUBJECT_SYSTEM = fs.readFileSync(path.join(PROMPTS_DIR, "tap-subject.md"), "utf-8");
+const IMAGE_TITLE_SYSTEM = fs.readFileSync(path.join(PROMPTS_DIR, "image-title.md"), "utf-8");
+const IDLE_MOTION_SYSTEM = fs.readFileSync(path.join(PROMPTS_DIR, "idle-motion.md"), "utf-8");
+const MORPH_MOTION_SYSTEM = fs.readFileSync(path.join(PROMPTS_DIR, "morph-motion.md"), "utf-8");
 
 function imageContentBlock(dataUrl: string): Anthropic.ImageBlockParam {
   const { mimeType, base64 } = parseDataUrl(dataUrl);

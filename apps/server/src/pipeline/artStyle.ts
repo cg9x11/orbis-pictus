@@ -1,10 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { PROMPTS_DIR } from "../paths.js";
 import { strConfig } from "../config/index.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ART_STYLE_PATH = path.resolve(__dirname, "../prompts/art-style.md");
+const ART_STYLE_PATH = path.join(PROMPTS_DIR, "art-style.md");
 
 export type ArtStyleName = "felt" | "papercut" | "riso" | "pixel" | "editorial";
 const STYLE_NAMES: ArtStyleName[] = ["felt", "papercut", "riso", "pixel", "editorial"];
