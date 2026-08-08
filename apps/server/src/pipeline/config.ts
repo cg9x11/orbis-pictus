@@ -1,6 +1,7 @@
+import type { TapDedupMode } from "@orbis/shared";
 import { boolConfig, strConfig } from "../config/index.js";
 
-export type TapDedupMode = "reuse" | "variant" | "off";
+export type { TapDedupMode };
 
 /**
  * reuse (default) uses both the VLM coordinate cache and subject-level child dedup;

@@ -30,9 +30,13 @@ class SpyImageProvider implements ImageProvider {
   readonly modelId = "spy-image";
   readonly providerId = "spy";
   lastInput: ImageGenInput | undefined;
+  /** How many times the provider was actually asked to draw — the only honest way to tell a real
+   *  generation from a cache hit, since both return a usable image URL. */
+  calls = 0;
 
   async generate(input: ImageGenInput): Promise<ImageGenResult> {
     this.lastInput = input;
+    this.calls += 1;
     return { bytes: Buffer.from("fake-image-bytes"), contentType: "image/jpeg" };
   }
 }
@@ -274,6 +278,7 @@ test("tap mode: the built image prompt includes the house style and reuses the p
       aspect_ratio: "16:9",
       web_search: false,
       video_loop: false,
+      force_new_image: false,
       parent_title: "Ha Noi Street Food",
       session_id: "s1",
       current_node_id: "parent-tap",
@@ -291,4 +296,74 @@ test("tap mode: the built image prompt includes the house style and reuses the p
   assert.equal(image.lastInput?.referenceImageDataUrl, expectedReference);
   assert.notEqual(image.lastInput?.referenceImageDataUrl, markedImageDataUrl);
   assert.doesNotMatch(image.lastInput!.prompt, NUMERAL_BADGE_INSTRUCTION);
+});
+
+// The tap panel's "Draw a new version" button is the user choosing to spend. If layer 3 could still
+// answer it, the button would sometimes return the identical picture and look broken. The mock LLM
+// is deterministic, so a repeat tap authors a byte-identical prompt — exactly the collision that
+// makes this reachable in production, reproduced here without depending on model temperature.
+test("tap mode: force_new_image bypasses the layer-3 prompt-hash cache", async () => {
+  const previousMode = process.env.TAP_DEDUP;
+  // Layer 2 would return the existing child before layer 3 is ever consulted, so the reuse default
+  // cannot exercise this path. Variant mode is where the button lives anyway.
+  process.env.TAP_DEDUP = "variant";
+  try {
+    const image = new SpyImageProvider();
+    const ctx = makeContext(image);
+    const parentImageUrl = saveImageVariant(ctx.imagesDir, "parent-force", "16:9", Buffer.from("parent-pixels"), "image/jpeg");
+    const parent: Node = {
+      id: "parent-force",
+      parent_id: null,
+      session_id: "s-force",
+      query: "force new image parent",
+      page_title: "Force New Image Parent",
+      image_variants: { "16:9": parentImageUrl },
+      image_model: "mock-image",
+      image_provider: "mock",
+      art_style: "felt",
+      composition: "diorama",
+      prompt_author_model: "mock-llm",
+      authored_prompt: "content prompt for the force-new parent",
+      created_at: new Date().toISOString(),
+      version: 1,
+      video_status: null,
+      morph_status: null,
+    };
+    insertNode(parent, { normalizedSubject: "root-force" });
+
+    const tap = (force: boolean) =>
+      runGenerate(
+        {
+          mode: "tap" as const,
+          markedImage: `data:image/jpeg;base64,${Buffer.from("marked").toString("base64")}`,
+          x: 0.3,
+          y: 0.3,
+          aspect_ratio: "16:9" as const,
+          web_search: false,
+          video_loop: false,
+          force_new_image: force,
+          parent_title: "Force New Image Parent",
+          session_id: "s-force",
+          current_node_id: "parent-force",
+        },
+        ctx,
+        () => {},
+      );
+
+    const first = await tap(false);
+    assert.equal(image.calls, 1, "the first tap must actually draw");
+
+    // Same spot, same subject, same authored prompt: layer 3 answers and nothing is drawn.
+    const second = await tap(false);
+    assert.equal(image.calls, 1, "an ordinary repeat tap should be served from the prompt-hash cache");
+    assert.equal(second.image_variants["16:9"], first.image_variants["16:9"], "cached hit reuses the earlier pixels");
+
+    // Same request again, but asked for outright: the cache must be skipped.
+    const third = await tap(true);
+    assert.equal(image.calls, 2, "force_new_image must reach the provider");
+    assert.notEqual(third.image_variants["16:9"], first.image_variants["16:9"], "a forced draw must store its own image");
+  } finally {
+    if (previousMode === undefined) delete process.env.TAP_DEDUP;
+    else process.env.TAP_DEDUP = previousMode;
+  }
 });

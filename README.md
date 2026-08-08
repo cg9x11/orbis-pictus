@@ -96,8 +96,30 @@ is garbled text, or a fabricated subtitle under a title.
 3. **Prompt-hash image cache** — repeated searches often produce byte-identical prompt text. In that
    case the app serves the earlier image instead of a new one.
 
-`TAP_DEDUP=variant` keeps the savings on vision-model calls but always draws a fresh image.
-`TAP_DEDUP=off` matches the always-fresh behavior of the original site exactly.
+`TAP_DEDUP` selects which layers run:
+
+| Mode | Layer 1 | Layer 2 | Layer 3 | A repeat tap |
+|---|---|---|---|---|
+| `reuse` (default) | yes | yes | not reached | Opens the existing child. Costs nothing. |
+| `variant` | yes | no | yes | Opens the versions panel. |
+| `off` | no | no | yes | Draws a new page. |
+
+Layer 3 is independent of this setting. It keys on the authored prompt text, not on the tap. In
+`variant` and `off` mode, an identical prompt still serves the earlier image.
+
+**Explored spots are marked on the page.** A dot marks each point that you tapped before:
+
+- In `reuse` mode the dot is green. Click it to open the child page. Nothing is generated.
+- In `variant` mode the dot is amber and inert. A tap anywhere inside the marker radius opens a
+  panel. The panel lists every existing version of that subject, and offers a **Draw a new version**
+  button.
+
+The panel opens on the tap radius, not on the dot itself. The radius is 8.5% of the shorter side of
+the image, and the dot is much smaller. If the dot owned the click, a precise click is free and a
+near miss costs an image. Both go to the panel instead.
+
+**Draw a new version** skips layer 3 and always calls the image model. The button is an explicit
+request to spend, so a cached image is not an acceptable answer to it.
 
 **Idle-loop video** (experimental, off by default). If `VIDEO_ENABLED=true`, the server generates a
 short looping video after a page completes. It builds the video in the background from the image of

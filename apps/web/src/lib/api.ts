@@ -1,6 +1,5 @@
 import type {
   AspectRatio,
-  CachedTap,
   ConfigResponse,
   GenerateEvent,
   GenerateRequest,
@@ -10,7 +9,7 @@ import type {
   NodesListResponse,
   NodeTapsResponse,
 } from "@orbis/shared";
-import { ConfigResponseSchema, GenerateEventSchema } from "@orbis/shared";
+import { ConfigResponseSchema, GenerateEventSchema, NodeTapsResponseSchema } from "@orbis/shared";
 import { parseSSEStream } from "./sse";
 
 export async function streamGenerate(
@@ -42,15 +41,19 @@ export async function fetchNode(id: string): Promise<NodesGetResponse> {
 }
 
 /**
- * Points on this page that have already been explored and whose child page still exists.
- * Tapping one opens that child immediately with no generation, so they are worth marking
- * on the image. Empty when the server is not in TAP_DEDUP=reuse mode.
+ * Points on this page that have already been explored and whose child pages still exist, plus the
+ * server's dedup mode. The mode decides what a marker means, so it travels with the list rather
+ * than being fetched separately: under `reuse` tapping one opens its child for free, under
+ * `variant` it opens a panel because drawing again costs money. Always empty under `off`.
  */
-export async function fetchNodeTaps(id: string, ratio: AspectRatio): Promise<CachedTap[]> {
+export async function fetchNodeTaps(id: string, ratio: AspectRatio): Promise<NodeTapsResponse> {
   const res = await fetch(`/api/nodes/${id}/taps?ratio=${encodeURIComponent(ratio)}`);
   if (!res.ok) throw new Error(`Failed to fetch cached taps for node ${id}`);
-  const { taps } = (await res.json()) as NodeTapsResponse;
-  return taps;
+  // Parsed, not cast: the UI indexes into `children` on click, and the schema's min(1) is the only
+  // thing that makes that safe. A cast would let a version-skewed or proxied server hand back an
+  // empty array and turn a click into a TypeError. The caller already treats a rejection as
+  // "no markers", which is the correct outcome for a response we cannot trust.
+  return NodeTapsResponseSchema.parse(await res.json());
 }
 
 export async function fetchVariant(id: string, ratio: AspectRatio): Promise<Node> {

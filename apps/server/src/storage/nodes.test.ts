@@ -7,8 +7,16 @@ import type { Node } from "@orbis/shared";
 
 process.env.DATABASE_URL = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "orbis-nodes-")), "test.db");
 
-const { insertNode, findChildBySubject, findNodeByPromptHash, listGalleryNodes, getHistory, getNode, addImageVariant } =
-  await import("./nodes.js");
+const {
+  insertNode,
+  findChildBySubject,
+  findChildrenBySubject,
+  findNodeByPromptHash,
+  listGalleryNodes,
+  getHistory,
+  getNode,
+  addImageVariant,
+} = await import("./nodes.js");
 const { recordTapCache, listTapCache } = await import("./tapCache.js");
 
 let counter = 0;
@@ -80,6 +88,35 @@ test("findChildBySubject returns null when no child under that parent matches", 
 
   assert.equal(findChildBySubject("parent-2", "pho bowl"), null);
   assert.equal(findChildBySubject("some-other-parent", "banh mi"), null);
+});
+
+test("findChildrenBySubject returns every variant under one subject, oldest first", () => {
+  // The variant-mode case findChildBySubject cannot express: repeat taps on one spot each add a
+  // child with the same normalized subject, and the tap panel must list all of them.
+  const parent = makeNode({ id: "parent-multi" });
+  insertNode(parent, { normalizedSubject: "root" });
+  insertNode(makeNode({ id: "variant-b", parent_id: "parent-multi", created_at: "2026-01-02T00:00:00.000Z" }), {
+    normalizedSubject: "pho bowl",
+  });
+  insertNode(makeNode({ id: "variant-a", parent_id: "parent-multi", created_at: "2026-01-01T00:00:00.000Z" }), {
+    normalizedSubject: "pho bowl",
+  });
+
+  const found = findChildrenBySubject("parent-multi", "pho bowl");
+  assert.deepEqual(
+    found.map((n) => n.id),
+    ["variant-a", "variant-b"],
+  );
+  // findChildBySubject picks the oldest of the same set, so the two stay consistent.
+  assert.equal(findChildBySubject("parent-multi", "pho bowl")?.id, "variant-a");
+});
+
+test("findChildrenBySubject returns an empty list when nothing matches", () => {
+  const parent = makeNode({ id: "parent-empty" });
+  insertNode(parent, { normalizedSubject: "root" });
+
+  assert.deepEqual(findChildrenBySubject("parent-empty", "pho bowl"), []);
+  assert.deepEqual(findChildrenBySubject("no-such-parent", "pho bowl"), []);
 });
 
 test("findNodeByPromptHash finds a node by its stored hash", () => {

@@ -3,7 +3,17 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { strConfig, optStrConfig, boolConfig, intConfig, resolveConfigPath, DEFAULT_CONFIG_PATH, __resetConfigCacheForTests } from "./index.js";
+import {
+  strConfig,
+  optStrConfig,
+  boolConfig,
+  intConfig,
+  resolveConfigPath,
+  DEFAULT_CONFIG_PATH,
+  __resetConfigCacheForTests,
+  __expireStatThrottleForTests,
+  watchConfigFile,
+} from "./index.js";
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-config-"));
 
@@ -131,6 +141,167 @@ test("resolveConfigPath honors CONFIG_FILE when set, else uses the repo-root def
     else process.env.CONFIG_FILE = prev;
   }
 });
+
+// --- Hot-reload logging ---------------------------------------------------------------------
+
+/** Point the loader at `p`, with a fresh cache, and capture console output while `body` runs. The
+ *  live array is passed in, so a body can assert on what was logged so far. */
+function captureLogs(p: string, body: (lines: string[]) => void): string[] {
+  process.env.CONFIG_FILE = p;
+  __resetConfigCacheForTests();
+  clearEnv();
+  const lines: string[] = [];
+  const realLog = console.log;
+  const realWarn = console.warn;
+  console.log = (...args: unknown[]) => void lines.push(args.join(" "));
+  console.warn = (...args: unknown[]) => void lines.push(args.join(" "));
+  try {
+    body(lines);
+  } finally {
+    console.log = realLog;
+    console.warn = realWarn;
+  }
+  return lines;
+}
+
+/** Rewrite the file with a mtime the loader cannot mistake for the old one. Two writes inside the
+ *  same file-system timestamp tick would otherwise look unchanged, and the test would flake. */
+function rewrite(p: string, yamlText: string): void {
+  fs.writeFileSync(p, yamlText);
+  const distinct = new Date(Date.now() + 5000);
+  fs.utimesSync(p, distinct, distinct);
+}
+
+const readStyle = (): string => strConfig("CFG_STR", (c) => c.artStyle, "felt");
+
+/** Captured line `i`, with the presence check that indexing a string[] needs. */
+function line(lines: string[], i: number): string {
+  const value = lines[i];
+  assert.ok(value !== undefined, `expected a log line at index ${i}, got ${lines.length} line(s)`);
+  return value;
+}
+
+test("an edit to the config file is logged once, when the new values go live", () => {
+  const p = path.join(tmpDir, "hot-edit.yml");
+  fs.writeFileSync(p, `artStyle: papercut`);
+
+  const lines = captureLogs(p, (log) => {
+    assert.equal(readStyle(), "papercut");
+    assert.deepEqual(log, [], "the first load of a run must stay silent");
+
+    rewrite(p, `artStyle: riso`);
+    __expireStatThrottleForTests();
+    assert.equal(readStyle(), "riso"); // the read that makes the edit live is the read that logs
+    assert.equal(log.length, 1);
+    assert.match(line(log, 0), /config file changed/);
+
+    // A later read finds the same file. It must not repeat the line.
+    __expireStatThrottleForTests();
+    assert.equal(readStyle(), "riso");
+    assert.equal(log.length, 1);
+  });
+  assert.equal(lines.length, 1);
+});
+
+test("creating and removing the config file are logged with what now applies", () => {
+  const p = path.join(tmpDir, "hot-create.yml");
+  if (fs.existsSync(p)) fs.unlinkSync(p);
+
+  const lines = captureLogs(p, () => {
+    assert.equal(readStyle(), "felt"); // no file: the built-in default
+
+    rewrite(p, `artStyle: papercut`);
+    __expireStatThrottleForTests();
+    assert.equal(readStyle(), "papercut");
+
+    fs.unlinkSync(p);
+    __expireStatThrottleForTests();
+    assert.equal(readStyle(), "felt");
+  });
+
+  assert.equal(lines.length, 2);
+  assert.match(line(lines, 0), /config file created/);
+  assert.match(line(lines, 1), /config file removed/);
+});
+
+test("an invalid edit is warned about once, and the fix is logged", () => {
+  const p = path.join(tmpDir, "hot-invalid.yml");
+  fs.writeFileSync(p, `artStyle: papercut`);
+
+  const lines = captureLogs(p, () => {
+    assert.equal(readStyle(), "papercut");
+
+    rewrite(p, `video:\n  enabled: "yes"`); // enabled must be a boolean
+    __expireStatThrottleForTests();
+    assert.throws(readStyle, /Invalid config file/);
+    assert.throws(readStyle, /Invalid config file/); // still broken: the warning must not repeat
+
+    rewrite(p, `artStyle: riso`);
+    assert.equal(readStyle(), "riso");
+  });
+
+  assert.equal(lines.length, 2);
+  assert.match(line(lines, 0), /config file changed, but it is invalid/);
+  assert.match(line(lines, 1), /config file is valid again/);
+});
+
+test("deleting a config file that was invalid is reported as removed, not as fixed", () => {
+  // Both conditions hold at once here: the file was reported invalid, AND it is now gone. Reporting
+  // "valid again ... the new values are live" would name a file that does not exist and imply its
+  // settings are in force, when in fact env values and defaults took over.
+  const p = path.join(tmpDir, "hot-invalid-removed.yml");
+  fs.writeFileSync(p, `artStyle: papercut`);
+
+  const lines = captureLogs(p, () => {
+    assert.equal(readStyle(), "papercut");
+
+    rewrite(p, `video:\n  enabled: "yes"`); // enabled must be a boolean
+    __expireStatThrottleForTests();
+    assert.throws(readStyle, /Invalid config file/);
+
+    fs.unlinkSync(p);
+    __expireStatThrottleForTests();
+    assert.equal(readStyle(), "felt"); // back to the built-in default
+  });
+
+  assert.equal(lines.length, 2);
+  assert.match(line(lines, 0), /config file changed, but it is invalid/);
+  assert.match(line(lines, 1), /config file removed/);
+  assert.doesNotMatch(line(lines, 1), /valid again/);
+});
+
+test("the watcher reports a save without waiting for a config read", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-watch-"));
+  const p = path.join(dir, "config.yml");
+  fs.writeFileSync(p, `artStyle: papercut`);
+
+  process.env.CONFIG_FILE = p;
+  __resetConfigCacheForTests();
+  clearEnv();
+
+  const lines: string[] = [];
+  const realLog = console.log;
+  console.log = (...args: unknown[]) => void lines.push(args.join(" "));
+  const stop = watchConfigFile();
+  try {
+    assert.equal(readStyle(), "papercut"); // the boot read, which primes the cache
+
+    rewrite(p, `artStyle: riso`);
+    // Nothing reads the config here. Only the watcher can produce a line.
+    const deadline = Date.now() + 5000;
+    while (lines.length === 0 && Date.now() < deadline) await sleep(50);
+
+    assert.equal(lines.length, 1, "the save must produce exactly one line");
+    assert.match(line(lines, 0), /config file changed/);
+    assert.equal(readStyle(), "riso", "the watcher must also make the new value live");
+  } finally {
+    stop();
+    console.log = realLog;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 test("cleanup", () => {
   clearEnv();

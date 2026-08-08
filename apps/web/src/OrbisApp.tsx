@@ -10,6 +10,7 @@ import { ModelSettingsPanel } from "./components/ModelSettingsPanel";
 import { VideoLoopToggle } from "./components/VideoLoopToggle";
 import { GenerationProgress } from "./components/GenerationProgress";
 import { CachedTapMarkers } from "./components/CachedTapMarkers";
+import { TapVariantPanel } from "./components/TapVariantPanel";
 import { Landing } from "./components/Landing";
 import { classNames } from "./lib/classNames";
 import { useOrbisController } from "./hooks/useOrbisController";
@@ -56,11 +57,17 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
     morphActive,
     clearMorph,
     cachedTaps,
+    tapDedupMode,
+    variantPanelTap,
     milestone,
     dismissMilestone,
     handleSearch,
     handleTap,
     handleOpenCachedTap,
+    handleInspectCachedTap,
+    handleCloseVariantPanel,
+    handleDrawNewVariant,
+    openExistingChild,
     handleAddressSubmit,
     handleRetry,
     handleNavigate,
@@ -143,7 +150,15 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
           morphUrl={morphUrl}
           morphActive={morphActive}
           onMorphEnded={clearMorph}
-          markers={<CachedTapMarkers taps={cachedTaps} onOpen={handleOpenCachedTap} hidden={busy || morphActive} />}
+          markers={
+            <CachedTapMarkers
+              taps={cachedTaps}
+              mode={tapDedupMode}
+              onOpen={handleOpenCachedTap}
+              onInspect={handleInspectCachedTap}
+              hidden={busy || morphActive}
+            />
+          }
           videoGenerating={videoGenerating}
           preparingClips={preparingClips}
           loading={showLoadingIndicator}
@@ -162,6 +177,15 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
           onRippleDone={() => setRipple(null)}
           imgRef={imgRef}
           aspectRatio={aspectRatio}
+        />
+      )}
+      {variantPanelTap && (
+        <TapVariantPanel
+          tap={variantPanelTap}
+          onOpen={openExistingChild}
+          onDrawNew={handleDrawNewVariant}
+          onClose={handleCloseVariantPanel}
+          busy={busy}
         />
       )}
       {isStreaming && state.tapSubject && <div className="tap-subject-banner">{state.tapSubject}</div>}

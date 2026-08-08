@@ -39,6 +39,67 @@ let cachedMtimeMs = 0; // mtime of the file backing cachedFile (0 when no file p
 let lastStatMs = 0; // wall-clock of the last freshness check, to throttle the stat
 const STAT_THROTTLE_MS = 1000;
 
+// --- Change reporting -----------------------------------------------------------------------
+// The loader is lazy: an edit is noticed on the first config read after it, not at the moment of
+// the save. So these lines mark when the new values actually went live, which is the fact an
+// operator needs in order to line the change up against a request. The first load stays silent —
+// only a change after the process started is news.
+
+let reloadedFromMtimeMs: number | null = null; // mtime the cache held when a change was detected
+let reportedInvalidMtimeMs: number | null = null; // file version already reported as invalid
+
+/** mtime of `filePath` in ms, or 0 when no file is there. */
+function statMtimeMs(filePath: string): number {
+  try {
+    return fs.statSync(filePath).mtimeMs;
+  } catch {
+    return 0; // gone (or unreadable): treat it as "no file", the same as loadFile does
+  }
+}
+
+/** Report a reload that already succeeded. */
+function reportReload(filePath: string): void {
+  const from = reloadedFromMtimeMs;
+  const wasInvalid = reportedInvalidMtimeMs !== null;
+  reloadedFromMtimeMs = null;
+  reportedInvalidMtimeMs = null;
+
+  // Was a file there before this load? `from` holds the mtime the cache carried when a change was
+  // detected (0 meaning "no file then"), and `wasInvalid` means a file was there and we complained
+  // about it. Either one proves a file existed.
+  const hadFile = (from !== null && from !== 0) || wasInvalid;
+
+  // "Gone" is decided FIRST, before `wasInvalid`. An operator who saves a broken config and then
+  // deletes it satisfies both conditions, and answering with "valid again ... the new values are
+  // live" describes a file that no longer exists — the opposite of what happened.
+  if (cachedMtimeMs === 0) {
+    if (hadFile) {
+      console.log(`[orbis] config file removed (${filePath}). Environment values and defaults now apply.`);
+    }
+    return; // no file now and none before: the first load of a run, which stays silent
+  }
+
+  if (wasInvalid) {
+    console.log(`[orbis] config file is valid again (${filePath}). The new values are live.`);
+  } else if (from === null) {
+    return; // first load of the run, not a change
+  } else if (from === 0) {
+    console.log(`[orbis] config file created (${filePath}). The new values are live.`);
+  } else {
+    console.log(`[orbis] config file changed (${filePath}). The new values are live.`);
+  }
+}
+
+/** Report a load that failed. The caller still throws. One warning per file version: without the
+ *  mtime guard, every request repeats the same block until an operator corrects the file. */
+function reportInvalid(filePath: string, err: unknown): void {
+  const mtimeMs = statMtimeMs(filePath);
+  if (mtimeMs === reportedInvalidMtimeMs) return;
+  reportedInvalidMtimeMs = mtimeMs;
+  const what = reloadedFromMtimeMs === null ? "config file is invalid" : "config file changed, but it is invalid";
+  console.warn(`[orbis] ${what}. Config reads fail until you correct it.\n${err instanceof Error ? err.message : String(err)}`);
+}
+
 /** Read + validate the file at `filePath` (null if it doesn't exist). Throws on invalid content. */
 function loadFile(filePath: string): FileConfig | null {
   if (!fs.existsSync(filePath)) return null;
@@ -60,27 +121,98 @@ function fileConfig(): FileConfig {
   // costs a single stat. A create/edit/delete all change what statSync returns and trigger a reload.
   if (cachedFile !== undefined && now - lastStatMs >= STAT_THROTTLE_MS) {
     lastStatMs = now;
-    let mtimeMs = 0;
-    try {
-      mtimeMs = fs.statSync(filePath).mtimeMs;
-    } catch {
-      mtimeMs = 0; // gone
+    const mtimeMs = statMtimeMs(filePath);
+    if (mtimeMs !== cachedMtimeMs) {
+      reloadedFromMtimeMs = cachedMtimeMs; // remember the old version, so the log can name the change
+      cachedFile = undefined;
     }
-    if (mtimeMs !== cachedMtimeMs) cachedFile = undefined;
   }
 
   if (cachedFile === undefined) {
     lastStatMs = now;
-    cachedFile = loadFile(filePath);
-    cachedMtimeMs = cachedFile === null ? 0 : fs.statSync(filePath).mtimeMs;
+    // Stat BEFORE reading, and stamp the cache with that value. Statting afterwards pairs the bytes
+    // we read with an mtime that may already belong to a NEWER save — an editor that writes a file
+    // in several steps can land one between the two calls. The check above then compares against
+    // that newer mtime forever, so the edit is never noticed and stays lost until a restart.
+    // Stamping with the pre-read mtime is self-correcting: if a save did land during the read, the
+    // file's real mtime no longer matches the stamp, and the next check reloads.
+    const mtimeBeforeRead = statMtimeMs(filePath);
+    let loaded: FileConfig | null;
+    try {
+      loaded = loadFile(filePath);
+    } catch (err) {
+      reportInvalid(filePath, err);
+      throw err;
+    }
+    cachedFile = loaded;
+    // statMtimeMs, not fs.statSync: the file can be deleted between loadFile's read and this line,
+    // and a raw statSync would throw out of a plain config read.
+    cachedMtimeMs = loaded === null ? 0 : mtimeBeforeRead;
+    reportReload(filePath);
   }
   return cachedFile ?? {};
+}
+
+/** Re-read the file now, so a watcher's report lands at save time. The load path already reports a
+ *  failure, so swallow the error here: an uncaught throw inside a watch callback kills the server. */
+function refreshNow(): void {
+  lastStatMs = 0; // the edit is already known, so do not wait out the stat throttle
+  try {
+    fileConfig();
+  } catch {
+    /* reportInvalid warned about it */
+  }
+}
+
+/**
+ * Watch the config file and report a change as it happens, instead of on the next config read.
+ * Call it once, from the server entry point. Returns a function that stops the watch.
+ *
+ * Without this, the report is only as prompt as the next request: an operator who saves the file
+ * and watches the terminal sees nothing until something reads the config.
+ */
+export function watchConfigFile(): () => void {
+  const filePath = resolveConfigPath();
+  const dir = path.dirname(filePath);
+  const name = path.basename(filePath);
+  let timer: NodeJS.Timeout | undefined;
+  let watcher: fs.FSWatcher;
+
+  try {
+    // Watch the directory, not the file. An editor that saves by writing a temporary file and
+    // renaming it over the original replaces the directory entry, and a watch on the file itself
+    // then reports nothing more. A directory watch also sees the file created or deleted.
+    watcher = fs.watch(dir, { persistent: false }, (_event, changed) => {
+      if (changed !== null && changed !== name) return;
+      // One save fires several events. Coalesce them, so one edit prints one line.
+      clearTimeout(timer);
+      timer = setTimeout(refreshNow, 150);
+      timer.unref?.();
+    });
+  } catch (err) {
+    console.warn(`[orbis] cannot watch ${dir} for config changes: ${err instanceof Error ? err.message : String(err)}`);
+    return () => {};
+  }
+
+  watcher.on("error", (err) => console.warn(`[orbis] config watch stopped: ${err.message}`));
+  return () => {
+    clearTimeout(timer);
+    watcher.close();
+  };
 }
 
 /** Test-only: forget the parsed file so a later call re-reads it (used by config's own tests). */
 export function __resetConfigCacheForTests(): void {
   cachedFile = undefined;
   cachedMtimeMs = 0;
+  lastStatMs = 0;
+  reloadedFromMtimeMs = null;
+  reportedInvalidMtimeMs = null;
+}
+
+/** Test-only: age out the stat throttle so the next read checks the file at once. Keeps the cache,
+ *  which is what makes a hot-reload testable without a real one-second wait. */
+export function __expireStatThrottleForTests(): void {
   lastStatMs = 0;
 }
 

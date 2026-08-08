@@ -222,7 +222,13 @@ export async function runGenerate(
   // change invalidates it too. Excluded for edit mode — edits are conditioned on the current
   // page's actual pixels (referenceImageDataUrl), so two edits that happen to author byte-identical
   // prompt text can still need genuinely different output images.
-  const canReuseImage = req.mode !== "edit";
+  //
+  // Also excluded when the tap panel asked for a new version outright. That request is the user
+  // spending on purpose, so serving stored pixels back would be a broken promise, not a saving.
+  // The flag drops BOTH the cache read and the in-flight coalescing below: two such clicks landing
+  // together must produce two drawings, or the second user still gets the first one's image.
+  const forceNewImage = req.mode === "tap" && req.force_new_image;
+  const canReuseImage = req.mode !== "edit" && !forceNewImage;
   const promptHash = computePromptHash(imagePrompt, req.aspect_ratio, ctx.providers.image.modelId, ctx.providers.image.providerId);
   const cachedImageNode = canReuseImage ? findNodeByPromptHash(promptHash) : null;
   const cachedImageUrl = cachedImageNode?.image_variants[req.aspect_ratio];

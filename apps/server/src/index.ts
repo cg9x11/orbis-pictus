@@ -17,7 +17,7 @@ import { isVideoEnabled } from "./pipeline/videoConfig.js";
 import { isMorphEnabled } from "./pipeline/morphConfig.js";
 import { getDefaultArtStyleName, listArtStyles, getDefaultCompositionName, listCompositions } from "./pipeline/artStyle.js";
 import { isUploadEnabled } from "./pipeline/config.js";
-import { intConfig, strConfig } from "./config/index.js";
+import { intConfig, strConfig, watchConfigFile, resolveConfigPath } from "./config/index.js";
 import { WEB_DIST, WEB_SRC_INDEX_HTML } from "./paths.js";
 
 // Resolved once here purely to report missing keys at startup and to answer /api/config's
@@ -121,4 +121,8 @@ app.get("*", serveStatic({ path: path.join(path.relative(process.cwd(), WEB_DIST
 const port = intConfig("PORT", (c) => c.server?.port, 8787);
 serve({ fetch: app.fetch, port }, (info) => {
   console.log(`[orbis] server listening on http://localhost:${info.port}`);
+  // Armed here and nowhere else: only the long-running server benefits from a live report, and a
+  // watcher in the test or script processes would just hold the event loop open.
+  watchConfigFile();
+  console.log(`[orbis] watching for config changes: ${resolveConfigPath()}`);
 });

@@ -7,10 +7,11 @@ import {
   NodesUploadRequestSchema,
   type ModelOverrides,
   type Node,
+  type NodeTapsResponse,
 } from "@orbis/shared";
 import {
   addImageVariant,
-  findChildBySubject,
+  findChildrenBySubject,
   getHistory,
   getMorphInfo,
   getNode,
@@ -177,22 +178,43 @@ export function nodesRoute(
     return c.json({ node }, 201);
   });
 
-  // Already-explored tap points. Returns only spots that resolve all the way to an
-  // existing child page, because those are the ones where a tap costs nothing — a tap-cache row on
-  // its own merely skips the VLM call and still generates an image, which is not what the marker
-  // promises. For the same reason the list is empty unless TAP_DEDUP is "reuse": in "variant" or
-  // "off" mode a repeat tap deliberately generates a fresh page, so nothing here would be instant.
+  // Already-explored tap points. Returns only spots that resolve all the way to at least one
+  // existing child page: a tap-cache row on its own says nothing the user can act on.
+  //
+  // `mode` travels with the list because the same coordinates mean different things to the client.
+  // Under "reuse" a marker is a free shortcut to the one child. Under "variant" it is a disclosure —
+  // the spot is known, but drawing again costs money, so the client opens a panel instead of
+  // navigating. Under "off" the list is always empty: nothing is cached, and rows left behind by an
+  // earlier run in another mode must not resurface as markers for a mode that ignores them.
   app.get("/:id/taps", (c) => {
     const id = c.req.param("id");
     const ratio = AspectRatioSchema.safeParse(c.req.query("ratio"));
     if (!ratio.success) return c.json({ error: "Invalid or missing ratio" }, 400);
-    if (getTapDedupMode() !== "reuse") return c.json({ taps: [] });
+
+    const mode = getTapDedupMode();
+    if (mode === "off") return c.json({ mode, taps: [] } satisfies NodeTapsResponse);
 
     const taps = listTapCache(id, ratio.data).flatMap((row) => {
-      const child = findChildBySubject(id, normalizeSubject(row.subject));
-      return child ? [{ x: row.x, y: row.y, subject: row.subject, child_id: child.id }] : [];
+      const children = findChildrenBySubject(id, normalizeSubject(row.subject));
+      if (children.length === 0) return [];
+      return [
+        {
+          x: row.x,
+          y: row.y,
+          subject: row.subject,
+          children: children.map((child) => ({
+            id: child.id,
+            page_title: child.page_title,
+            // Null rather than omitted: a child first drawn at another aspect ratio has no image
+            // for this one until the variant route lazily makes it, and the panel must render that
+            // row as a placeholder instead of dropping a real page from the list.
+            image_url: child.image_variants[ratio.data] ?? null,
+            created_at: child.created_at,
+          })),
+        },
+      ];
     });
-    return c.json({ taps });
+    return c.json({ mode, taps } satisfies NodeTapsResponse);
   });
 
   // Idle-loop video polling: 404 until the background clip is ready, whether

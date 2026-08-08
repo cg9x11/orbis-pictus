@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { AspectRatio, CachedTap, GenerateRequest, ArtStyleOption, ModelSettings, Node } from "@orbis/shared";
+import {
+  isWithinTapRadius,
+  type AspectRatio,
+  type CachedTap,
+  type GenerateRequest,
+  type ArtStyleOption,
+  type ModelSettings,
+  type Node,
+} from "@orbis/shared";
 import { pruneEmptyPrefs, readModelPrefs, writeModelPrefs, type ModelPrefs } from "../lib/persistedPrefs";
 import { useCachedTaps } from "./useCachedTaps";
 import { useGenerationStream } from "./useGenerationStream";
@@ -21,6 +29,7 @@ import {
   waitForVideoReady,
 } from "../lib/api";
 import { captureCurrentImage } from "../lib/imageCapture";
+import { drawTapMarker } from "../lib/tapMarker";
 
 function newSessionId(): string {
   return `session_${crypto.randomUUID()}`;
@@ -201,7 +210,25 @@ export function useOrbisController(initialNodeId?: string) {
   const morphActive = morphPending || morphUrl !== null;
   // Spots on this page already explored, shown as markers so a free tap is visible
   // before it is made.
-  const cachedTaps = useCachedTaps(current?.id, aspectRatio);
+  const { taps: cachedTaps, mode: tapDedupMode, loading: tapsLoading } = useCachedTaps(current?.id, aspectRatio);
+
+  // The explored spot a variant-mode tap landed on, or null when no panel is open. Holding the tap
+  // itself (not just its id) keeps the panel's own subject and child list stable while it is open,
+  // even if a refetch swaps the underlying array.
+  const [variantPanelTap, setVariantPanelTap] = useState<CachedTap | null>(null);
+
+  // Any tap the cache would treat as a repeat of this one. This is the SAME predicate the server
+  // uses for its layer-1 lookup, imported from @orbis/shared rather than re-derived here: if the two
+  // ever disagreed, a click could be a cache hit server-side while the UI called it new ground.
+  const findExploredTapAt = (x: number, y: number): CachedTap | undefined =>
+    cachedTaps.find((tap) => isWithinTapRadius(aspectRatio, tap.x, tap.y, x, y));
+
+  // The panel describes one spot on one page at one aspect ratio. When any of those change the tap
+  // it was opened for no longer refers to anything on screen, so it must close rather than keep
+  // offering to draw at coordinates belonging to a page the user has left.
+  useEffect(() => {
+    setVariantPanelTap(null);
+  }, [current?.id, aspectRatio]);
 
   // A deep-linked page arrives with its title already rendered into the HTML by the server (for
   // link unfurling), and nothing updated it afterwards — so going Home, or opening any other page,
@@ -307,35 +334,98 @@ export function useOrbisController(initialNodeId?: string) {
   };
 
   const handleTap = (imageEl: HTMLImageElement, clientX: number, clientY: number) => {
-    if (!current || busy || morphActive) return;
+    // `tapsLoading` guards money, not correctness of display. Until /taps answers, this page's
+    // explored spots are UNKNOWN, and generating on an unknown is the one mistake that cannot be
+    // undone — it spends. Waiting costs a few tens of milliseconds against a local database, and
+    // the fetch always settles (the failure path clears the flag too), so a tap is never dead.
+    if (!current || busy || morphActive || tapsLoading) return;
     const { dataUrl, xRatio, yRatio } = captureTap(imageEl, clientX, clientY);
+
+    // Decide BEFORE spending. The marker dot is ~9px wide but the cache treats anything within
+    // 8.5% of the image's shorter side as the same tap, so gating on "did you hit the dot" would
+    // make a precise click free and a click 30px away cost an image — the same intent billed two
+    // different ways. Gating on the real radius instead means every click the server would call a
+    // repeat is routed identically, wherever inside the circle it lands.
+    const explored = tapDedupMode === "variant" ? findExploredTapAt(xRatio, yRatio) : undefined;
+    if (explored) {
+      setRipple({ xRatio, yRatio });
+      setVariantPanelTap(explored);
+      return;
+    }
+
     setRipple({ xRatio, yRatio });
     return runRequest({
       mode: "tap",
       markedImage: dataUrl,
       x: xRatio,
       y: yRatio,
+      force_new_image: false,
       parent_title: current.page_title,
       ...baseRequestFields(),
     });
   };
 
   /**
-   * Opens an already-generated child from a cached-tap marker. Deliberately does not go
-   * through runRequest: the whole point of the marker is that this path touches no provider at all,
-   * so it fetches the stored node and appends it to the trail directly.
+   * Opens an already-generated child by id. Deliberately does not go through runRequest: both
+   * callers (the free `reuse` marker and the variant panel's list) exist precisely because this
+   * path touches no provider at all, so it fetches the stored node and appends it to the trail.
    */
-  const handleOpenCachedTap = async (tap: CachedTap) => {
+  const openExistingChild = async (childId: string) => {
     if (busy) return;
     setActionError(null);
     try {
-      const { node } = await fetchNode(tap.child_id);
+      const { node } = await fetchNode(childId);
+      setVariantPanelTap(null);
       append(node);
       recordPage();
     } catch (err) {
       console.error(err);
       setActionError(err instanceof Error ? err.message : "Couldn't open that page");
     }
+  };
+
+  /** `reuse` mode only: the green marker is a shortcut to the single child behind it. */
+  const handleOpenCachedTap = (tap: CachedTap) => {
+    // The schema promises min(1) and fetchNodeTaps now parses rather than casts, so this is
+    // belt-and-braces — but the cost of being wrong is an uncaught TypeError in a click handler
+    // with no error boundary above it, which blanks the page.
+    const first = tap.children[0];
+    if (!first) return;
+    return openExistingChild(first.id);
+  };
+
+  /** `variant` mode only: the amber marker opens the panel. Same destination as tapping anywhere
+   *  else inside the marker radius, so the dot and its surroundings never disagree. */
+  const handleInspectCachedTap = (tap: CachedTap) => {
+    if (busy || morphActive) return;
+    // Ripple too, so hitting the dot and hitting the surrounding radius look the same as well as
+    // behaving the same. Drawn at the stored coordinates, which is where the dot sits.
+    setRipple({ xRatio: tap.x, yRatio: tap.y });
+    setVariantPanelTap(tap);
+  };
+
+  const handleCloseVariantPanel = () => setVariantPanelTap(null);
+
+  /**
+   * The panel's "Draw a new version": a deliberate, explicitly-paid generation at an already-known
+   * spot. `force_new_image` stops layer 3 from answering it with the earlier node's pixels — without
+   * that the button could return the identical picture and look broken.
+   */
+  const handleDrawNewVariant = (tap: CachedTap) => {
+    if (!current || !imgRef.current || busy || morphActive) return;
+    // Re-marked from the stored ratios rather than a click position: the panel is open, so there is
+    // no cursor to read, and the VLM still resolves the subject from the drawn marker.
+    const markedImage = drawTapMarker(imgRef.current, tap.x, tap.y);
+    setVariantPanelTap(null);
+    return runRequest({
+      mode: "tap",
+      markedImage,
+      x: tap.x,
+      y: tap.y,
+      force_new_image: true,
+      parent_title: current.page_title,
+      ...baseRequestFields(),
+    });
   };
 
   const handleEdit = (command: string) => {
@@ -489,11 +579,17 @@ export function useOrbisController(initialNodeId?: string) {
     morphActive,
     clearMorph,
     cachedTaps,
+    tapDedupMode,
+    variantPanelTap,
     milestone,
     dismissMilestone,
     handleSearch,
     handleTap,
     handleOpenCachedTap,
+    handleInspectCachedTap,
+    handleCloseVariantPanel,
+    handleDrawNewVariant,
+    openExistingChild,
     handleEdit,
     handleAddressSubmit,
     handleRetry,

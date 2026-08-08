@@ -1,15 +1,10 @@
-import type { AspectRatio } from "@orbis/shared";
+import type { AspectRatio } from "./schema.js";
 
 /** ~4% grid (layer 1): cell = round(ratio * 24). */
 export const TAP_CACHE_GRID = 24;
 
 export function tapCellIndex(ratio: number): number {
   return Math.round(ratio * TAP_CACHE_GRID);
-}
-
-/** The cell and its 8 neighbors ("check the cell and its 8 neighboring cells"). */
-export function neighborCells(cell: number): number[] {
-  return [cell - 1, cell, cell + 1];
 }
 
 // Proportions only (not pixel dimensions) — the tap-cache radius must be a pure function
@@ -38,6 +33,10 @@ export function tapRadiusRatios(aspectRatio: AspectRatio): { rx: number; ry: num
  * Whether (x2,y2) falls under the same tap marker as (x1,y1) — i.e. within the visual circle's
  * radius, honestly matching "anything under the same circle is the same click".
  * Coordinates are normalized [0,1] fractions of image width/height.
+ *
+ * Lives in the shared package because both sides must agree on it: the server uses it for the
+ * layer-1 cache lookup, and the web client uses it to decide, before spending anything, whether a
+ * tap lands on an already-explored spot. A second implementation on either side would drift.
  */
 export function isWithinTapRadius(aspectRatio: AspectRatio, x1: number, y1: number, x2: number, y2: number): boolean {
   const { rx, ry } = tapRadiusRatios(aspectRatio);

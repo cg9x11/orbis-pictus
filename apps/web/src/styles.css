@@ -451,11 +451,199 @@ body {
   padding-right: 6px;
 }
 
+/* Variant mode: amber rather than green, and a dashed edge — this spot is known, but drawing it
+   again is not free. It stays a normal interactive button (it must be hoverable and focusable, or
+   the label and tooltip never appear); clicking it opens the versions panel, exactly as clicking
+   anywhere else inside the tap radius does. */
+.cached-tap--variant {
+  border-color: rgba(43, 38, 32, 0.3);
+  border-style: dashed;
+}
+
+.cached-tap--variant .cached-tap-dot {
+  background: #b0651a;
+}
+
+.cached-tap--variant:hover,
+.cached-tap--variant:focus-visible {
+  border-color: #b0651a;
+  border-style: solid;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cached-tap,
   .cached-tap-label {
     transition: none;
   }
+}
+
+/* --- Variant tap panel --- */
+
+.tap-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(43, 38, 32, 0.55);
+}
+
+.tap-panel {
+  width: min(420px, 100%);
+  max-height: min(80vh, 620px);
+  display: flex;
+  flex-direction: column;
+  background: #fffdf6;
+  border: 3px solid #2b2620;
+  border-radius: 10px;
+  box-shadow: 4px 4px 0 #2b2620;
+  overflow: hidden;
+}
+
+.tap-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 10px;
+  border-bottom: 3px solid #2b2620;
+}
+
+.tap-panel-eyebrow {
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b0651a;
+}
+
+.tap-panel-title {
+  margin: 2px 0 0;
+  font-size: 1.05rem;
+  line-height: 1.2;
+  color: #2b2620;
+}
+
+.tap-panel-close {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 2px solid #2b2620;
+  border-radius: 6px;
+  background: #fffdf6;
+  color: #2b2620;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tap-panel-close:hover,
+.tap-panel-close:focus-visible {
+  background: #2b2620;
+  color: #fffdf6;
+}
+
+.tap-panel-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+}
+
+.tap-panel-version {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: #2b2620;
+  cursor: pointer;
+}
+
+.tap-panel-version:hover:not(:disabled),
+.tap-panel-version:focus-visible:not(:disabled) {
+  border-color: #2e7d5b;
+  background: rgba(46, 125, 91, 0.08);
+}
+
+.tap-panel-version:disabled,
+.tap-panel-draw:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tap-panel-thumb {
+  flex: none;
+  width: 64px;
+  height: 40px;
+  object-fit: cover;
+  border: 2px solid #2b2620;
+  border-radius: 4px;
+  background: rgba(43, 38, 32, 0.08);
+}
+
+.tap-panel-thumb--empty {
+  display: block;
+}
+
+.tap-panel-version-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tap-panel-version-title {
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tap-panel-version-meta {
+  font-size: 0.72rem;
+  color: rgba(43, 38, 32, 0.65);
+}
+
+.tap-panel-actions {
+  padding: 10px 16px 14px;
+  border-top: 3px solid #2b2620;
+}
+
+/* Deliberately not the primary-looking control in the panel: the free choices are the list above,
+   and this one spends. It is plainly reachable, but it does not invite a reflex click. */
+.tap-panel-draw {
+  width: 100%;
+  padding: 9px 12px;
+  border: 2px solid #b0651a;
+  border-radius: 8px;
+  background: #fffdf6;
+  color: #b0651a;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.tap-panel-draw:hover:not(:disabled),
+.tap-panel-draw:focus-visible:not(:disabled) {
+  background: #b0651a;
+  color: #fffdf6;
+}
+
+.tap-panel-note {
+  margin: 8px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: rgba(43, 38, 32, 0.65);
 }
 
 .page-loading-overlay {

@@ -131,6 +131,20 @@ export function findChildBySubject(parentId: string, normalizedSubject: string):
   return row ? rowToNode(row) : null;
 }
 
+const findChildrenBySubjectStmt = db.prepare(`
+  SELECT * FROM nodes WHERE parent_id = ? AND normalized_subject = ? ORDER BY created_at ASC
+`);
+
+/**
+ * Every child of `parentId` covering this normalized subject, oldest first. Under `reuse` this is
+ * always zero or one row (layer 2 stops a second one from being made), but under `variant` each
+ * repeat tap adds another, and the tap panel has to show all of them.
+ */
+export function findChildrenBySubject(parentId: string, normalizedSubject: string): Node[] {
+  const rows = findChildrenBySubjectStmt.all(parentId, normalizedSubject) as unknown as NodeRow[];
+  return rows.map(rowToNode);
+}
+
 const findByPromptHashStmt = db.prepare(`
   SELECT * FROM nodes WHERE prompt_hash = ? ORDER BY created_at ASC LIMIT 1
 `);

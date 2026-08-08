@@ -84,6 +84,9 @@ upload:
   enabled: false               # accepts arbitrary user images; opt in deliberately
 
 # --- Tap caching & reuse ---
+# reuse   = a repeat tap opens the existing child, free
+# variant = a repeat tap opens a panel: pick an old version, or pay to draw a new one
+# off     = a repeat tap always draws
 tapDedup: reuse                # reuse | variant | off
 
 # --- Debug ---

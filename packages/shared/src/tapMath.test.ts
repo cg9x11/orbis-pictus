@@ -1,17 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { tapCellIndex, neighborCells, tapRadiusRatios, isWithinTapRadius } from "./tapMath.js";
+import { tapCellIndex, tapRadiusRatios, isWithinTapRadius } from "./tapMath.js";
 
 test("tapCellIndex quantizes to a 24-cell grid", () => {
   assert.equal(tapCellIndex(0), 0);
   assert.equal(tapCellIndex(1), 24);
   assert.equal(tapCellIndex(0.5), 12);
   assert.equal(tapCellIndex(0.501), 12);
-});
-
-test("neighborCells returns the cell and its immediate neighbors", () => {
-  assert.deepEqual(neighborCells(5), [4, 5, 6]);
-  assert.deepEqual(neighborCells(0), [-1, 0, 1]);
 });
 
 test("tapRadiusRatios: min-dimension axis gets the full 8.5% radius", () => {

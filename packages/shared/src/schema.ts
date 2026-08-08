@@ -150,6 +150,12 @@ export const GenerateTapRequestSchema = z.object({
   // Which composition block (flat / diorama) to use — same free-string + server-default rationale
   // as art_style above; the server falls back to its COMPOSITION default for anything unrecognised.
   composition: z.string().optional(),
+  // Set only by the tap panel's "Draw a new version" button, which is an explicit, deliberate
+  // request to spend. It suppresses the layer-3 prompt-hash image cache for this one generation.
+  // Without it a repeat tap whose authored prompt happens to come out identical would be served the
+  // earlier node's pixels, and the user would click "new version" and get the same picture back.
+  // Layers 1 and 2 are untouched: the VLM cache still applies, and reuse mode never reaches here.
+  force_new_image: z.boolean().default(false),
   parent_title: z.string(),
   session_id: z.string(),
   current_node_id: z.string(),
@@ -387,19 +393,44 @@ export type ConfigResponse = z.infer<typeof ConfigResponseSchema>;
 
 // --- Cached tap points ---
 /**
- * A spot on a page that has already been tapped and whose child page still exists, so tapping it
- * again opens that child immediately and generates nothing. Coordinates are normalized [0,1]
- * fractions of image width/height, matching the tap-marker geometry in pipeline/tapMath.ts.
+ * How the server deduplicates repeat taps. Declared here rather than server-side because the web
+ * client must branch on it: the same marker means "free, opens the child" under `reuse` and
+ * "explored before, a new draw costs money" under `variant`.
+ */
+export const TapDedupModeSchema = z.enum(["reuse", "variant", "off"]);
+export type TapDedupMode = z.infer<typeof TapDedupModeSchema>;
+
+/** One already-generated child page reachable from a cached tap point. */
+export const CachedTapChildSchema = z.object({
+  id: z.string(),
+  page_title: z.string(),
+  /** The child's image at the requested aspect ratio, or null when that variant was never drawn. */
+  image_url: z.string().nullable(),
+  created_at: z.string(),
+});
+export type CachedTapChild = z.infer<typeof CachedTapChildSchema>;
+
+/**
+ * A spot on a page that has already been tapped and whose child pages still exist. Coordinates are
+ * normalized [0,1] fractions of image width/height, matching the tap-marker geometry in
+ * ./tapMath.ts.
+ *
+ * `children` is a list, not a single id, because only `reuse` mode collapses one subject to one
+ * child. Under `variant` every repeat tap adds another child for the same subject, and picking one
+ * of them to show would be an arbitrary choice presented to the user as the answer.
  */
 export const CachedTapSchema = z.object({
   x: z.number(),
   y: z.number(),
   subject: z.string(),
-  child_id: z.string(),
+  children: z.array(CachedTapChildSchema).min(1),
 });
 export type CachedTap = z.infer<typeof CachedTapSchema>;
 
-export const NodeTapsResponseSchema = z.object({ taps: z.array(CachedTapSchema) });
+export const NodeTapsResponseSchema = z.object({
+  mode: TapDedupModeSchema,
+  taps: z.array(CachedTapSchema),
+});
 export type NodeTapsResponse = z.infer<typeof NodeTapsResponseSchema>;
 
 // --- Idle-loop video ---

@@ -1,7 +1,6 @@
-import type { AspectRatio } from "@orbis/shared";
+import { type AspectRatio, tapCellIndex, isWithinTapRadius } from "@orbis/shared";
 import { db } from "./db.js";
 import type { TapCacheRow } from "./rows.js";
-import { tapCellIndex, isWithinTapRadius } from "../pipeline/tapMath.js";
 
 const insertStmt = db.prepare(`
   INSERT INTO tap_cache (node_id, cell_x, cell_y, x, y, subject, aspect_ratio, created_at)
