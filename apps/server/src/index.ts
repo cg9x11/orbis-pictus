@@ -6,7 +6,8 @@ import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import "./storage/db.js"; // eagerly opens the DB connection and runs migrations as an import side effect
-import { createProviders } from "./providers/index.js";
+import { resolveProviders, type ProviderResolver } from "./providers/index.js";
+import { buildModelSettings } from "./providers/catalog.js";
 import { generateRoute } from "./routes/generate.js";
 import { nodesRoute } from "./routes/nodes.js";
 import { getNode } from "./storage/nodes.js";
@@ -19,7 +20,11 @@ import { isUploadEnabled } from "./pipeline/config.js";
 import { intConfig, strConfig } from "./config/index.js";
 import { WEB_DIST, WEB_SRC_INDEX_HTML } from "./paths.js";
 
-const { providers, missingKeys } = createProviders();
+// Resolved once here purely to report missing keys at startup and to answer /api/config's
+// `searchAvailable` — search is not UI-selectable, so this instance is the real one. Every request
+// resolves its own set (see `resolve` below), which is what lets a model change apply without a
+// restart; nothing downstream holds this object.
+const { providers: bootProviders, missingKeys } = resolveProviders();
 if (missingKeys.length > 0) {
   console.warn(
     `[flipbook] Missing API keys: ${missingKeys.join(", ")}. Falling back to mock providers for the affected capability.\n` +
@@ -32,12 +37,16 @@ const imagesDir = path.resolve(process.cwd(), strConfig("IMAGES_DIR", (c) => c.s
 const app = new Hono();
 app.use("/api/*", cors());
 
-app.route("/api/generate", generateRoute(providers, imagesDir, videoPipeline, morphPipeline));
-app.route("/api/nodes", nodesRoute(providers, imagesDir, videoPipeline, morphPipeline));
+// Routes get the resolver, not a built set: each request resolves its own providers from its own
+// overrides, so switching image/video model in the UI needs no restart.
+const resolve: ProviderResolver = (overrides) => resolveProviders(overrides).providers;
+
+app.route("/api/generate", generateRoute(resolve, imagesDir, videoPipeline, morphPipeline));
+app.route("/api/nodes", nodesRoute(resolve, imagesDir, videoPipeline, morphPipeline));
 app.get("/api/waitroom", (c) => c.json({ enabled: false, admitted: true }));
 app.get("/api/config", (c) =>
   c.json({
-    searchAvailable: providers.search.available,
+    searchAvailable: bootProviders.search.available,
     videoEnabled: isVideoEnabled(),
     morphEnabled: isMorphEnabled(),
     uploadEnabled: isUploadEnabled(),
@@ -45,6 +54,9 @@ app.get("/api/config", (c) =>
     artStyle: getDefaultArtStyleName(),
     compositions: listCompositions(),
     composition: getDefaultCompositionName(),
+    // Built per request, not at boot, so a config.yml edit reaches the settings panel on the next
+    // page load with no restart.
+    modelSettings: buildModelSettings(),
   }),
 );
 

@@ -1,5 +1,5 @@
 import type { AspectRatio } from "@flipbook/shared";
-import { QuotaExhaustedError, type ImageGenInput, type ImageGenResult, type ImageProvider } from "../types.js";
+import { QuotaExhaustedError, UnknownModelError, type ImageGenInput, type ImageGenResult, type ImageProvider } from "../types.js";
 import { fetchWithRetry } from "../../lib/retry.js";
 import { parseDataUrl } from "../../lib/dataUrl.js";
 import { strConfig } from "../../config/index.js";
@@ -64,6 +64,14 @@ export class GeminiImageProvider implements ImageProvider {
       if (res.status === 429) {
         throw new QuotaExhaustedError(`Image quota exhausted: Gemini "${this.modelId}" was rate-limited (429). ${body}`);
       }
+      // The model id is part of the request path, so a 404 from this endpoint is about the model.
+      // Verified empirically 2026-08-08: an unknown model answers 404 with
+      // `{"error":{"code":404,"message":"models/<id> is not found for API version v1beta, or is not
+      // supported for generateContent…","status":"NOT_FOUND"}}`. Note this also covers a real model
+      // that simply cannot do generateContent — the remedy is the same either way.
+      if (res.status === 404) {
+        throw new UnknownModelError(`Gemini does not recognise image model "${this.modelId}". ${body}`);
+      }
       throw new Error(`Gemini image request failed (${res.status}): ${body}`);
     }
 
@@ -86,6 +94,21 @@ export class GeminiImageProvider implements ImageProvider {
   }
 }
 
+/** Sizes Gemini accepts. Exported so the settings catalog can build its dropdown from this one
+ *  list rather than repeating it — note not every model supports every size (the Lite model is 1K
+ *  only), which the API enforces and this list deliberately does not. */
+export const GEMINI_IMAGE_SIZES = ["512", "1K", "2K", "4K"] as const;
+
+/**
+ * An unrecognised *override* falls through to the configured value instead of reaching the API,
+ * which rejects an unknown imageSize outright. Only the override is checked: the configured value
+ * stays unvalidated exactly as it always has been, because changing how a bad `config.yml` behaves
+ * is a separate decision from adding a picker.
+ */
+function validImageSize(raw: string | undefined): string | undefined {
+  return raw !== undefined && (GEMINI_IMAGE_SIZES as readonly string[]).includes(raw) ? raw : undefined;
+}
+
 export const geminiImageFactory: ImageProviderFactory = {
   id: "gemini",
   build: (ctx) => {
@@ -94,9 +117,10 @@ export const geminiImageFactory: ImageProviderFactory = {
       ctx.reportMissing("GEMINI_API_KEY (for image.provider=gemini)");
       return null;
     }
-    const model = strConfig("GEMINI_IMAGE_MODEL", (c) => c.image?.gemini?.model, "gemini-3.1-flash-lite-image");
+    const model = ctx.overrides.imageModel ?? strConfig("GEMINI_IMAGE_MODEL", (c) => c.image?.gemini?.model, "gemini-3.1-flash-lite-image");
     const baseUrl = strConfig("GEMINI_IMAGE_BASE_URL", (c) => c.image?.gemini?.baseUrl, "https://generativelanguage.googleapis.com/v1beta");
-    const imageSize = strConfig("GEMINI_IMAGE_SIZE", (c) => c.image?.gemini?.imageSize, "1K");
+    const imageSize =
+      validImageSize(ctx.overrides.geminiImageSize) ?? strConfig("GEMINI_IMAGE_SIZE", (c) => c.image?.gemini?.imageSize, "1K");
     return new GeminiImageProvider(apiKey, baseUrl, model, imageSize);
   },
 };

@@ -9,6 +9,14 @@
 #
 # so a deployment can still override any single value with an env var without editing the file.
 # Anything you omit here falls back to the default shown in the comment.
+#
+# The image/video PROVIDER and MODEL below are also selectable from the browser, in the toolbar's
+# "Models" panel, which overrides both of the levels above for that browser only:
+#
+#     UI settings panel  >  environment variable  >  this file  >  built-in default
+#
+# What you set here stays the default for anything left alone in that panel, and is what its
+# "Reset to server defaults" button returns to. See the README.
 
 server:
   port: 8787
@@ -40,7 +48,7 @@ image:
     quality: medium              # low | medium | high
     baseUrl: https://api.openai.com/v1
 
-# --- Idle-loop video + page-transition morphs (PLAN §3 Phase 5, experimental) ---
+# --- Idle-loop video + page-transition morphs (experimental) ---
 # Off by default: video burns quota far faster than images. Uses ARK_API_KEY from .env.
 video:
   enabled: false
@@ -67,15 +75,15 @@ search:
   timeoutMs: 45000             # wall-clock budget for one search before degrading gracefully
   cacheEnabled: false          # in-memory reuse of summaries across repeated queries
 
-# --- Visual identity (PLAN §2) ---
+# --- Visual identity ---
 artStyle: felt                 # felt | papercut | riso | pixel | editorial
 composition: diorama           # flat | isometric | diorama
 
-# --- Photo upload (PLAN §3 Phase 2) ---
+# --- Photo upload ---
 upload:
   enabled: false               # accepts arbitrary user images; opt in deliberately
 
-# --- Tap caching & reuse (PLAN §2.3) ---
+# --- Tap caching & reuse ---
 tapDedup: reuse                # reuse | variant | off
 
 # --- Debug ---

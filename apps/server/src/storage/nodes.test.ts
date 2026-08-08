@@ -22,6 +22,9 @@ function makeNode(overrides: Partial<Node> = {}): Node {
     page_title: `Page ${counter}`,
     image_variants: { "16:9": `/images/node-${counter}/landscape.jpg` },
     image_model: "mock-image",
+    image_provider: "mock",
+    art_style: "felt",
+    composition: "diorama",
     prompt_author_model: "mock-llm",
     authored_prompt: `prompt ${counter}`,
     created_at: new Date().toISOString(),
@@ -31,6 +34,33 @@ function makeNode(overrides: Partial<Node> = {}): Node {
     ...overrides,
   };
 }
+
+test("provenance (provider, art style, composition) survives a round trip", () => {
+  // The aspect-ratio variant endpoint redraws a page from these three fields, so losing them in
+  // storage would silently bring back the drift they exist to prevent.
+  const node = makeNode({ id: "prov-1", image_provider: "ark", image_model: "seedream-4-5-251128", art_style: "riso", composition: "flat" });
+  insertNode(node, { normalizedSubject: "prov" });
+
+  const read = getNode("prov-1");
+  assert.ok(read);
+  assert.equal(read.image_provider, "ark");
+  assert.equal(read.image_model, "seedream-4-5-251128");
+  assert.equal(read.art_style, "riso");
+  assert.equal(read.composition, "flat");
+});
+
+test("a node stored with no provenance reads back as empty, not undefined", () => {
+  // Rows predating these columns must still load; the variant route reads "" as "fall back to the
+  // server's current settings", which is the behaviour those older pages already had.
+  const node = makeNode({ id: "prov-2", image_provider: "", art_style: "", composition: "" });
+  insertNode(node, { normalizedSubject: "prov2" });
+
+  const read = getNode("prov-2");
+  assert.ok(read);
+  assert.equal(read.image_provider, "");
+  assert.equal(read.art_style, "");
+  assert.equal(read.composition, "");
+});
 
 test("findChildBySubject finds an existing child by normalized subject", () => {
   const parent = makeNode({ id: "parent-1" });

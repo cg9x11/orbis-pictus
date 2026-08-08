@@ -34,6 +34,19 @@ export const NodeSchema = z.object({
   page_title: z.string(),
   image_variants: ImageVariantsSchema,
   image_model: z.string(),
+  /**
+   * How this page was drawn, recorded so it can be reproduced later.
+   *
+   * A missing aspect-ratio variant is generated on demand, long after the page itself, and must
+   * match it. Without this the variant is drawn by whatever the server happens to be set to now,
+   * and with no art-style block at all — so the same page looks different at a different ratio.
+   *
+   * Defaulted (not required) because rows written before these columns existed have none, and an
+   * old page must still load. An empty value means "unknown, use the server's current setting".
+   */
+  image_provider: z.string().default(""),
+  art_style: z.string().default(""),
+  composition: z.string().default(""),
   prompt_author_model: z.string(),
   authored_prompt: z.string(),
   created_at: z.string(),
@@ -51,6 +64,42 @@ export const NodeSchema = z.object({
 export type Node = z.infer<typeof NodeSchema>;
 
 // --- Generate request ---
+
+/**
+ * Provider/model selection carried on every generate request, so the UI can switch image and video
+ * models without a server restart or a `config.yml` edit.
+ *
+ * Free strings, never enums — the same rationale as `art_style`/`composition` below. The catalog of
+ * valid providers and models lives server-side, and the picker offers a `Custom…` field for model
+ * ids newer than that catalog, so a stale client or a hand-typed value must degrade to the server's
+ * configured default rather than 400 the whole request. Every field is optional, and an absent or
+ * blank one means "use the server default" — which is why a client that sends none of them behaves
+ * exactly as it did before this block existed.
+ *
+ * `.catch(undefined)` on every field is what actually delivers that promise, and it has to be
+ * per-field. The string fields degrade on their own because any string parses, but a number does
+ * not: a duration of `5.5` failed `.int()`, and because these fields are merged into the generate
+ * request schemas below, one bad value rejected the WHOLE request — a 400 that killed the
+ * generation instead of ignoring one control. `.catch(undefined)` turns any unusable value into an
+ * absent one, which is already defined above as "use the server default".
+ *
+ * Two other readers depend on this for the same reason: `readOverrides` in routes/nodes.ts and
+ * `readModelPrefs` in the web app both `safeParse` a whole bag, so without per-field recovery one
+ * malformed value silently discarded every other choice the user had made.
+ */
+export const ModelOverridesSchema = z.object({
+  image_provider: z.string().optional().catch(undefined),
+  image_model: z.string().optional().catch(undefined),
+  video_provider: z.string().optional().catch(undefined),
+  video_model: z.string().optional().catch(undefined),
+  video_resolution: z.string().optional().catch(undefined),
+  video_duration_seconds: z.number().int().positive().optional().catch(undefined),
+  gemini_image_size: z.string().optional().catch(undefined),
+  openai_image_quality: z.string().optional().catch(undefined),
+  ark_fallback_model: z.string().optional().catch(undefined),
+});
+export type ModelOverrides = z.infer<typeof ModelOverridesSchema>;
+
 // mode "search": user typed a query
 export const GenerateSearchRequestSchema = z.object({
   mode: z.literal("search"),
@@ -72,7 +121,7 @@ export const GenerateSearchRequestSchema = z.object({
   composition: z.string().optional(),
   session_id: z.string(),
   current_node_id: z.string().default(""),
-});
+}).merge(ModelOverridesSchema);
 export type GenerateSearchRequest = z.infer<typeof GenerateSearchRequestSchema>;
 
 // mode "tap": user clicked a point on the current image (marker already drawn client-side)
@@ -104,7 +153,7 @@ export const GenerateTapRequestSchema = z.object({
   parent_title: z.string(),
   session_id: z.string(),
   current_node_id: z.string(),
-});
+}).merge(ModelOverridesSchema);
 export type GenerateTapRequest = z.infer<typeof GenerateTapRequestSchema>;
 
 // mode "edit": user typed a command while a page is open (re-render the current page)
@@ -132,7 +181,7 @@ export const GenerateEditRequestSchema = z.object({
   parent_title: z.string(),
   session_id: z.string(),
   current_node_id: z.string(),
-});
+}).merge(ModelOverridesSchema);
 export type GenerateEditRequest = z.infer<typeof GenerateEditRequestSchema>;
 
 // A request that omits `mode` is treated as a search — the natural default for a bare `{query}`
@@ -198,6 +247,23 @@ export const ErrorEventSchema = z.object({
   data: z.object({ message: z.string(), code: GenerateErrorCodeSchema.optional() }),
 });
 
+/** A non-fatal advisory emitted mid-generation. Distinct from `error`, which ends the stream: a
+ *  notice means generation carried on and a page still arrives, so a client must surface it without
+ *  treating the request as failed. Exists for the model-fallback case — an unknown image model
+ *  substituted with the server default — where `requested`/`used` carry the two model ids. */
+export const NoticeCodeSchema = z.enum(["model_fallback", "provider_fallback"]);
+export type NoticeCode = z.infer<typeof NoticeCodeSchema>;
+
+export const NoticeEventSchema = z.object({
+  event: z.literal("notice"),
+  data: z.object({
+    code: NoticeCodeSchema,
+    message: z.string(),
+    requested: z.string().optional(),
+    used: z.string().optional(),
+  }),
+});
+
 export const GenerateEventSchema = z.discriminatedUnion("event", [
   StartEventSchema,
   TapSubjectEventSchema,
@@ -205,6 +271,7 @@ export const GenerateEventSchema = z.discriminatedUnion("event", [
   PreviewEventSchema,
   CompleteEventSchema,
   ErrorEventSchema,
+  NoticeEventSchema,
 ]);
 export type GenerateEvent = z.infer<typeof GenerateEventSchema>;
 
@@ -239,7 +306,68 @@ export type NodesUploadRequest = z.infer<typeof NodesUploadRequestSchema>;
 export const ArtStyleOptionSchema = z.object({ name: z.string(), label: z.string() });
 export type ArtStyleOption = z.infer<typeof ArtStyleOptionSchema>;
 
+/** One selectable provider in the settings panel. */
+export const ProviderOptionSchema = z.object({
+  name: z.string(),
+  label: z.string(),
+  /** Whether this provider's API key is present on the server. A boolean only — the key itself is
+   *  never sent. Picking an unavailable provider is not fatal: the server falls back to its
+   *  configured one and says so with a `provider_fallback` notice. */
+  available: z.boolean(),
+  /** Known-good model ids, for the dropdown. Not exhaustive and not enforced — the panel also
+   *  offers a free-text field, because model ids change faster than any catalog. */
+  models: z.array(z.string()).default([]),
+});
+export type ProviderOption = z.infer<typeof ProviderOptionSchema>;
+
+/**
+ * Everything the settings panel needs to draw itself: what can be picked, and what the server is
+ * using right now. The `provider`/`model` values are the EFFECTIVE ones — if a configured provider
+ * is missing its key, these report the fallback that is really in use, not the wish in config.yml.
+ *
+ * Grouped under one key rather than flattened into ConfigResponse, so the client can hold it as a
+ * single piece of state. Every field has a default, so an older server that omits the whole block
+ * still yields a well-formed (empty) settings object rather than failing the response parse.
+ */
+export const ModelSettingsSchema = z
+  .object({
+    image: z
+      .object({
+        providers: z.array(ProviderOptionSchema).default([]),
+        provider: z.string().default(""),
+        model: z.string().default(""),
+      })
+      .default({}),
+    video: z
+      .object({
+        providers: z.array(ProviderOptionSchema).default([]),
+        provider: z.string().default(""),
+        model: z.string().default(""),
+        resolutions: z.array(z.string()).default([]),
+        resolution: z.string().default(""),
+        durationSeconds: z.number().default(5),
+        /** Ceiling the server applies to a client-supplied duration, so the panel can cap its own
+         *  input instead of letting a user ask for something that will be silently clamped. */
+        maxDurationSeconds: z.number().default(12),
+      })
+      .default({}),
+    /** Per-provider knobs that only apply to one provider each, shown conditionally. */
+    extras: z
+      .object({
+        geminiImageSizes: z.array(z.string()).default([]),
+        geminiImageSize: z.string().default(""),
+        openaiImageQualities: z.array(z.string()).default([]),
+        openaiImageQuality: z.string().default(""),
+        arkFallbackModel: z.string().default(""),
+      })
+      .default({}),
+  })
+  .default({});
+export type ModelSettings = z.infer<typeof ModelSettingsSchema>;
+
 export const ConfigResponseSchema = z.object({
+  /** Provider/model choices for the settings panel — see ModelSettingsSchema. */
+  modelSettings: ModelSettingsSchema,
   searchAvailable: z.boolean(),
   videoEnabled: z.boolean(),
   morphEnabled: z.boolean(),

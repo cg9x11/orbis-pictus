@@ -1,7 +1,25 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { GeminiImageProvider } from "./gemini.js";
-import { QuotaExhaustedError, type ImageGenInput } from "../types.js";
+import { buildImageProvider } from "./index.js";
+import { QuotaExhaustedError, UnknownModelError, type ImageGenInput } from "../types.js";
+
+/** Sets env vars for the duration of `run`, restoring exactly what was there before (including
+ *  "was not set at all"). Used by the factory tests below, which go through the registry so the
+ *  factory's override wiring is what gets exercised, not the provider constructor. */
+function withEnv(vars: Record<string, string | undefined>, run: () => Promise<void>): Promise<void> {
+  const previous = new Map<string, string | undefined>(Object.keys(vars).map((k) => [k, process.env[k]]));
+  for (const [key, value] of Object.entries(vars)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  return run().finally(() => {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+}
 
 interface Recorded {
   url: string;
@@ -72,9 +90,59 @@ test("gemini: a 429 surfaces as QuotaExhaustedError", async () => {
   });
 });
 
+test("gemini: an unknown model surfaces as UnknownModelError, so the fallback can catch it", async () => {
+  // Body captured verbatim from the live Gemini API on 2026-08-08 by requesting a nonexistent model.
+  const notFound = {
+    error: {
+      code: 404,
+      message:
+        "models/gemini-does-not-exist-9 is not found for API version v1beta, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+      status: "NOT_FOUND",
+    },
+  };
+  await withFetch({ status: 404, body: notFound }, async () => {
+    const provider = new GeminiImageProvider("k", base, "gemini-does-not-exist-9", "1K");
+    await assert.rejects(() => provider.generate(input), UnknownModelError);
+  });
+});
+
+test("gemini: a rate limit stays a quota error, not an unknown-model error", async () => {
+  await withFetch({ status: 429, body: { error: { message: "rate limited" } } }, async () => {
+    const provider = new GeminiImageProvider("k", base, "m", "1K");
+    await assert.rejects(() => provider.generate(input), QuotaExhaustedError);
+  });
+});
+
 test("gemini: a response with no image part throws a clear error", async () => {
   await withFetch({ status: 200, body: { candidates: [{ content: { parts: [{ text: "sorry" }] } }] } }, async () => {
     const provider = new GeminiImageProvider("k", base, "m", "1K");
     await assert.rejects(() => provider.generate(input), /missing image data/);
+  });
+});
+
+// --- Per-request overrides, exercised through the registry (the UI picker's real path) ---
+
+const geminiEnv = { IMAGE_PROVIDER: "gemini", GEMINI_API_KEY: "g-key", GEMINI_IMAGE_BASE_URL: base };
+
+test("gemini: the factory honours the request's model and imageSize overrides", async () => {
+  await withEnv(geminiEnv, async () => {
+    await withFetch({ status: 200, body: okBody }, async (calls) => {
+      const provider = buildImageProvider([], { imageModel: "gemini-3-pro-image", geminiImageSize: "4K" });
+      assert.equal(provider.modelId, "gemini-3-pro-image");
+
+      await provider.generate(input);
+      assert.equal(calls[0]!.url, `${base}/models/gemini-3-pro-image:generateContent`);
+      assert.equal(JSON.parse(calls[0]!.init!.body as string).generationConfig.imageConfig.imageSize, "4K");
+    });
+  });
+});
+
+test("gemini: an imageSize override outside the accepted set falls through to the configured value", async () => {
+  await withEnv(geminiEnv, async () => {
+    await withFetch({ status: 200, body: okBody }, async (calls) => {
+      // "8K" is not a size Gemini accepts; it must never reach the API.
+      await buildImageProvider([], { geminiImageSize: "8K" }).generate(input);
+      assert.equal(JSON.parse(calls[0]!.init!.body as string).generationConfig.imageConfig.imageSize, "1K");
+    });
   });
 });

@@ -4,7 +4,7 @@ import { getMorphInfo, getNode, markMorphFailed, markMorphPending, markMorphRead
 import { saveMorph, writeReversedMorph } from "./morphStorage.js";
 import { getMorphMaxPerSession, getMorphVideoModel, isMorphEnabled, isMorphReverseEnabled } from "./morphConfig.js";
 import { MORPH_TRANSITION_MOTION_PROMPT } from "./videoPrompt.js";
-import { createBackgroundClipPipeline, type StartNowResult } from "./backgroundClip.js";
+import { createBackgroundClipPipeline, type ClipOptions, type StartNowResult } from "./backgroundClip.js";
 
 const RATIO_PREFERENCE: AspectRatio[] = ["16:9", "3:4", "1:1"];
 
@@ -23,7 +23,7 @@ export interface MorphPipeline {
    * never wait on a morph. Safe to call for every completed page unconditionally; a node with no
    * parent (a root/search result) is simply skipped inside.
    */
-  maybeStartMorph(child: Node, providers: Providers, imagesDir: string): void;
+  maybeStartMorph(child: Node, providers: Providers, imagesDir: string, options?: ClipOptions): void;
   /**
    * Explicit, user-triggered counterpart for a child created without a morph (Live video was off at
    * the time, or the page was reopened from a cached tap marker, which never runs the generate
@@ -31,7 +31,7 @@ export interface MorphPipeline {
    * created — miss it and no action anywhere in the app could produce one. Returns why nothing
    * started when it didn't, so the route can answer the user.
    */
-  startMorphNow(child: Node, providers: Providers, imagesDir: string): StartNowResult;
+  startMorphNow(child: Node, providers: Providers, imagesDir: string, options?: ClipOptions): StartNowResult;
 }
 
 /** Factory (not a bare singleton) so tests can get isolated in-flight/session-cap state — see morph.test.ts. */

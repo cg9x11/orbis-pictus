@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { AspectRatio, CachedTap, GenerateRequest, ArtStyleOption, Node } from "@flipbook/shared";
+import type { AspectRatio, CachedTap, GenerateRequest, ArtStyleOption, ModelSettings, Node } from "@flipbook/shared";
+import { pruneEmptyPrefs, readModelPrefs, writeModelPrefs, type ModelPrefs } from "../lib/persistedPrefs";
 import { useCachedTaps } from "./useCachedTaps";
 import { useGenerationStream } from "./useGenerationStream";
 import { useSessionTrail } from "./useSessionTrail";
@@ -37,7 +38,31 @@ interface AppConfig {
   artStyle: string;
   compositions: ArtStyleOption[];
   composition: string;
+  /** What the settings panel can offer, and what the server is using — see ModelSettingsSchema. */
+  modelSettings: ModelSettings;
 }
+
+/** Empty until /api/config answers. The panel hides itself while the provider lists are empty,
+ *  the same way ArtStylePicker does with fewer than two styles. */
+const EMPTY_MODEL_SETTINGS: ModelSettings = {
+  image: { providers: [], provider: "", model: "" },
+  video: {
+    providers: [],
+    provider: "",
+    model: "",
+    resolutions: [],
+    resolution: "",
+    durationSeconds: 5,
+    maxDurationSeconds: 12,
+  },
+  extras: {
+    geminiImageSizes: [],
+    geminiImageSize: "",
+    openaiImageQualities: [],
+    openaiImageQuality: "",
+    arkFallbackModel: "",
+  },
+};
 
 const DEFAULT_CONFIG: AppConfig = {
   webSearch: false,
@@ -48,6 +73,7 @@ const DEFAULT_CONFIG: AppConfig = {
   artStyle: "",
   compositions: [],
   composition: "",
+  modelSettings: EMPTY_MODEL_SETTINGS,
 };
 
 /**
@@ -71,6 +97,13 @@ export function useFlipbookController(initialNodeId?: string) {
   const setWebSearch = (webSearch: boolean) => setConfig((c) => ({ ...c, webSearch }));
   const setArtStyle = (artStyle: string) => setConfig((c) => ({ ...c, artStyle }));
   const setComposition = (composition: string) => setConfig((c) => ({ ...c, composition }));
+  // Unlike the style pickers above, these survive a reload: a provider/model is a setup choice, not
+  // a per-page creative one, so re-picking it on every visit would be tedious.
+  const [modelPrefs, setModelPrefsState] = useState<ModelPrefs>(readModelPrefs);
+  const setModelPrefs = (next: ModelPrefs) => {
+    setModelPrefsState(next);
+    writeModelPrefs(next);
+  };
   const [videoLoopEnabled, setVideoLoopEnabled] = useState(false);
   // First-step animation flow: true while navigation is being held on the parent, waiting for the
   // freshly generated child's clips so the whole transition plays through without a gap.
@@ -97,6 +130,7 @@ export function useFlipbookController(initialNodeId?: string) {
           artStyle: fetched.artStyle,
           compositions: fetched.compositions,
           composition: fetched.composition,
+          modelSettings: fetched.modelSettings,
         });
       })
       .catch((err) => console.error(err));
@@ -197,6 +231,9 @@ export function useFlipbookController(initialNodeId?: string) {
     // than sent blank so the server keeps its own default in that window.
     const withStyle = {
       ...request,
+      // Pruned, not sent raw: an empty duration field would otherwise fail the request schema and
+      // 400 the whole generation rather than just being ignored.
+      ...pruneEmptyPrefs(modelPrefs),
       art_style: config.artStyle || undefined,
       composition: config.composition || undefined,
       // Gates background idle-loop and morph generation server-side: no video quota is spent unless
@@ -366,7 +403,7 @@ export function useFlipbookController(initialNodeId?: string) {
     try {
       let next = current;
       if (missingIdleLoop) {
-        const { status } = await requestNodeVideo(current.id);
+        const { status } = await requestNodeVideo(current.id, pruneEmptyPrefs(modelPrefs));
         next = { ...next, video_status: status === "ready" ? "ready" : "pending" };
       }
       if (missingMorph) {
@@ -374,7 +411,7 @@ export function useFlipbookController(initialNodeId?: string) {
         // here (session cap, say) must not surface as an error that buries the idle loop we just
         // successfully started — nor abort the status write-back below.
         try {
-          const { status } = await requestNodeMorph(current.id);
+          const { status } = await requestNodeMorph(current.id, pruneEmptyPrefs(modelPrefs));
           next = { ...next, morph_status: status === "ready" ? "ready" : "pending" };
         } catch (err) {
           console.error(err);
@@ -410,6 +447,10 @@ export function useFlipbookController(initialNodeId?: string) {
   const bannerMessage = state.status === "error" ? state.error : actionError;
 
   return {
+    modelPrefs,
+    setModelPrefs,
+    /** Non-fatal "your pick could not be used" advisories from the last generation. */
+    notices: state.notices ?? [],
     hydrating,
     hydrateError,
     sessionId,

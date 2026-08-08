@@ -4,6 +4,7 @@ import type {
   ConfigResponse,
   GenerateEvent,
   GenerateRequest,
+  ModelOverrides,
   Node,
   NodesGetResponse,
   NodesListResponse,
@@ -94,8 +95,17 @@ export async function fetchNodeVideo(id: string): Promise<string | null> {
  * under way (the caller then polls via fetchNodeVideo) or "ready" if one already existed; throws
  * with the server's message on a real failure (disabled, session cap, no image to animate).
  */
-export async function requestNodeVideo(id: string): Promise<{ status: "pending" | "ready"; video_url?: string }> {
-  const res = await fetch(`/api/nodes/${id}/video`, { method: "POST" });
+export async function requestNodeVideo(
+  id: string,
+  overrides: ModelOverrides = {},
+): Promise<{ status: "pending" | "ready"; video_url?: string }> {
+  const res = await fetch(`/api/nodes/${id}/video`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    // Carries the settings panel's picks so "Animate page" uses the same provider/model/resolution
+    // as a normal generation. The body is optional server-side; `{}` means "server defaults".
+    body: JSON.stringify(overrides),
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     throw new Error((body as { error?: string } | null)?.error ?? `Couldn't start video generation (${res.status})`);
@@ -109,8 +119,15 @@ export async function requestNodeVideo(id: string): Promise<{ status: "pending" 
  * pipeline). Returns "pending" once generation is under way, or "ready" if one already existed;
  * throws with the server's message otherwise (disabled, session cap, or a root with no parent).
  */
-export async function requestNodeMorph(id: string): Promise<{ status: "pending" | "ready"; morph_url?: string }> {
-  const res = await fetch(`/api/nodes/${id}/morph`, { method: "POST" });
+export async function requestNodeMorph(
+  id: string,
+  overrides: ModelOverrides = {},
+): Promise<{ status: "pending" | "ready"; morph_url?: string }> {
+  const res = await fetch(`/api/nodes/${id}/morph`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(overrides),
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     throw new Error((body as { error?: string } | null)?.error ?? `Couldn't start morph generation (${res.status})`);

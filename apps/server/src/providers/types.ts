@@ -5,6 +5,17 @@ import type { AspectRatio } from "@flipbook/shared";
  *  client to react to directly, instead of pattern-matching the error message text. */
 export class QuotaExhaustedError extends Error {}
 
+/**
+ * Thrown when a provider rejects a request specifically because it does not recognise the model id
+ * — a hand-typed or stale name from the settings picker's `Custom…` field, as opposed to a working
+ * model that is merely out of budget (QuotaExhaustedError).
+ *
+ * Separate from QuotaExhaustedError because the remedies differ: a quota failure has nowhere to go,
+ * while an unrecognised model can be retried once on the server's configured default so the page
+ * still renders. See providers/image/modelFallback.ts.
+ */
+export class UnknownModelError extends Error {}
+
 // --- LLM provider: prompt author + tap VLM ---
 export interface AuthorPromptInput {
   /** The query text (search mode) or the tapped subject name (tap mode). */
@@ -84,6 +95,16 @@ export interface ImageGenResult {
   contentType: string;
   /** Optional token usage for cost estimation/logging; not every provider reports it. */
   usage?: ImageUsage;
+  /**
+   * The model that actually drew this image, set ONLY when a fallback inside the provider made it
+   * differ from the provider's advertised `modelId`.
+   *
+   * Needed because both the prompt hash and the node row are built from `modelId` *before*
+   * generation runs (pipeline/generate.ts), so without this a fallback silently credits a model
+   * that never drew anything — already true today whenever Ark's quota fallback fires. Callers
+   * record `usedModelId ?? modelId`.
+   */
+  usedModelId?: string;
 }
 
 export interface ImageProvider {

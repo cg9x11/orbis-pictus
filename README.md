@@ -139,7 +139,12 @@ Open http://localhost:5173, type a query, and click anywhere in the generated im
 
 Configuration is split by sensitivity, resolved with a fixed precedence:
 
-> **environment variable  >  `config.yml`  >  built-in default**
+> **UI settings panel  >  environment variable  >  `config.yml`  >  built-in default**
+
+The image and video **provider and model** can also be changed from the browser, with no restart and
+no file edit. Open the **⚙ Models** button in the toolbar. See
+[Choosing models from the UI](#choosing-models-from-the-ui) below. Everything else in the table
+resolves from env, then `config.yml`, then the default.
 
 - **`config.yml`** (non-secret, gitignored — copy from `config.example.yml`): provider selection,
   model names, feature flags, and tunables, in a nested structure that's easy to manage as the
@@ -176,6 +181,37 @@ has a safe fallback. The table below lists each setting as its **env-override na
 | `MORPH_MAX_PER_SESSION` | Hard per-session cap on morph generations (reuses `VIDEO_PROVIDER`/`ARK_VIDEO_MODEL`/`VIDEO_RESOLUTION`/`VIDEO_DURATION_SECONDS` above) | — |
 | `MORPH_REVERSE` | Re-encode each morph backwards (needs `ffmpeg` on PATH) so stepping back replays it in reverse. Costs no video quota. Off = back-navigation crossfades | `true` (default) |
 | `PORT`, `DATABASE_URL`, `IMAGES_DIR` | Server port, SQLite file path, disk path for generated images | — |
+
+### Choosing models from the UI
+
+The **⚙ Models** button in the toolbar opens a panel for the image and video provider, the model,
+the video resolution, and the clip length. Use it to compare two models without a restart.
+
+How it behaves:
+
+- Your choice is stored in the browser, not on the server. It survives a reload. Two tabs can use
+  two different models, and nothing you pick changes the server for anybody else.
+- Each choice rides along with the request. `config.yml` stays the default for anything you leave
+  alone, so **Reset to server defaults** always returns to the configured setup.
+- Only new pages are affected. A page already drawn keeps the model that drew it, because
+  re-rendering it would mean paying for it again.
+- The model box takes free text as well as the listed ids. Model ids change faster than the built-in
+  list, so a new one can be typed in.
+
+If a pick cannot be used, the page is still drawn and a blue notice says what happened:
+
+- A provider with no API key falls back to the configured provider.
+- A model the provider rejects falls back to the configured model. Detection is verified against the
+  live BytePlus Ark, Google Gemini, and fal.ai APIs. The OpenAI branch follows their published error
+  contract but is **not** verified live.
+
+A clip length sent from the browser is capped at 12 seconds
+(`MAX_OVERRIDE_DURATION_SECONDS` in `apps/server/src/pipeline/videoConfig.ts`). A value set in
+`config.yml` is not capped. The endpoint has no authentication, and video spends quota quickly.
+
+> **Warning.** Anyone who can reach this server can change these settings and spend your API credit.
+> There is no authentication anywhere in the app. Run it on localhost, or put your own gate in front
+> of it.
 
 Adding another image provider is a one-file change: create a module under `apps/server/src/providers/image/`
 that exports an `ImageProviderFactory` (see `registry.ts`) and add it to the array in `image/index.ts` —

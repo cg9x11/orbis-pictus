@@ -1,6 +1,13 @@
 import crypto from "node:crypto";
 import { Hono } from "hono";
-import { AspectRatioSchema, NodesCreateRequestSchema, NodesUploadRequestSchema, type Node } from "@flipbook/shared";
+import {
+  AspectRatioSchema,
+  ModelOverridesSchema,
+  NodesCreateRequestSchema,
+  NodesUploadRequestSchema,
+  type ModelOverrides,
+  type Node,
+} from "@flipbook/shared";
 import {
   addImageVariant,
   findChildBySubject,
@@ -15,17 +22,49 @@ import { listTapCache } from "../storage/tapCache.js";
 import { saveImageVariantResized } from "../pipeline/imageStorage.js";
 import { getMorphReverseUrl } from "../pipeline/morphStorage.js";
 import { normalizeSubject } from "../pipeline/normalize.js";
+import { buildImagePrompt } from "../pipeline/artStyle.js";
 import { getTapDedupMode, isUploadEnabled } from "../pipeline/config.js";
 import { InFlight } from "../lib/coalesce.js";
 import { parseDataUrl } from "../lib/dataUrl.js";
-import type { Providers } from "../providers/index.js";
+import { toProviderOverrides, type ProviderResolver } from "../providers/index.js";
+import { withModelFallback } from "../providers/image/modelFallback.js";
 import type { VideoPipeline } from "../pipeline/video.js";
 import type { MorphPipeline } from "../pipeline/morph.js";
 
 const DEFAULT_GALLERY_LIMIT = 8;
 const MAX_GALLERY_LIMIT = 24;
 
-export function nodesRoute(providers: Providers, imagesDir: string, video: VideoPipeline, morph: MorphPipeline): Hono {
+/**
+ * The two on-demand clip endpoints accept an OPTIONAL JSON body carrying the same override keys as
+ * a generate request, so "Animate page" honours the UI's settings panel. Both were bodyless before
+ * and must stay callable that way: a missing, empty, or unparseable body resolves to no overrides,
+ * i.e. the server's configured defaults, exactly as it behaved previously.
+ *
+ * The read endpoints below take no overrides. The variant endpoint takes none either, but for the
+ * opposite reason: it needs the provider/model that drew the *original* page, which it reads from
+ * the node's own provenance columns rather than from the caller.
+ */
+async function readOverrides(c: { req: { json: () => Promise<unknown> } }): Promise<ModelOverrides> {
+  const body = await c.req.json().catch(() => null);
+  // Whole-bag safeParse is safe here only because every field of ModelOverridesSchema carries
+  // `.catch(undefined)`: a malformed value costs that one field, not the caller's entire selection.
+  // Without that, one bad number silently reverted provider, model and resolution to server
+  // defaults with nothing said. A non-object body still lands on `{}`, which means "server default".
+  const parsed = ModelOverridesSchema.safeParse(body ?? {});
+  return parsed.success ? parsed.data : {};
+}
+
+/** The clip-only slice of an override bag, for the background-clip pipelines. */
+function toClipOptions(o: ModelOverrides): { resolution?: string; durationSeconds?: number } {
+  return { resolution: o.video_resolution, durationSeconds: o.video_duration_seconds };
+}
+
+export function nodesRoute(
+  resolveProviders: ProviderResolver,
+  imagesDir: string,
+  video: VideoPipeline,
+  morph: MorphPipeline,
+): Hono {
   const app = new Hono();
 
   // Stampede guard for lazy variant generation: two concurrent requests for the same
@@ -105,6 +144,7 @@ export function nodesRoute(providers: Providers, imagesDir: string, video: Video
     }
     const bytes = Buffer.from(data, "base64");
 
+    const providers = resolveProviders();
     const { title, description } = await providers.llm.titleImage(image);
 
     const id = crypto.randomUUID().replace(/-/g, "");
@@ -118,6 +158,13 @@ export function nodesRoute(providers: Providers, imagesDir: string, video: Video
       page_title: title,
       image_variants: { [aspect_ratio]: imageUrl },
       image_model: "upload",
+      // No provenance: an uploaded photo was not drawn by any model, so there is nothing to
+      // reproduce. Left empty rather than set to a sentinel, because the variant route keys off
+      // `image_provider` being non-empty — a sentinel would be fed back as a real provider name.
+      // (`image_model: "upload"` above is pre-existing and stays for display purposes only.)
+      image_provider: "",
+      art_style: "",
+      composition: "",
       prompt_author_model: providers.llm.modelId,
       authored_prompt: description,
       created_at: new Date().toISOString(),
@@ -169,12 +216,18 @@ export function nodesRoute(providers: Providers, imagesDir: string, video: Video
   // real video quota, so it stays gated by VIDEO_ENABLED and the per-session cap; a `failed` node is
   // retryable here (deliberate action), a `pending`/`ready` one is not re-run. After "started"/
   // "already-pending" the client polls GET /:id/video exactly as it does for the automatic path.
-  app.post("/:id/video", (c) => {
+  app.post("/:id/video", async (c) => {
     const id = c.req.param("id");
     const node = getNode(id);
     if (!node) return c.json({ error: "Not found" }, 404);
 
-    const result = video.startIdleLoopNow(node, providers, imagesDir);
+    const overrides = await readOverrides(c);
+    const result = video.startIdleLoopNow(
+      node,
+      resolveProviders(toProviderOverrides(overrides)),
+      imagesDir,
+      toClipOptions(overrides),
+    );
     switch (result) {
       case "started":
       case "already-pending":
@@ -214,12 +267,18 @@ export function nodesRoute(providers: Providers, imagesDir: string, video: Video
   // pipeline) had no way to ever get one. Same guards as the automatic path — MORPH_ENABLED and the
   // per-session cap still apply — with a `failed` node retryable here because this is a deliberate
   // action. A root page answers 422: there is no parent to morph from.
-  app.post("/:id/morph", (c) => {
+  app.post("/:id/morph", async (c) => {
     const id = c.req.param("id");
     const node = getNode(id);
     if (!node) return c.json({ error: "Not found" }, 404);
 
-    const result = morph.startMorphNow(node, providers, imagesDir);
+    const overrides = await readOverrides(c);
+    const result = morph.startMorphNow(
+      node,
+      resolveProviders(toProviderOverrides(overrides)),
+      imagesDir,
+      toClipOptions(overrides),
+    );
     switch (result) {
       case "started":
       case "already-pending":
@@ -257,8 +316,43 @@ export function nodesRoute(providers: Providers, imagesDir: string, video: Video
     if (node.image_variants[ratio]) return c.json({ node });
 
     const updated = await variantInFlight.run(`${id}:${ratio}`, async () => {
-      const { bytes, contentType } = await providers.image.generate({
-        prompt: node.authored_prompt,
+      // Drawn from the page's OWN record, not the server's current settings.
+      //
+      // Two bugs lived here. `authored_prompt` is the content-only prompt, so sending it raw meant
+      // a variant was drawn with no art-style, composition or framing block at all — a visibly
+      // different picture from the page it belongs to. And the provider/model came from whatever
+      // the server was set to at the time the variant was first requested, which is now something
+      // the user can change mid-session.
+      //
+      // Nodes written before provenance was stored have empty fields; those fall back to the
+      // server's current settings, which is the old behaviour and the best guess available.
+      // Provider and model travel together: a model id means nothing without the provider it
+      // belongs to. Keying both off `image_provider` also keeps an uploaded node's placeholder
+      // `image_model: "upload"` from ever being sent to a provider as a real model id.
+      const provenance = node.image_provider
+        ? { imageProvider: node.image_provider, imageModel: node.image_model || undefined }
+        : {};
+
+      // A stored model id is a claim about the past, and the past expires: providers retire model
+      // names, and the id recorded when the page was drawn may no longer exist by the time someone
+      // rotates the page to another ratio. Unwrapped, that raised UnknownModelError out of a plain
+      // GET and turned a working page into a 500 — worse than the behaviour this provenance replaced.
+      //
+      // Same rule as routes/generate.ts: wrap only when a model was actually named, because with no
+      // model there is nothing to fall back FROM. `withModelFallback`'s own identity check then
+      // skips the retry when the stored model IS the configured one, so no request is paid twice.
+      // The notice can only be logged here — this is a JSON GET, with no stream to write to.
+      const resolvedImage = resolveProviders(provenance).image;
+      const image = provenance.imageModel
+        ? withModelFallback(resolvedImage, () => resolveProviders({}).image, (n) =>
+            console.warn(`[variant] node ${id}: model "${n.requested}" was rejected — drew with "${n.used}" (${n.reason})`),
+          )
+        : resolvedImage;
+
+      const { bytes, contentType } = await image.generate({
+        prompt: buildImagePrompt(node.authored_prompt, node.art_style || undefined, {
+          composition: node.composition || undefined,
+        }),
         aspectRatio: ratio,
       });
       const imageUrl = await saveImageVariantResized(imagesDir, id, ratio, bytes, contentType);

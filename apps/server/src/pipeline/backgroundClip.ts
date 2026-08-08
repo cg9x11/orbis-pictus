@@ -16,8 +16,22 @@ export type StartNowResult =
   | "session-cap" // this session has hit its per-session generation cap
   | "unavailable"; // buildRequest returned null (no usable image variant, no parent to morph, etc.)
 
+/**
+ * Per-request clip settings chosen in the UI settings panel, for one clip.
+ *
+ * Both fields are optional and each falls back to the server's configured value independently, so
+ * an omitted (or empty) options object behaves exactly as this pipeline did before overrides
+ * existed. Validation lives in videoConfig.ts, not here: an unusable resolution falls through to
+ * the configured one and a client-supplied duration is capped, so whatever reaches the provider is
+ * always something it will accept.
+ */
+export interface ClipOptions {
+  resolution?: string;
+  durationSeconds?: number;
+}
+
 export interface BackgroundClipPipeline<TNode extends Node = Node> {
-  maybeStart(node: TNode, providers: Providers, imagesDir: string): void;
+  maybeStart(node: TNode, providers: Providers, imagesDir: string, options?: ClipOptions): void;
   /**
    * Explicit, user-triggered counterpart to `maybeStart`: starts a clip for a
    * node that doesn't have one yet, on demand rather than at creation time. Unlike `maybeStart` it
@@ -25,7 +39,7 @@ export interface BackgroundClipPipeline<TNode extends Node = Node> {
    * `failed` — a deliberate retry — while still refusing to double-start a `pending`/in-flight one,
    * to duplicate a `ready` one, when the master switch is off, or past the session cap.
    */
-  startNow(node: TNode, providers: Providers, imagesDir: string): StartNowResult;
+  startNow(node: TNode, providers: Providers, imagesDir: string, options?: ClipOptions): StartNowResult;
 }
 
 /** Identifies the clip request's content-only prompt and frame(s), by same-origin image URL
@@ -82,7 +96,7 @@ export function createBackgroundClipPipeline<TNode extends Node>(config: Backgro
 
   /** The actual generation, shared by both entry points: reserves the in-flight/session budget,
    *  marks the node pending, and runs the fire-and-forget generate -> save -> mark-ready/failed. */
-  function launch(node: TNode, request: ClipRequest, providers: Providers, imagesDir: string): void {
+  function launch(node: TNode, request: ClipRequest, providers: Providers, imagesDir: string, options: ClipOptions): void {
     inFlight.add(node.id);
     sessionCounts.set(node.session_id, (sessionCounts.get(node.session_id) ?? 0) + 1);
     config.markPending(node.id);
@@ -109,8 +123,8 @@ export function createBackgroundClipPipeline<TNode extends Node>(config: Backgro
           aspectRatio: request.aspectRatio,
           firstFrameDataUrl,
           lastFrameDataUrl,
-          durationSeconds: getVideoDurationSeconds(),
-          resolution: getVideoResolution(),
+          durationSeconds: getVideoDurationSeconds(options.durationSeconds),
+          resolution: getVideoResolution(options.resolution),
           modelOverride: config.videoModel?.(),
         });
         const url = config.save(imagesDir, node.id, bytes);
@@ -124,7 +138,7 @@ export function createBackgroundClipPipeline<TNode extends Node>(config: Backgro
     })();
   }
 
-  function maybeStart(node: TNode, providers: Providers, imagesDir: string): void {
+  function maybeStart(node: TNode, providers: Providers, imagesDir: string, options: ClipOptions = {}): void {
     if (!config.isEnabled()) return;
     if (inFlight.has(node.id)) return;
 
@@ -138,10 +152,10 @@ export function createBackgroundClipPipeline<TNode extends Node>(config: Backgro
     const request = config.buildRequest(node);
     if (!request) return;
 
-    launch(node, request, providers, imagesDir);
+    launch(node, request, providers, imagesDir, options);
   }
 
-  function startNow(node: TNode, providers: Providers, imagesDir: string): StartNowResult {
+  function startNow(node: TNode, providers: Providers, imagesDir: string, options: ClipOptions = {}): StartNowResult {
     if (!config.isEnabled()) return "disabled";
     if (inFlight.has(node.id)) return "already-pending";
 
@@ -157,7 +171,7 @@ export function createBackgroundClipPipeline<TNode extends Node>(config: Backgro
     const request = config.buildRequest(node);
     if (!request) return "unavailable";
 
-    launch(node, request, providers, imagesDir);
+    launch(node, request, providers, imagesDir, options);
     return "started";
   }
 

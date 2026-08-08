@@ -24,6 +24,11 @@ function rowToNode(row: NodeRow): Node {
     page_title: row.page_title,
     image_variants: ImageVariantsSchema.parse(JSON.parse(row.image_variants)),
     image_model: row.image_model,
+    // `?? ""` covers rows written before these columns existed: SQLite backfills the DEFAULT for
+    // new rows, but a row read from an older database can still surface NULL here.
+    image_provider: row.image_provider ?? "",
+    art_style: row.art_style ?? "",
+    composition: row.composition ?? "",
     prompt_author_model: row.prompt_author_model,
     authored_prompt: row.authored_prompt,
     created_at: row.created_at,
@@ -35,9 +40,9 @@ function rowToNode(row: NodeRow): Node {
 
 const insertStmt = db.prepare(`
   INSERT INTO nodes
-    (id, parent_id, session_id, query, page_title, image_variants, image_model, prompt_author_model, authored_prompt, created_at, version, normalized_subject, prompt_hash)
+    (id, parent_id, session_id, query, page_title, image_variants, image_model, image_provider, art_style, composition, prompt_author_model, authored_prompt, created_at, version, normalized_subject, prompt_hash)
   VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 /** Internal cache-layer metadata, stored alongside the node but not part of the public Node schema. */
@@ -56,6 +61,9 @@ export function insertNode(node: Node, meta: NodeCacheMeta): Node {
     node.page_title,
     JSON.stringify(node.image_variants),
     node.image_model,
+    node.image_provider,
+    node.art_style,
+    node.composition,
     node.prompt_author_model,
     node.authored_prompt,
     node.created_at,

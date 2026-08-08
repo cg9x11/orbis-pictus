@@ -87,6 +87,19 @@ export function getDefaultCompositionName(): CompositionName {
   return isCompositionName(raw) ? raw : "diorama";
 }
 
+/** The style a request will actually be drawn in: the one it asked for when that is recognised,
+ *  otherwise the server default. Exported so a generation can RECORD what it really used — a page
+ *  stores this, and its aspect-ratio variants are later drawn from the stored value so they match
+ *  the page instead of whatever the server is set to by then. */
+export function resolveArtStyleName(raw?: string): ArtStyleName {
+  return isArtStyleName(raw) ? raw : getDefaultArtStyleName();
+}
+
+/** Composition counterpart of resolveArtStyleName. */
+export function resolveCompositionName(raw?: string): CompositionName {
+  return isCompositionName(raw) ? raw : getDefaultCompositionName();
+}
+
 /** Human label taken from a section's own "## <Keyword>: …" heading, so a picker can never drift
  *  out of sync with the prompt text it selects — there is one source of truth, art-style.md. */
 function headingLabel(section: string, keyword: string, fallback: string): string {
@@ -112,8 +125,8 @@ export function listCompositions(): { name: CompositionName; label: string }[] {
  * generation.
  */
 export function getArtStyleBlock(style?: string, composition?: string): string {
-  const styleName = isArtStyleName(style) ? style : getDefaultArtStyleName();
-  const compName = isCompositionName(composition) ? composition : getDefaultCompositionName();
+  const styleName = resolveArtStyleName(style);
+  const compName = resolveCompositionName(composition);
   const { layout, compositions, styles } = sections();
   return `${layout}\n\n${compositions[compName]}\n\n${styles[styleName]}`;
 }

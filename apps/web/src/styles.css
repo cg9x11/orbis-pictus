@@ -787,3 +787,115 @@ body {
     opacity: 0;
   }
 }
+
+/* --- Model settings panel (image/video provider + model picker) ------------------------------ */
+/* A disclosure panel rather than more inline toolbar controls: the toolbar already carries eight
+   and wraps. Anchored to its own button so it drops beneath it, over the page content. */
+.model-settings {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Fixed, not absolute: .browser-frame sets overflow:hidden for its rounded corners, which clips an
+   absolutely-positioned child at the frame edge and made the last controls unreachable. A plain
+   overflow:hidden ancestor does not clip a fixed element. Coordinates are set inline by the
+   component from the button's position; the 320px width is mirrored there as PANEL_WIDTH. */
+.model-settings-panel {
+  position: fixed;
+  z-index: 40;
+  width: 320px;
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: #fffdf6;
+  border: 3px solid #2b2620;
+  border-radius: 10px;
+  box-shadow: 4px 4px 0 #2b2620;
+}
+
+.model-settings-title {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.65;
+}
+
+.model-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.model-settings-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Holds the select and, when Custom is chosen, the free-text box beneath it. */
+.model-settings-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+  align-items: flex-end;
+}
+
+.model-settings-row .style-picker-select {
+  max-width: 190px;
+}
+
+.model-settings-input {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 5px 8px;
+  width: 190px;
+  border: 2px solid #2b2620;
+  border-radius: 8px;
+  background: #fffdf6;
+  color: #2b2620;
+}
+
+.model-settings-input:disabled {
+  opacity: 0.5;
+}
+
+.model-settings-note {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  opacity: 0.7;
+}
+
+.model-settings-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* --- Notice banner ---------------------------------------------------------------------------- */
+/* Deliberately not the error banner: a notice means the page arrived, just not from the model that
+   was asked for. Blue and calm, so a working page never reads as a failure. */
+.notice-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 14px;
+  padding: 8px 12px;
+  background: #eaf2ff;
+  border: 2px solid #2b4f8a;
+  border-radius: 8px;
+  color: #1c3a68;
+  font-size: 0.85rem;
+}
+
+.notice-banner-message {
+  flex: 1;
+}

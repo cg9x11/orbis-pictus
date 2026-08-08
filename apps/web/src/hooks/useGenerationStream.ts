@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GenerateErrorCode, GenerateRequest, GenerationStage, Node } from "@flipbook/shared";
+import type { GenerateErrorCode, GenerateEvent, GenerateRequest, GenerationStage, Node } from "@flipbook/shared";
 import { streamGenerate } from "../lib/api";
+
+/** Payload of the server's `notice` event, derived from the event union so it cannot drift from it. */
+export type GenerationNotice = Extract<GenerateEvent, { event: "notice" }>["data"];
 
 export interface GenerationState {
   status: "idle" | "streaming" | "done" | "error";
@@ -18,6 +21,14 @@ export interface GenerationState {
    *  drives the quota-specific error banner. Unset for a network-level failure (the stream's own
    *  .catch below), since those never reach the server's structured error event at all. */
   errorCode?: GenerateErrorCode;
+  /**
+   * Non-fatal advisories from the server: the provider or model you picked could not be used, and
+   * something else drew instead. The page still arrives, so these must never be shown as an error.
+   *
+   * Collected into a list rather than overwritten, because one generation can raise two (a provider
+   * swap and then a model swap), and the second must not erase the first.
+   */
+  notices?: GenerationNotice[];
 }
 
 export function useGenerationStream() {
@@ -43,6 +54,9 @@ export function useGenerationStream() {
               break;
             case "preview":
               setState((s) => ({ ...s, previewImageUrl: event.data.imageUrl }));
+              break;
+            case "notice":
+              setState((s) => ({ ...s, notices: [...(s.notices ?? []), event.data] }));
               break;
             case "complete":
               setState((s) => ({ ...s, status: "done", node: event.data }));

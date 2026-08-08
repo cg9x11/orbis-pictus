@@ -77,6 +77,14 @@ export function migrate(): void {
   // above, stored on the child node itself (a child has exactly one parent, so one morph per row).
   ensureColumn("nodes", "morph_status", "morph_status TEXT");
   ensureColumn("nodes", "morph_url", "morph_url TEXT");
+
+  // Provenance: which provider drew the page, and in which art style/composition. Needed so a
+  // lazily-generated aspect-ratio variant can be drawn to match the page it belongs to, rather than
+  // with whatever the server is configured with at the time. Empty means "written before this
+  // existed" — the variant route then falls back to the server's current settings.
+  ensureColumn("nodes", "image_provider", "image_provider TEXT NOT NULL DEFAULT ''");
+  ensureColumn("nodes", "art_style", "art_style TEXT NOT NULL DEFAULT ''");
+  ensureColumn("nodes", "composition", "composition TEXT NOT NULL DEFAULT ''");
 }
 
 // Run eagerly so the table exists before any module that imports `db` from here

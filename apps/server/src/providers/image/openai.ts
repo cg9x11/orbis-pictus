@@ -1,5 +1,5 @@
 import type { AspectRatio } from "@flipbook/shared";
-import { QuotaExhaustedError, type ImageGenInput, type ImageGenResult, type ImageProvider } from "../types.js";
+import { QuotaExhaustedError, UnknownModelError, type ImageGenInput, type ImageGenResult, type ImageProvider } from "../types.js";
 import { fetchWithRetry } from "../../lib/retry.js";
 import { strConfig } from "../../config/index.js";
 import type { ImageProviderFactory } from "./registry.js";
@@ -49,6 +49,16 @@ export class OpenAiImageProvider implements ImageProvider {
       if (res.status === 429) {
         throw new QuotaExhaustedError(`Image quota exhausted: OpenAI "${this.modelId}" was rate-limited (429). ${body}`);
       }
+      // NOT verified live — unlike the ark, gemini and fal branches, this one is written from
+      // OpenAI's published error contract, because OPENAI_API_KEY is empty in this deployment and
+      // the request could not be made. Re-check it against a real 404 before relying on it.
+      //
+      // Narrower than the gemini/fal checks on purpose: those two carry the model id in the URL, so
+      // any 404 is about the model. OpenAI sends the model in the BODY, so a bare 404 more likely
+      // means a wrong base URL — which a different model would not fix. Hence the extra keyword.
+      if (res.status === 404 && /model/i.test(body)) {
+        throw new UnknownModelError(`OpenAI does not recognise image model "${this.modelId}". ${body}`);
+      }
       throw new Error(`OpenAI image request failed (${res.status}): ${body}`);
     }
 
@@ -68,6 +78,17 @@ export class OpenAiImageProvider implements ImageProvider {
   }
 }
 
+/** Qualities the gpt-image family accepts. Exported so the settings catalog builds its dropdown
+ *  from this one list rather than repeating it. */
+export const OPENAI_IMAGE_QUALITIES = ["low", "medium", "high"] as const;
+
+/** An unrecognised *override* falls through to the configured value rather than reaching the API.
+ *  Only the override is checked — see the matching note in ./gemini.ts for why the configured value
+ *  is deliberately left as-is. */
+function validQuality(raw: string | undefined): string | undefined {
+  return raw !== undefined && (OPENAI_IMAGE_QUALITIES as readonly string[]).includes(raw) ? raw : undefined;
+}
+
 export const openaiImageFactory: ImageProviderFactory = {
   id: "openai",
   build: (ctx) => {
@@ -76,9 +97,10 @@ export const openaiImageFactory: ImageProviderFactory = {
       ctx.reportMissing("OPENAI_API_KEY (for image.provider=openai)");
       return null;
     }
-    const model = strConfig("OPENAI_IMAGE_MODEL", (c) => c.image?.openai?.model, "gpt-image-1.5");
+    const model = ctx.overrides.imageModel ?? strConfig("OPENAI_IMAGE_MODEL", (c) => c.image?.openai?.model, "gpt-image-1.5");
     const baseUrl = strConfig("OPENAI_IMAGE_BASE_URL", (c) => c.image?.openai?.baseUrl, "https://api.openai.com/v1");
-    const quality = strConfig("OPENAI_IMAGE_QUALITY", (c) => c.image?.openai?.quality, "medium");
+    const quality =
+      validQuality(ctx.overrides.openaiImageQuality) ?? strConfig("OPENAI_IMAGE_QUALITY", (c) => c.image?.openai?.quality, "medium");
     return new OpenAiImageProvider(apiKey, baseUrl, model, quality);
   },
 };

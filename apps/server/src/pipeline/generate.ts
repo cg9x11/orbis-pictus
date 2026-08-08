@@ -16,7 +16,7 @@ import { computePromptHash } from "./promptHash.js";
 import type { VideoPipeline } from "./video.js";
 import type { MorphPipeline } from "./morph.js";
 import { getTapDedupMode } from "./config.js";
-import { buildImagePrompt } from "./artStyle.js";
+import { buildImagePrompt, resolveArtStyleName, resolveCompositionName } from "./artStyle.js";
 import { boolConfig } from "../config/index.js";
 import { estimateImageCost } from "../providers/image/pricing.js";
 import { withRetry } from "../lib/retry.js";
@@ -255,8 +255,18 @@ export async function runGenerate(
   }
 
   let imageUrl: string;
+  // Which model actually drew these pixels. Starts as the model we asked for and is corrected below
+  // whenever that isn't the truth — a provider-internal fallback (Ark's quota retry) or an
+  // unknown-model fallback both report the substitute via `usedModelId`. Kept separate from
+  // `providers.image.modelId` because the prompt hash above is computed from the REQUESTED model,
+  // before generation runs, and must stay that way for the cache key to be stable.
+  let drawnModelId = ctx.providers.image.modelId;
   if (cachedImageUrl) {
     imageUrl = cachedImageUrl;
+    // These pixels came from an earlier node, so credit whichever model drew them there. The hash
+    // keys on the requested model, so a hit means the same request — but that earlier generation
+    // may itself have fallen back, and its record is the accurate one.
+    if (cachedImageNode?.image_model) drawnModelId = cachedImageNode.image_model;
   } else {
     const genImage = (): Promise<ImageGenResult> =>
       ctx.providers.image.generate({
@@ -267,14 +277,17 @@ export async function runGenerate(
     // Only reusable (non-edit) generations are coalesced: an edit is conditioned on the current
     // page's actual pixels, so two edits with byte-identical prompts can still need different
     // images and must each run — the same reason they are excluded from the persistent cache above.
-    const { bytes, contentType, usage } = canReuseImage ? await imageInFlight.run(promptHash, genImage) : await genImage();
+    const { bytes, contentType, usage, usedModelId } = canReuseImage ? await imageInFlight.run(promptHash, genImage) : await genImage();
+    if (usedModelId) drawnModelId = usedModelId;
     imageUrl = await saveImageVariantResized(ctx.imagesDir, nodeId, req.aspect_ratio, bytes, contentType);
 
     // Same DEBUG_IMAGE_PROMPT flag: after a real generation, log the provider's reported token usage
     // and an estimated cost from the published per-model rate table (providers/image/pricing.ts).
     // Only for providers that return usage (Gemini, OpenAI); others log "n/a". Never for a cache hit.
     if (debugImagePrompt) {
-      const cost = estimateImageCost(ctx.providers.image.modelId, usage);
+      // Priced against the model that actually drew, not the one that was asked for — a fallback
+      // to a different model is billed at the fallback's rate.
+      const cost = estimateImageCost(drawnModelId, usage);
       const tokens = usage
         ? `in=${usage.inputTokens ?? "?"} out=${usage.outputTokens ?? "?"} total=${usage.totalTokens ?? "?"}`
         : "n/a (provider reports no token usage)";
@@ -293,7 +306,14 @@ export async function runGenerate(
     query: topic,
     page_title: pageTitle,
     image_variants: { [req.aspect_ratio]: imageUrl },
-    image_model: ctx.providers.image.modelId,
+    image_model: drawnModelId,
+    // Provenance, so a lazily-generated aspect-ratio variant can reproduce this page rather than
+    // being drawn with whatever the server is configured with whenever that variant is first asked
+    // for. The style/composition are the RESOLVED names, not the raw request values, so an
+    // unrecognised request value records what was actually drawn.
+    image_provider: ctx.providers.image.providerId,
+    art_style: resolveArtStyleName(req.art_style),
+    composition: resolveCompositionName(req.composition),
     prompt_author_model: ctx.providers.llm.modelId,
     authored_prompt: authoredPrompt,
     created_at: new Date().toISOString(),
@@ -319,8 +339,13 @@ export async function runGenerate(
   // client-side but generation was not. When skipped, video_status/morph_status stay null, which the
   // client already reads as "no clip will ever exist" (it never polls), so nothing waits on them.
   if (req.video_loop) {
-    ctx.video.maybeStartIdleLoop(node, ctx.providers, ctx.imagesDir);
-    ctx.morph.maybeStartMorph(node, ctx.providers, ctx.imagesDir);
+    // The UI's clip settings ride the same request, so both background clips use what the user
+    // picked. Unusable values are not filtered here — videoConfig.ts falls an unknown resolution
+    // back to the configured one and caps a client-supplied duration, so whatever these carry is
+    // always something the provider accepts.
+    const clipOptions = { resolution: req.video_resolution, durationSeconds: req.video_duration_seconds };
+    ctx.video.maybeStartIdleLoop(node, ctx.providers, ctx.imagesDir, clipOptions);
+    ctx.morph.maybeStartMorph(node, ctx.providers, ctx.imagesDir, clipOptions);
   }
 
   const completed = getNode(nodeId) ?? node;

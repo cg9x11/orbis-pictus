@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { AspectRatio } from "@flipbook/shared";
-import { QuotaExhaustedError, type ImageGenInput, type ImageGenResult, type ImageProvider } from "../types.js";
+import { QuotaExhaustedError, UnknownModelError, type ImageGenInput, type ImageGenResult, type ImageProvider } from "../types.js";
 import { ArkRequestError, toArkRequestError } from "../ark/errors.js";
 import { fetchWithRetry } from "../../lib/retry.js";
 import { strConfig } from "../../config/index.js";
@@ -36,6 +36,12 @@ export class ArkImageProvider implements ImageProvider {
     try {
       return await this.generateWithModel(this.modelId, input);
     } catch (err) {
+      // Checked before the quota branch: an unrecognised model id is not a budget problem, so the
+      // configured fallback model (which exists for quota) is the wrong remedy. Retrying a bad name
+      // on a second model belongs to modelFallback.ts, which knows the server's configured default.
+      if (err instanceof ArkRequestError && err.isUnknownModelError) {
+        throw new UnknownModelError(`Ark does not recognise image model "${this.modelId}" (${err.code ?? err.message}).`);
+      }
       if (!(err instanceof ArkRequestError) || !err.isQuotaOrRateError) {
         throw err;
       }
@@ -43,8 +49,23 @@ export class ArkImageProvider implements ImageProvider {
         throw new QuotaExhaustedError(`Image quota exhausted: "${this.modelId}" was rejected (${err.code ?? err.message}).`);
       }
       try {
-        return await this.generateWithModel(this.fallbackModelId, input);
+        // usedModelId, so the node records the model that actually drew rather than the one that
+        // was rejected — the prompt hash and node row are both built from `modelId` before this
+        // point, so without it every quota fallback silently credits the wrong model.
+        const result = await this.generateWithModel(this.fallbackModelId, input);
+        return { ...result, usedModelId: this.fallbackModelId };
       } catch (fallbackErr) {
+        // Same reasoning as the primary-model check above, applied to the fallback. The fallback id
+        // is user-settable from the settings panel's free-text field, so it can be a name Ark has
+        // never heard of — and calling that "quota exhausted" is both untrue and harmful:
+        // modelFallback.ts routes on the error CLASS alone and catches only UnknownModelError, so a
+        // QuotaExhaustedError here would fail the page outright while blaming the user's budget.
+        if (fallbackErr instanceof ArkRequestError && fallbackErr.isUnknownModelError) {
+          throw new UnknownModelError(
+            `Ark does not recognise fallback image model "${this.fallbackModelId}" ` +
+              `(${fallbackErr.code ?? fallbackErr.message}).`,
+          );
+        }
         throw new QuotaExhaustedError(
           `Image quota exhausted: both "${this.modelId}" and fallback "${this.fallbackModelId}" ` +
             `were rejected (${err.code ?? err.message}; ${
@@ -102,8 +123,10 @@ export const arkImageFactory: ImageProviderFactory = {
     const parsed = ArkImageConfigSchema.safeParse({
       apiKey: process.env.ARK_API_KEY,
       baseUrl: strConfig("ARK_BASE_URL", (c) => c.image?.ark?.baseUrl, "https://ark.ap-southeast.bytepluses.com"),
-      model: strConfig("ARK_IMAGE_MODEL", (c) => c.image?.ark?.model, "seedream-4-5-251128"),
-      fallbackModel: strConfig("ARK_IMAGE_MODEL_FALLBACK", (c) => c.image?.ark?.fallbackModel, "seedream-4-0-250828"),
+      model: ctx.overrides.imageModel ?? strConfig("ARK_IMAGE_MODEL", (c) => c.image?.ark?.model, "seedream-4-5-251128"),
+      fallbackModel:
+        ctx.overrides.arkFallbackModel ??
+        strConfig("ARK_IMAGE_MODEL_FALLBACK", (c) => c.image?.ark?.fallbackModel, "seedream-4-0-250828"),
     });
     if (!parsed.success) {
       ctx.reportMissing(`ARK_API_KEY/config (${parsed.error.issues.map((i) => i.path.join(".")).join(", ")})`);

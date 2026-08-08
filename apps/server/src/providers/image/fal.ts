@@ -1,5 +1,5 @@
 import type { AspectRatio } from "@flipbook/shared";
-import type { ImageGenInput, ImageGenResult, ImageProvider } from "../types.js";
+import { UnknownModelError, type ImageGenInput, type ImageGenResult, type ImageProvider } from "../types.js";
 import { fetchWithRetry } from "../../lib/retry.js";
 import { strConfig } from "../../config/index.js";
 import type { ImageProviderFactory } from "./registry.js";
@@ -35,6 +35,13 @@ export class FalImageProvider implements ImageProvider {
     });
     if (!res.ok) {
       const body = await res.text();
+      // The model id IS the request path on fal, so a 404 means "no such application".
+      // Verified empirically 2026-08-08: an unknown model answers 404 with
+      // `{"detail": "Application '<id>' not found"}` — note it says "Application", never "model",
+      // so matching on the word "model" would miss this entirely. The status is the reliable signal.
+      if (res.status === 404) {
+        throw new UnknownModelError(`fal.ai does not recognise image model "${this.modelId}". ${body}`);
+      }
       throw new Error(`fal.ai request failed (${res.status}): ${body}`);
     }
     const json = (await res.json()) as {
@@ -60,6 +67,9 @@ export const falImageFactory: ImageProviderFactory = {
       ctx.reportMissing("FAL_KEY");
       return null;
     }
-    return new FalImageProvider(apiKey, strConfig("IMAGE_MODEL", (c) => c.image?.fal?.model, "fal-ai/flux/schnell"));
+    return new FalImageProvider(
+      apiKey,
+      ctx.overrides.imageModel ?? strConfig("IMAGE_MODEL", (c) => c.image?.fal?.model, "fal-ai/flux/schnell"),
+    );
   },
 };

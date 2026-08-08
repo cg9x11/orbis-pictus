@@ -6,6 +6,7 @@ import { UploadButton } from "./components/UploadButton";
 import { WebSearchToggle } from "./components/WebSearchToggle";
 import { ArtStylePicker } from "./components/ArtStylePicker";
 import { CompositionPicker } from "./components/CompositionPicker";
+import { ModelSettingsPanel } from "./components/ModelSettingsPanel";
 import { VideoLoopToggle } from "./components/VideoLoopToggle";
 import { GenerationProgress } from "./components/GenerationProgress";
 import { CachedTapMarkers } from "./components/CachedTapMarkers";
@@ -25,6 +26,9 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     setWebSearch,
     setArtStyle,
     setComposition,
+    modelPrefs,
+    setModelPrefs,
+    notices,
     state,
     isStreaming,
     busy,
@@ -89,6 +93,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
           <WebSearchToggle enabled={config.webSearch} onChange={setWebSearch} disabled={busy} />
           <ArtStylePicker styles={config.artStyles} value={config.artStyle} onChange={setArtStyle} disabled={busy} />
           <CompositionPicker compositions={config.compositions} value={config.composition} onChange={setComposition} disabled={busy} />
+          <ModelSettingsPanel settings={config.modelSettings} prefs={modelPrefs} onChange={setModelPrefs} disabled={busy} />
           {config.videoAvailable && (
             <VideoLoopToggle
               enabled={videoLoopEnabled}
@@ -171,6 +176,15 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
           )}
         </div>
       )}
+      {/* Advisories, not failures: the page did arrive, drawn by something other than what was
+          picked. Kept visually distinct from the error banner above so a working page never looks
+          broken, and shown after it so a real error stays the most prominent thing on screen. */}
+      {notices.map((notice) => (
+        <div key={`${notice.code}-${notice.requested ?? ""}`} className="notice-banner">
+          <span className="notice-banner-icon">ℹ️</span>
+          <span className="notice-banner-message">{notice.message}</span>
+        </div>
+      ))}
       {milestone !== null && (
         <div key={milestone} className="milestone-toast" onAnimationEnd={dismissMilestone}>
           🎉 You've explored {milestone} pages this session

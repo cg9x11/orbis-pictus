@@ -35,3 +35,54 @@ test("GenerateRequestSchema still rejects a mode-less body that is otherwise inv
   const parsed = GenerateRequestSchema.safeParse({ session_id: "s1" });
   assert.equal(parsed.success, false);
 });
+
+// The settings panel's number input can yield a non-integer, and the whole request used to die of
+// it: `.int()` failed, the merged schema rejected, and the route answered 400. Every generation
+// stopped until the user cleared the field, over a control that is supposed to be optional.
+test("a non-integer duration is dropped instead of failing the whole request", () => {
+  const parsed = GenerateRequestSchema.safeParse({
+    query: "volcanoes",
+    session_id: "s1",
+    video_duration_seconds: 5.5,
+  });
+  assert.equal(parsed.success, true);
+  assert.equal(parsed.success && parsed.data.video_duration_seconds, undefined);
+});
+
+// The point of per-field recovery: one unusable value must not take the good ones with it.
+test("one bad override does not discard the others", () => {
+  const parsed = GenerateRequestSchema.safeParse({
+    query: "volcanoes",
+    session_id: "s1",
+    video_duration_seconds: 0,
+    image_provider: "fal",
+    image_model: "flux-pro",
+  });
+  assert.equal(parsed.success, true);
+  assert.equal(parsed.success && parsed.data.image_provider, "fal");
+  assert.equal(parsed.success && parsed.data.image_model, "flux-pro");
+  assert.equal(parsed.success && parsed.data.video_duration_seconds, undefined);
+});
+
+// Recovery must not turn into indifference: a value that IS valid still has to arrive intact.
+test("a valid duration still passes through untouched", () => {
+  const parsed = GenerateRequestSchema.safeParse({
+    query: "volcanoes",
+    session_id: "s1",
+    video_duration_seconds: 8,
+  });
+  assert.equal(parsed.success && parsed.data.video_duration_seconds, 8);
+});
+
+// A stale client can send the wrong TYPE, not just the wrong value. Same outcome: drop the field.
+test("a wrongly-typed override degrades to the server default", () => {
+  const parsed = GenerateRequestSchema.safeParse({
+    query: "volcanoes",
+    session_id: "s1",
+    image_provider: 42,
+    video_duration_seconds: "6",
+  });
+  assert.equal(parsed.success, true);
+  assert.equal(parsed.success && parsed.data.image_provider, undefined);
+  assert.equal(parsed.success && parsed.data.video_duration_seconds, undefined);
+});

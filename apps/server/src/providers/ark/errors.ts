@@ -1,5 +1,28 @@
 const QUOTA_ERROR_PATTERN = /quota|rate.?limit|too many requests|exceeded|insufficient|overdue|throttl/i;
 
+/**
+ * "Ark doesn't recognise / can't serve this model id" — matched on the error code and message, and
+ * deliberately NOT on the HTTP status.
+ *
+ * 404 alone is not sufficient: Ark also answers 404 with `TaskNotFound` when a *video task* id is
+ * polled after expiry (see providers/video/ark.ts's checkTask and its test), which has nothing to
+ * do with the model. Treating every 404 as an unknown model would silently reroute that into a
+ * model fallback. Both alternatives below therefore require the word "model" to be present.
+ *
+ * Verified empirically against the live BytePlus Ark image API, 2026-08-08 — an unknown model id
+ * returns status 404 with:
+ *
+ *   { error: { code: "InvalidEndpointOrModel.NotFound",
+ *              message: "The model or endpoint <id> does not exist or you do not have access to it",
+ *              type: "Not Found" } }
+ *
+ * A second real shape, `{ code: "ModelNotOpen", message: "…has not activated the model…" }` at 404,
+ * is captured in providers/video/ark.test.ts. Both are matched below; the remaining wordings are
+ * defensive and have NOT been observed live.
+ */
+const UNKNOWN_MODEL_PATTERN =
+  /model.*(not.?(found|exist|open|activat|support)|invalid|unavailable|unsupported)|(invalid|unknown|unsupported|missing).*model/i;
+
 interface ArkErrorBody {
   error?: { code?: string; message?: string; type?: string };
 }
@@ -18,6 +41,12 @@ export class ArkRequestError extends Error {
   get isQuotaOrRateError(): boolean {
     if (this.status === 429) return true;
     return QUOTA_ERROR_PATTERN.test(`${this.code ?? ""} ${this.message}`);
+  }
+
+  /** Whether this rejection is about the model id itself rather than the account's budget — see
+   *  UNKNOWN_MODEL_PATTERN above for why the HTTP status is deliberately not consulted. */
+  get isUnknownModelError(): boolean {
+    return UNKNOWN_MODEL_PATTERN.test(`${this.code ?? ""} ${this.message}`);
   }
 }
 
