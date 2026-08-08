@@ -1,4 +1,4 @@
-import type { AspectRatio, Node } from "@flipbook/shared";
+import type { AspectRatio, Node } from "@orbis/shared";
 import type { Providers } from "../providers/index.js";
 import { loadImageAsDataUrl } from "./imageStorage.js";
 import { getVideoDurationSeconds, getVideoResolution } from "./videoConfig.js";
@@ -114,7 +114,7 @@ export function createBackgroundClipPipeline<TNode extends Node>(config: Backgro
             const dynamic = await config.describeMotion({ firstFrameDataUrl, lastFrameDataUrl }, providers);
             if (dynamic && dynamic.trim()) prompt = dynamic.trim();
           } catch (err) {
-            console.warn(`[flipbook] ${config.label}: motion-prompt generation failed, using generic fallback:`, err instanceof Error ? err.message : err);
+            console.warn(`[orbis] ${config.label}: motion-prompt generation failed, using generic fallback:`, err instanceof Error ? err.message : err);
           }
         }
 
@@ -130,7 +130,7 @@ export function createBackgroundClipPipeline<TNode extends Node>(config: Backgro
         const url = config.save(imagesDir, node.id, bytes);
         config.markReady(node.id, url);
       } catch (err) {
-        console.error(`[flipbook] ${config.label} failed for node ${node.id}:`, err instanceof Error ? err.message : err);
+        console.error(`[orbis] ${config.label} failed for node ${node.id}:`, err instanceof Error ? err.message : err);
         config.markFailed(node.id);
       } finally {
         inFlight.delete(node.id);

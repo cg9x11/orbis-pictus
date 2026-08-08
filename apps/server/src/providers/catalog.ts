@@ -1,4 +1,4 @@
-import type { ModelSettings, ProviderOption } from "@flipbook/shared";
+import type { ModelSettings, ProviderOption } from "@orbis/shared";
 import { strConfig } from "../config/index.js";
 import {
   MAX_OVERRIDE_DURATION_SECONDS,

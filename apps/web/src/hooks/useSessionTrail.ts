@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import type { Node } from "@flipbook/shared";
+import type { Node } from "@orbis/shared";
 
 interface TrailState {
   trail: Node[];

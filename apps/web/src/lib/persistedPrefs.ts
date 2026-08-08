@@ -1,6 +1,6 @@
-import { ModelOverridesSchema, type ModelOverrides } from "@flipbook/shared";
+import { ModelOverridesSchema, type ModelOverrides } from "@orbis/shared";
 
-const STORAGE_KEY = "flipbook_model_settings:v1";
+const STORAGE_KEY = "orbis_model_settings:v1";
 
 /**
  * The settings panel's choices. Same shape as the request's override block, so what is stored is

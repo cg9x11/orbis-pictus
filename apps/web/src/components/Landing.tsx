@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import type { Node } from "@flipbook/shared";
+import type { Node } from "@orbis/shared";
 import { fetchGallery } from "../lib/api";
 import { useCancellableEffect } from "../hooks/useCancellableEffect";
 

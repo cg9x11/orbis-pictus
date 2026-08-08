@@ -1,4 +1,4 @@
-import type { AspectRatio, Node } from "@flipbook/shared";
+import type { AspectRatio, Node } from "@orbis/shared";
 import type { Providers } from "../providers/index.js";
 import { getVideoInfo, markVideoFailed, markVideoPending, markVideoReady } from "../storage/nodes.js";
 import { saveVideo } from "./videoStorage.js";

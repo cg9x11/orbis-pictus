@@ -9,7 +9,7 @@ import { NoneSearchProvider } from "./search/none.js";
 import { LlmSearchProvider } from "./search/llm.js";
 import { CachingSearchProvider } from "./search/caching.js";
 import { boolConfig, intConfig, strConfig } from "../config/index.js";
-import type { ModelOverrides } from "@flipbook/shared";
+import type { ModelOverrides } from "@orbis/shared";
 import type { ImageProvider, LlmProvider, SearchProvider, VideoProvider } from "./types.js";
 
 const ArkVideoConfigSchema = z.object({

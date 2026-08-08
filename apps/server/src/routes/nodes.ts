@@ -7,7 +7,7 @@ import {
   NodesUploadRequestSchema,
   type ModelOverrides,
   type Node,
-} from "@flipbook/shared";
+} from "@orbis/shared";
 import {
   addImageVariant,
   findChildBySubject,
@@ -203,7 +203,7 @@ export function nodesRoute(
     const info = getVideoInfo(id);
     if (!info || info.status !== "ready" || !info.url) {
       // `status` mirrors /:id/morph below: the backoff poller ignores it, but the pre-navigation clip
-      // gate (useFlipbookController) uses it to tell "still rendering, keep waiting" from "failed,
+      // gate (useOrbisController) uses it to tell "still rendering, keep waiting" from "failed,
       // stop waiting and go" while it holds the transition for this clip.
       return c.json({ ready: false, status: info?.status ?? null }, 404);
     }
@@ -248,7 +248,7 @@ export function nodesRoute(
   // Transition-morph polling: 404 until the pre-generated clip is ready — same
   // shape and reasoning as /video above. Morphs are never generated on demand, so a 404 here just
   // means "use the instant crossfade", not "come back later and block on it". The `status` field on
-  // the not-ready branch lets the first-step-morph gate (useFlipbookController) tell "still pending,
+  // the not-ready branch lets the first-step-morph gate (useOrbisController) tell "still pending,
   // keep waiting" from "failed, give up and navigate now" while it holds navigation for this clip.
   app.get("/:id/morph", (c) => {
     const id = c.req.param("id");

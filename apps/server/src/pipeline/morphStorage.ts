@@ -41,12 +41,12 @@ export function writeReversedMorph(imagesDir: string, childNodeId: string): Prom
       stderr += String(chunk);
     });
     ff.on("error", (err) => {
-      console.warn(`[flipbook] reverse morph unavailable for ${childNodeId} (ffmpeg not runnable):`, err.message);
+      console.warn(`[orbis] reverse morph unavailable for ${childNodeId} (ffmpeg not runnable):`, err.message);
       resolve(false);
     });
     ff.on("close", (code) => {
       if (code === 0 && fs.existsSync(output)) return resolve(true);
-      console.warn(`[flipbook] reverse morph failed for ${childNodeId} (ffmpeg exit ${code}):`, stderr.trim());
+      console.warn(`[orbis] reverse morph failed for ${childNodeId} (ffmpeg exit ${code}):`, stderr.trim());
       // A half-written file would be served as a broken clip, so drop it and let the crossfade run.
       fs.rmSync(output, { force: true });
       resolve(false);

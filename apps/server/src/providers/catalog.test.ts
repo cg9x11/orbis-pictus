@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildModelSettings } from "./catalog.js";
-import type { ProviderOption } from "@flipbook/shared";
+import type { ProviderOption } from "@orbis/shared";
 
 const KEYS = [
   "IMAGE_PROVIDER",

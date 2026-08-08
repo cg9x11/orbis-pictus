@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { Node } from "@flipbook/shared";
+import type { Node } from "@orbis/shared";
 import type { LlmProvider, MotionPromptOutput, VideoGenInput, VideoGenResult, VideoProvider } from "../providers/types.js";
 import { IDLE_LOOP_MOTION_PROMPT } from "./videoPrompt.js";
 
 // Must be set before ./video.js (imports storage/nodes.js -> storage/db.js) runs its module-level
 // migrate(), same pattern as generate.test.ts. VIDEO_ENABLED/VIDEO_MAX_PER_SESSION are read
 // per-call (not at import time) by videoConfig.ts, so setting them here for the whole file is fine.
-process.env.DATABASE_URL = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-")), "test.db");
+process.env.DATABASE_URL = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "orbis-video-")), "test.db");
 process.env.VIDEO_ENABLED = "true";
 process.env.VIDEO_MAX_PER_SESSION = "2";
 
@@ -66,7 +66,7 @@ async function flush(): Promise<void> {
 }
 
 test("generates and stores a video for a node that has never been attempted", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-video-images-"));
   const pipeline = createVideoPipeline();
   const video = new SpyVideoProvider();
   const node = makeNode("node-fresh", "s-fresh", imagesDir);
@@ -83,7 +83,7 @@ test("generates and stores a video for a node that has never been attempted", as
 });
 
 test("the motion prompt is tailored to the page by the VLM, not the static fallback", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-video-images-"));
   const pipeline = createVideoPipeline();
   const video = new SpyVideoProvider();
   const node = makeNode("node-vlm-prompt", "s-vlm", imagesDir);
@@ -104,7 +104,7 @@ test("a VLM failure falls back to the generic idle-loop prompt and still generat
       throw new Error("vlm unavailable");
     }
   }
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-video-images-"));
   const pipeline = createVideoPipeline();
   const video = new SpyVideoProvider();
   const node = makeNode("node-vlm-fail", "s-vlm-fail", imagesDir);
@@ -119,7 +119,7 @@ test("a VLM failure falls back to the generic idle-loop prompt and still generat
 });
 
 test("a node that already has a stored video is never regenerated", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-video-images-"));
   const pipeline = createVideoPipeline();
   const video = new SpyVideoProvider();
   const node = makeNode("node-already-ready", "s-ready", imagesDir);
@@ -136,7 +136,7 @@ test("a node that already has a stored video is never regenerated", async () => 
 });
 
 test("a node whose generation already failed is not retried", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-video-images-"));
   const video = new SpyVideoProvider();
   video.shouldFail = true;
   const node = makeNode("node-failed", "s-failed", imagesDir);
@@ -153,7 +153,7 @@ test("a node whose generation already failed is not retried", async () => {
 });
 
 test("concurrent calls for the same node in-flight are deduplicated", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-video-images-"));
   const pipeline = createVideoPipeline();
   const video = new SpyVideoProvider();
   const node = makeNode("node-concurrent", "s-concurrent", imagesDir);
@@ -168,7 +168,7 @@ test("concurrent calls for the same node in-flight are deduplicated", async () =
 });
 
 test("VIDEO_MAX_PER_SESSION caps generations per session_id, across distinct nodes", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-video-images-"));
   const pipeline = createVideoPipeline();
   const video = new SpyVideoProvider();
   const sessionId = "s-capped";
@@ -187,7 +187,7 @@ test("VIDEO_ENABLED=false disables generation entirely, synchronously", async ()
   const originalValue = process.env.VIDEO_ENABLED;
   process.env.VIDEO_ENABLED = "false";
   try {
-    const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+    const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-video-images-"));
     const pipeline = createVideoPipeline();
     const video = new SpyVideoProvider();
     const node = makeNode("node-disabled", "s-disabled", imagesDir);
@@ -208,7 +208,7 @@ test("VIDEO_ENABLED=false disables generation entirely, synchronously", async ()
 // reports why nothing started and it retries a previously-failed node. ---
 
 test("startNow: generates for a null-status node and reports 'started'", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-video-images-"));
   const pipeline = createVideoPipeline();
   const video = new SpyVideoProvider();
   const node = makeNode("ondemand-fresh", "s-od-fresh", imagesDir);
@@ -223,7 +223,7 @@ test("startNow: generates for a null-status node and reports 'started'", async (
 });
 
 test("startNow: a node that already has a ready clip reports 'already-ready' and does not regenerate", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-video-images-"));
   const pipeline = createVideoPipeline();
   const video = new SpyVideoProvider();
   const node = makeNode("ondemand-ready", "s-od-ready", imagesDir);
@@ -239,7 +239,7 @@ test("startNow: a node that already has a ready clip reports 'already-ready' and
 });
 
 test("startNow: a second synchronous call while one is in flight reports 'already-pending'", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-video-images-"));
   const pipeline = createVideoPipeline();
   const video = new SpyVideoProvider();
   const node = makeNode("ondemand-inflight", "s-od-inflight", imagesDir);
@@ -252,7 +252,7 @@ test("startNow: a second synchronous call while one is in flight reports 'alread
 });
 
 test("startNow: a previously-failed node IS retried (unlike the automatic path)", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-video-images-"));
   const pipeline = createVideoPipeline();
   const video = new SpyVideoProvider();
   video.shouldFail = true;
@@ -271,7 +271,7 @@ test("startNow: a previously-failed node IS retried (unlike the automatic path)"
 });
 
 test("startNow: past the per-session cap reports 'session-cap' and starts nothing", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-video-images-"));
   const pipeline = createVideoPipeline();
   const video = new SpyVideoProvider();
   const sessionId = "s-od-capped";
@@ -290,7 +290,7 @@ test("startNow: VIDEO_ENABLED=false reports 'disabled' and starts nothing", asyn
   const originalValue = process.env.VIDEO_ENABLED;
   process.env.VIDEO_ENABLED = "false";
   try {
-    const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-images-"));
+    const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-video-images-"));
     const pipeline = createVideoPipeline();
     const video = new SpyVideoProvider();
     const node = makeNode("ondemand-disabled", "s-od-disabled", imagesDir);
@@ -312,7 +312,7 @@ test("startNow: VIDEO_ENABLED=false reports 'disabled' and starts nothing", asyn
 // never pick it up — the exact silent-wait bug this field was added to remove.
 test("the `complete` event already reports video_status pending when a clip is on its way", async () => {
   const { runGenerate } = await import("./generate.js");
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-video-complete-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-video-complete-"));
   const events: { event: string; data: unknown }[] = [];
 
   const { createMorphPipeline } = await import("./morph.js");

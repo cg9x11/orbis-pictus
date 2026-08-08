@@ -1,4 +1,4 @@
-import type { Node } from "@flipbook/shared";
+import type { Node } from "@orbis/shared";
 
 /** Row shape of the `nodes` table (see db.ts for DDL). Derived from the public Node type so a
  *  field rename/add there is caught here at compile time. Only image_variants, video_status, and

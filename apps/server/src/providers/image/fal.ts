@@ -1,4 +1,4 @@
-import type { AspectRatio } from "@flipbook/shared";
+import type { AspectRatio } from "@orbis/shared";
 import { UnknownModelError, type ImageGenInput, type ImageGenResult, type ImageProvider } from "../types.js";
 import { fetchWithRetry } from "../../lib/retry.js";
 import { strConfig } from "../../config/index.js";

@@ -1,4 +1,4 @@
-import type { AspectRatio } from "@flipbook/shared";
+import type { AspectRatio } from "@orbis/shared";
 import { classNames } from "../lib/classNames";
 
 const RATIOS: AspectRatio[] = ["16:9", "3:4", "1:1"];

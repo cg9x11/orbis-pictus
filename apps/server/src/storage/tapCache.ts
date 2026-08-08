@@ -1,4 +1,4 @@
-import type { AspectRatio } from "@flipbook/shared";
+import type { AspectRatio } from "@orbis/shared";
 import { db } from "./db.js";
 import type { TapCacheRow } from "./rows.js";
 import { tapCellIndex, isWithinTapRadius } from "../pipeline/tapMath.js";

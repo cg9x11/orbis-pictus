@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { Node } from "@flipbook/shared";
+import type { Node } from "@orbis/shared";
 import type { VideoGenInput, VideoGenResult, VideoProvider } from "../providers/types.js";
 
 // Must be set before ./morph.js (imports storage/nodes.js -> storage/db.js) runs its module-level
 // migrate(), same pattern as video.test.ts. MORPH_ENABLED/MORPH_MAX_PER_SESSION are read per-call
 // (not at import time) by morphConfig.ts, so setting them here for the whole file is fine.
-process.env.DATABASE_URL = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-")), "test.db");
+process.env.DATABASE_URL = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-")), "test.db");
 process.env.MORPH_ENABLED = "true";
 process.env.MORPH_MAX_PER_SESSION = "2";
 // The clips here are a few fake bytes, not real mp4s, so the reverse re-encode would spawn a real
@@ -78,7 +78,7 @@ async function flush(): Promise<void> {
 }
 
 test("triggers a morph generation for a fresh child, using the parent as first frame and the child as last frame", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
   const pipeline = createMorphPipeline();
   const video = new SpyVideoProvider();
   const { parent, child } = makeParentChild("fresh", "s-fresh", imagesDir);
@@ -95,7 +95,7 @@ test("triggers a morph generation for a fresh child, using the parent as first f
 });
 
 test("the morph prompt is tailored to the two frames by the VLM, not the static fallback", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
   const pipeline = createMorphPipeline();
   const video = new SpyVideoProvider();
   const { child } = makeParentChild("vlm-prompt", "s-vlm", imagesDir);
@@ -112,7 +112,7 @@ test("the morph prompt is tailored to the two frames by the VLM, not the static 
 // a child made with it off — or reopened from a cached tap marker, which never runs the generate
 // pipeline at all — could previously never get a morph by any route. startMorphNow is that route.
 test("startMorphNow: generates for a child the automatic path never attempted", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
   const video = new SpyVideoProvider();
   const { child } = makeParentChild("on-demand", "s-on-demand", imagesDir);
 
@@ -128,7 +128,7 @@ test("startMorphNow: generates for a child the automatic path never attempted", 
 });
 
 test("startMorphNow: a previously-failed child IS retried (unlike the automatic path)", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
   const video = new SpyVideoProvider();
   video.shouldFail = true;
   const { child } = makeParentChild("on-demand-retry", "s-on-demand-retry", imagesDir);
@@ -147,7 +147,7 @@ test("startMorphNow: a previously-failed child IS retried (unlike the automatic 
 });
 
 test("startMorphNow: a root node reports 'unavailable' rather than generating", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
   const video = new SpyVideoProvider();
   const root = makeNode("on-demand-root", "s-on-demand-root", imagesDir, null);
   insertNode(root, { normalizedSubject: "n" });
@@ -160,7 +160,7 @@ test("startMorphNow: a root node reports 'unavailable' rather than generating", 
 });
 
 test("a root node (no parent) is skipped without touching the provider", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
   const pipeline = createMorphPipeline();
   const video = new SpyVideoProvider();
   const root = makeNode("root-only", "s-root", imagesDir, null);
@@ -174,7 +174,7 @@ test("a root node (no parent) is skipped without touching the provider", async (
 });
 
 test("a child that already has a stored morph is never regenerated", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
   const pipeline = createMorphPipeline();
   const video = new SpyVideoProvider();
   const { child } = makeParentChild("already-ready", "s-ready", imagesDir);
@@ -190,7 +190,7 @@ test("a child that already has a stored morph is never regenerated", async () =>
 });
 
 test("a child whose morph generation already failed is not retried", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
   const video = new SpyVideoProvider();
   video.shouldFail = true;
   const { child } = makeParentChild("failed", "s-failed", imagesDir);
@@ -206,7 +206,7 @@ test("a child whose morph generation already failed is not retried", async () =>
 });
 
 test("concurrent calls for the same child in-flight are deduplicated", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
   const pipeline = createMorphPipeline();
   const video = new SpyVideoProvider();
   const { child } = makeParentChild("concurrent", "s-concurrent", imagesDir);
@@ -220,7 +220,7 @@ test("concurrent calls for the same child in-flight are deduplicated", async () 
 });
 
 test("MORPH_MAX_PER_SESSION caps generations per session_id, across distinct child nodes", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
   const pipeline = createMorphPipeline();
   const video = new SpyVideoProvider();
   const sessionId = "s-capped";
@@ -238,7 +238,7 @@ test("MORPH_ENABLED=false disables generation entirely, synchronously", async ()
   const originalValue = process.env.MORPH_ENABLED;
   process.env.MORPH_ENABLED = "false";
   try {
-    const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
+    const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
     const pipeline = createMorphPipeline();
     const video = new SpyVideoProvider();
     const { child } = makeParentChild("disabled", "s-disabled", imagesDir);
@@ -254,7 +254,7 @@ test("MORPH_ENABLED=false disables generation entirely, synchronously", async ()
 });
 
 test("no morph yet -> the endpoint's underlying state is the null/never-attempted case a client reads as 'no morph, just show the page' (the instant image swap)", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-morph-images-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
   const { child } = makeParentChild("never-attempted", "s-never", imagesDir);
 
   // No maybeStartMorph call at all — mirrors a page nobody has revisited yet.

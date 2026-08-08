@@ -14,7 +14,7 @@ test("SERVER_ROOT resolves to the apps/server package, identified by its package
   const pkgPath = path.join(SERVER_ROOT, "package.json");
   assert.ok(fs.existsSync(pkgPath), `expected a package.json at SERVER_ROOT, got ${SERVER_ROOT}`);
   const pkg: unknown = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-  assert.equal((pkg as { name?: string }).name, "@flipbook/server");
+  assert.equal((pkg as { name?: string }).name, "@orbis/server");
 });
 
 test("REPO_ROOT resolves to the monorepo root, identified by root-only files", () => {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ModelSettings, ProviderOption } from "@flipbook/shared";
+import type { ModelSettings, ProviderOption } from "@orbis/shared";
 import { pruneEmptyPrefs, type ModelPrefs } from "../lib/persistedPrefs";
 import { classNames } from "../lib/classNames";
 

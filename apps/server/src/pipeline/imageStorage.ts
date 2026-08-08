@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
-import type { AspectRatio, Node } from "@flipbook/shared";
+import type { AspectRatio, Node } from "@orbis/shared";
 
 export const VARIANT_NAME: Record<AspectRatio, string> = {
   "3:4": "portrait",
@@ -78,7 +78,7 @@ export async function downscaleForStorage(
     return { bytes: resized, contentType: "image/jpeg" };
   } catch (err) {
     console.warn(
-      `[flipbook] image downscale skipped for ${aspectRatio}, storing original bytes:`,
+      `[orbis] image downscale skipped for ${aspectRatio}, storing original bytes:`,
       err instanceof Error ? err.message : err,
     );
     return { bytes, contentType };

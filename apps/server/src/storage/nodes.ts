@@ -1,5 +1,5 @@
-import type { AspectRatio, MorphStatus, Node, VideoStatus } from "@flipbook/shared";
-import { ImageVariantsSchema, MorphStatusSchema, VideoStatusSchema } from "@flipbook/shared";
+import type { AspectRatio, MorphStatus, Node, VideoStatus } from "@orbis/shared";
+import { ImageVariantsSchema, MorphStatusSchema, VideoStatusSchema } from "@orbis/shared";
 import { db } from "./db.js";
 import type { NodeRow } from "./rows.js";
 
@@ -144,7 +144,7 @@ export function findNodeByPromptHash(hash: string): Node | null {
 // --- Idle-loop video state. `video_status` is part of the public Node schema
 // (the client needs it to tell "a clip is coming" from "none will ever exist"); `video_url` is
 // internal and reachable only through GET /api/nodes/:id/video. VideoStatus itself is defined
-// once, in @flipbook/shared, and re-exported here for the existing server-side importers.
+// once, in @orbis/shared, and re-exported here for the existing server-side importers.
 export type { VideoStatus };
 
 export interface VideoInfo {
@@ -179,7 +179,7 @@ export function markVideoReady(id: string, url: string): void {
 
 // --- Page-transition morph state. `morph_status` is part of the public Node
 // schema (same rationale as video_status); `morph_url` is internal and reachable only through
-// GET /api/nodes/:id/morph. MorphStatus itself is defined once, in @flipbook/shared, and
+// GET /api/nodes/:id/morph. MorphStatus itself is defined once, in @orbis/shared, and
 // re-exported here for the existing server-side importers.
 export type { MorphStatus };
 

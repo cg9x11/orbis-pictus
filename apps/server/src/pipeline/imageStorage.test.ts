@@ -43,7 +43,7 @@ test("downscaleForStorage passes non-image bytes through unchanged", async () =>
 });
 
 test("saveImageVariantResized writes a storage-tier file to disk", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-imgstore-"));
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-imgstore-"));
   const original = await providerSizedJpeg("16:9");
   const url = await saveImageVariantResized(imagesDir, "node-abc", "16:9", original, "image/jpeg");
 

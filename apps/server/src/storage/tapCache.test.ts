@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 // Must be set before ./db.js (imported transitively by tapCache.js) runs its module-level migrate().
-process.env.DATABASE_URL = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-tapcache-")), "test.db");
+process.env.DATABASE_URL = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "orbis-tapcache-")), "test.db");
 
 const { recordTapCache, findTapCacheHit } = await import("./tapCache.js");
 

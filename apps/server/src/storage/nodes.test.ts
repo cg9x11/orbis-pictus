@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { Node } from "@flipbook/shared";
+import type { Node } from "@orbis/shared";
 
-process.env.DATABASE_URL = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-nodes-")), "test.db");
+process.env.DATABASE_URL = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "orbis-nodes-")), "test.db");
 
 const { insertNode, findChildBySubject, findNodeByPromptHash, listGalleryNodes, getHistory, getNode, addImageVariant } =
   await import("./nodes.js");

@@ -1,4 +1,4 @@
-# flipbook configuration (non-secret) — copy to `config.yml` and edit.
+# Orbis Pictus configuration (non-secret) — copy to `config.yml` and edit.
 #
 #   cp config.example.yml config.yml
 #
@@ -20,7 +20,7 @@
 
 server:
   port: 8787
-  databaseUrl: ./data/flipbook.db
+  databaseUrl: ./data/orbis.db
   imagesDir: ./data/images
 
 # --- Prompt author + tap VLM (needs LLM_API_KEY in .env for the anthropic provider) ---

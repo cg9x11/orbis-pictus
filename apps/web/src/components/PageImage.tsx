@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import type { AspectRatio } from "@flipbook/shared";
+import type { AspectRatio } from "@orbis/shared";
 import { TapRipple } from "./TapRipple";
 import { classNames } from "../lib/classNames";
 

@@ -1,4 +1,4 @@
-import type { AspectRatio, Node } from "@flipbook/shared";
+import type { AspectRatio, Node } from "@orbis/shared";
 import type { Providers } from "../providers/index.js";
 import { getMorphInfo, getNode, markMorphFailed, markMorphPending, markMorphReady } from "../storage/nodes.js";
 import { saveMorph, writeReversedMorph } from "./morphStorage.js";

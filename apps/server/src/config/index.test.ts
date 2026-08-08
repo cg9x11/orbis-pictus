@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { strConfig, optStrConfig, boolConfig, intConfig, resolveConfigPath, DEFAULT_CONFIG_PATH, __resetConfigCacheForTests } from "./index.js";
 
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-config-"));
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-config-"));
 
 /** Point the loader at a fresh YAML file (or none) and clear the parse cache, so each scenario is isolated. */
 function useConfig(yamlText: string | null): void {

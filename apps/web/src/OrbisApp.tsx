@@ -12,9 +12,9 @@ import { GenerationProgress } from "./components/GenerationProgress";
 import { CachedTapMarkers } from "./components/CachedTapMarkers";
 import { Landing } from "./components/Landing";
 import { classNames } from "./lib/classNames";
-import { useFlipbookController } from "./hooks/useFlipbookController";
+import { useOrbisController } from "./hooks/useOrbisController";
 
-export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
+export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
   const {
     hydrating,
     hydrateError,
@@ -67,7 +67,7 @@ export function FlipbookApp({ initialNodeId }: { initialNodeId?: string }) {
     handleRatioChange,
     handleUploaded,
     handleClear,
-  } = useFlipbookController(initialNodeId);
+  } = useOrbisController(initialNodeId);
 
   if (hydrating) return <div className="loading-screen">Loading…</div>;
   if (hydrateError) return <div className="loading-screen">Couldn't load that page: {hydrateError}</div>;

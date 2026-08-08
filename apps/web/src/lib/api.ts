@@ -9,8 +9,8 @@ import type {
   NodesGetResponse,
   NodesListResponse,
   NodeTapsResponse,
-} from "@flipbook/shared";
-import { ConfigResponseSchema, GenerateEventSchema } from "@flipbook/shared";
+} from "@orbis/shared";
+import { ConfigResponseSchema, GenerateEventSchema } from "@orbis/shared";
 import { parseSSEStream } from "./sse";
 
 export async function streamGenerate(
@@ -147,7 +147,7 @@ export async function fetchNodeMorph(id: string): Promise<{ url: string; reverse
   return { url: body.morph_url, reverseUrl: body.reverse_url ?? null };
 }
 
-// Pre-navigation clip gate (useFlipbookController): unlike the non-blocking readers above, these
+// Pre-navigation clip gate (useOrbisController): unlike the non-blocking readers above, these
 // deliberately hold the transition while a clip is still rendering. Cadence is tuned to real
 // generation (~32s in the verified live test): wait a beat, then check every few seconds, and give
 // up after the timeout so a stalled generation can never hang the transition indefinitely. The two

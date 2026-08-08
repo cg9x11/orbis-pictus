@@ -27,8 +27,8 @@ import { WEB_DIST, WEB_SRC_INDEX_HTML } from "./paths.js";
 const { providers: bootProviders, missingKeys } = resolveProviders();
 if (missingKeys.length > 0) {
   console.warn(
-    `[flipbook] Missing API keys: ${missingKeys.join(", ")}. Falling back to mock providers for the affected capability.\n` +
-      `[flipbook] Add these to .env to use real providers (see .env.example).`,
+    `[orbis] Missing API keys: ${missingKeys.join(", ")}. Falling back to mock providers for the affected capability.\n` +
+      `[orbis] Add these to .env to use real providers (see .env.example).`,
   );
 }
 
@@ -92,7 +92,7 @@ app.get("/n/:id", (c) => {
   if (node) {
     const origin = new URL(c.req.url).origin;
     const imagePath = node.image_variants["16:9"] ?? Object.values(node.image_variants)[0];
-    const title = escapeHtml(`${node.page_title} — flipbook`);
+    const title = escapeHtml(`${node.page_title} — Orbis Pictus`);
     const ogTags = [
       `<meta property="og:title" content="${title}" />`,
       imagePath ? `<meta property="og:image" content="${origin}${imagePath}" />` : "",
@@ -120,5 +120,5 @@ app.get("*", serveStatic({ path: path.join(path.relative(process.cwd(), WEB_DIST
 
 const port = intConfig("PORT", (c) => c.server?.port, 8787);
 serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`[flipbook] server listening on http://localhost:${info.port}`);
+  console.log(`[orbis] server listening on http://localhost:${info.port}`);
 });

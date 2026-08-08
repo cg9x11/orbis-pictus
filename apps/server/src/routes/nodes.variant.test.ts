@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { Node } from "@flipbook/shared";
+import type { Node } from "@orbis/shared";
 import { UnknownModelError, type ImageProvider } from "../providers/types.js";
 import type { Providers, ProviderOverrides } from "../providers/index.js";
 import type { VideoPipeline } from "../pipeline/video.js";
 import type { MorphPipeline } from "../pipeline/morph.js";
 
 // Set before the storage module is imported: db.ts opens its database at module scope.
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-variant-"));
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-variant-"));
 process.env.DATABASE_URL = path.join(tmpDir, "test.db");
 const imagesDir = path.join(tmpDir, "images");
 

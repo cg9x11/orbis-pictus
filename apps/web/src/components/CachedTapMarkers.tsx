@@ -1,4 +1,4 @@
-import type { CachedTap } from "@flipbook/shared";
+import type { CachedTap } from "@orbis/shared";
 
 interface CachedTapMarkersProps {
   taps: CachedTap[];

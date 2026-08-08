@@ -46,7 +46,7 @@ function loadFile(filePath: string): FileConfig | null {
   const parsed = FileConfigSchema.safeParse(raw);
   if (!parsed.success) {
     const details = parsed.error.issues.map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`).join("\n");
-    throw new Error(`[flipbook] Invalid config file at ${filePath}:\n${details}`);
+    throw new Error(`[orbis] Invalid config file at ${filePath}:\n${details}`);
   }
   return parsed.data;
 }

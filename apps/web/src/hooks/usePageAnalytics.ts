@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 
-const STORAGE_KEY = "flipbook_pages_generated:v1";
+const STORAGE_KEY = "orbis_pages_generated:v1";
 const MILESTONES = [5, 10, 25, 50, 100, 250];
 
 function readCount(): number {

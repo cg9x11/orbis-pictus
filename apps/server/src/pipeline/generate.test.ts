@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { Node } from "@flipbook/shared";
+import type { Node } from "@orbis/shared";
 import type {
   AuthorPromptInput,
   AuthorPromptOutput,
@@ -15,7 +15,7 @@ import type {
 
 // Must be set before ./generate.js (imports storage/nodes.js -> storage/db.js) runs its
 // module-level migrate(), same pattern as storage/nodes.test.ts.
-process.env.DATABASE_URL = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-generate-")), "test.db");
+process.env.DATABASE_URL = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "orbis-generate-")), "test.db");
 
 const { runGenerate } = await import("./generate.js");
 const { getArtStyleBlock } = await import("./artStyle.js");
@@ -56,7 +56,7 @@ const NUMERAL_BADGE_INSTRUCTION = /numbered\s+1-\d+|numeral badge|pin number|dig
 function makeContext(image: ImageProvider) {
   return {
     providers: { llm: new MockLlmProvider(), image, video: new MockVideoProvider(), search: noSearch },
-    imagesDir: fs.mkdtempSync(path.join(os.tmpdir(), "flipbook-images-")),
+    imagesDir: fs.mkdtempSync(path.join(os.tmpdir(), "orbis-images-")),
     video: createVideoPipeline(),
     morph: createMorphPipeline(),
   };

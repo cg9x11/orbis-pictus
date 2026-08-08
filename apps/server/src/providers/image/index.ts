@@ -70,8 +70,8 @@ export function buildImageProvider(missingKeys: string[], overrides: ImageOverri
   // user sees why their pick didn't take, instead of only the server operator seeing it.
   console.warn(
     attempt.reason === "unknown"
-      ? `[flipbook] Requested image provider "${requested}" is not a known provider — using "${configured}" instead.`
-      : `[flipbook] Requested image provider "${requested}" has no API key configured — using "${configured}" instead.`,
+      ? `[orbis] Requested image provider "${requested}" is not a known provider — using "${configured}" instead.`
+      : `[orbis] Requested image provider "${requested}" has no API key configured — using "${configured}" instead.`,
   );
 
   // Rebuilt WITHOUT the request's model override: that model id was picked for the provider that

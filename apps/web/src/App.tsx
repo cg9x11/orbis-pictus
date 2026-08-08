@@ -1,16 +1,16 @@
 import { BrowserRouter, Routes, Route, useParams } from "react-router-dom";
-import { FlipbookApp } from "./FlipbookApp";
+import { OrbisApp } from "./OrbisApp";
 
 function SharePage() {
   const { id } = useParams<{ id: string }>();
-  return <FlipbookApp initialNodeId={id} />;
+  return <OrbisApp initialNodeId={id} />;
 }
 
 export function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<FlipbookApp />} />
+        <Route path="/" element={<OrbisApp />} />
         <Route path="/n/:id" element={<SharePage />} />
       </Routes>
     </BrowserRouter>

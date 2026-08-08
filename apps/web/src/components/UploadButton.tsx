@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { fileToDataUrl, loadImageDimensions, nearestAspectRatio } from "../lib/imageCapture";
 import { uploadImage } from "../lib/api";
-import type { Node } from "@flipbook/shared";
+import type { Node } from "@orbis/shared";
 
 interface UploadButtonProps {
   sessionId: string;

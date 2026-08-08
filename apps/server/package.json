@@ -1,5 +1,5 @@
 {
-  "name": "@flipbook/server",
+  "name": "@orbis/server",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.65.0",
-    "@flipbook/shared": "*",
+    "@orbis/shared": "*",
     "@hono/node-server": "^1.13.7",
     "dotenv": "^16.4.5",
     "hono": "^4.6.11",

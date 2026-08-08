@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { AspectRatio, CachedTap, GenerateRequest, ArtStyleOption, ModelSettings, Node } from "@flipbook/shared";
+import type { AspectRatio, CachedTap, GenerateRequest, ArtStyleOption, ModelSettings, Node } from "@orbis/shared";
 import { pruneEmptyPrefs, readModelPrefs, writeModelPrefs, type ModelPrefs } from "../lib/persistedPrefs";
 import { useCachedTaps } from "./useCachedTaps";
 import { useGenerationStream } from "./useGenerationStream";
@@ -77,11 +77,11 @@ const DEFAULT_CONFIG: AppConfig = {
 };
 
 /**
- * All of FlipbookApp's non-rendering state and behavior — session/trail, config, generation
+ * All of OrbisApp's non-rendering state and behavior — session/trail, config, generation
  * requests, video/morph/tap-cache side state, and every handler — leaving the component itself as
  * render/composition only. Named per the app it drives; not meant to be reused elsewhere.
  */
-export function useFlipbookController(initialNodeId?: string) {
+export function useOrbisController(initialNodeId?: string) {
   const navigate = useNavigate();
   const [sessionId, setSessionId] = useState<string>(newSessionId);
   const [hydrating, setHydrating] = useState(!!initialNodeId);
@@ -207,7 +207,7 @@ export function useFlipbookController(initialNodeId?: string) {
   // link unfurling), and nothing updated it afterwards — so going Home, or opening any other page,
   // left the browser tab still naming the page you had left.
   useEffect(() => {
-    document.title = current ? `${current.page_title} — flipbook` : "flipbook";
+    document.title = current ? `${current.page_title} — Orbis Pictus` : "Orbis Pictus";
   }, [current?.id, current?.page_title]);
 
   // Keep the address bar pointed at the current node so a full page reload (a manual refresh, or the

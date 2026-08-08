@@ -6,7 +6,7 @@ import type {
   GenerateSearchRequest,
   GenerateTapRequest,
   Node,
-} from "@flipbook/shared";
+} from "@orbis/shared";
 import type { Providers } from "../providers/index.js";
 import { getNode, insertNode, findChildBySubject, findNodeByPromptHash } from "../storage/nodes.js";
 import { findTapCacheHit, recordTapCache } from "../storage/tapCache.js";
@@ -179,7 +179,7 @@ export async function runGenerate(
       // logged the underlying cause once at startup; this ties it to a specific generation.)
       webSearchDegraded = true;
       console.warn(
-        `[flipbook] web search degraded to model-knowledge-only for topic "${topic}" — dropping summary; page will be written from general knowledge`,
+        `[orbis] web search degraded to model-knowledge-only for topic "${topic}" — dropping summary; page will be written from general knowledge`,
       );
     } else {
       webSearchSummary = searchResult?.summary;

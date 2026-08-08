@@ -8,5 +8,5 @@ import os from "node:os";
 // Loaded via `--import` in the test script (see package.json), so it runs in every test process
 // before any test module imports the config loader.
 if (!process.env.CONFIG_FILE) {
-  process.env.CONFIG_FILE = path.join(os.tmpdir(), "flipbook-tests-no-config-dir", "config.yml");
+  process.env.CONFIG_FILE = path.join(os.tmpdir(), "orbis-tests-no-config-dir", "config.yml");
 }

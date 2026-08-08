@@ -1,4 +1,4 @@
-import type { AspectRatio } from "@flipbook/shared";
+import type { AspectRatio } from "@orbis/shared";
 
 /** Thrown when a provider call fails specifically because of quota/rate-limit exhaustion, so
  *  callers (routes/generate.ts) can flag it on the SSE `error` event's `code` field for the

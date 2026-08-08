@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AspectRatio } from "@flipbook/shared";
+import type { AspectRatio } from "@orbis/shared";
 import { QuotaExhaustedError, UnknownModelError, type ImageGenInput, type ImageGenResult, type ImageProvider } from "../types.js";
 import { ArkRequestError, toArkRequestError } from "../ark/errors.js";
 import { fetchWithRetry } from "../../lib/retry.js";

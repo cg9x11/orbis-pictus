@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GenerateErrorCode, GenerateEvent, GenerateRequest, GenerationStage, Node } from "@flipbook/shared";
+import type { GenerateErrorCode, GenerateEvent, GenerateRequest, GenerationStage, Node } from "@orbis/shared";
 import { streamGenerate } from "../lib/api";
 
 /** Payload of the server's `notice` event, derived from the event union so it cannot drift from it. */

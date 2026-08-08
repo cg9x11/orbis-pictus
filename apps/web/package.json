@@ -1,5 +1,5 @@
 {
-  "name": "@flipbook/web",
+  "name": "@orbis/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@flipbook/shared": "*",
+    "@orbis/shared": "*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0"

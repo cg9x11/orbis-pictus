@@ -1,4 +1,4 @@
-import type { GenerationStage } from "@flipbook/shared";
+import type { GenerationStage } from "@orbis/shared";
 import { useElapsedSeconds } from "../hooks/useElapsedSeconds";
 
 export interface GenerationProgressProps {

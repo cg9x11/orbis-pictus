@@ -1,4 +1,4 @@
-import type { ArtStyleOption } from "@flipbook/shared";
+import type { ArtStyleOption } from "@orbis/shared";
 
 interface ArtStylePickerProps {
   styles: ArtStyleOption[];

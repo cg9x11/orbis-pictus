@@ -1,4 +1,4 @@
-import type { AspectRatio } from "@flipbook/shared";
+import type { AspectRatio } from "@orbis/shared";
 import { imageToCanvas } from "./canvas";
 
 /** Exports the currently displayed page image as a plain (unmarked) JPEG data URL, for edit-mode reference input. */

@@ -1,4 +1,4 @@
-import type { VideoStatus } from "@flipbook/shared";
+import type { VideoStatus } from "@orbis/shared";
 import { classNames } from "../lib/classNames";
 
 interface VideoLoopToggleProps {

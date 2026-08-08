@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { Node } from "@flipbook/shared";
+import type { Node } from "@orbis/shared";
 import { fetchNodeMorph } from "../lib/api";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
 import { useCancellableEffect } from "./useCancellableEffect";
@@ -23,7 +23,7 @@ import { useCancellableEffect } from "./useCancellableEffect";
  * several parent/child pairs, so no single clip could ever represent it; those get the crossfade.
  *
  * First-step morphs: the clip needs both frames, so it can only be generated after the child exists
- * (~30s+). To make it play on the very first step, the wait is handled upstream — useFlipbookController
+ * (~30s+). To make it play on the very first step, the wait is handled upstream — useOrbisController
  * holds the transition until the clips are ready, then appends the child. That hold only happens
  * while the per-session morph cap has room; once the cap is hit, or Live video is off, the child
  * arrives with a null morph_status, the transition is instant, and this hook simply 404s to null.

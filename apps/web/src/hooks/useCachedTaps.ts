@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { AspectRatio, CachedTap } from "@flipbook/shared";
+import type { AspectRatio, CachedTap } from "@orbis/shared";
 import { fetchNodeTaps } from "../lib/api";
 import { useCancellableEffect } from "./useCancellableEffect";
 

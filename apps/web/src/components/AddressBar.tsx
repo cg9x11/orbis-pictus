@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Node } from "@flipbook/shared";
+import type { Node } from "@orbis/shared";
 import { classNames } from "../lib/classNames";
 
 interface AddressBarProps {

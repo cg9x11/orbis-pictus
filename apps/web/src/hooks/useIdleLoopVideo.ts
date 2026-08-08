@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { VideoStatus } from "@flipbook/shared";
+import type { VideoStatus } from "@orbis/shared";
 import { fetchNodeVideo } from "../lib/api";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
 import { useCancellableEffect } from "./useCancellableEffect";
@@ -26,7 +26,7 @@ const MAX_ATTEMPTS = 15;
  * node is still the current one. Holding a bare URL in state instead let one page's clip survive
  * into the next: clearing it happened in an effect, so for the render right after navigating,
  * `current` was already the new node while this hook still returned the previous node's URL. That
- * window was enough for useFlipbookController's "write ready back to the trail" effect — which runs
+ * window was enough for useOrbisController's "write ready back to the trail" effect — which runs
  * in the same commit — to stamp video_status "ready" onto a node with no clip at all, which then
  * hid its "Generate video" button for good and left it polling a 404. Deriving the answer during
  * render closes the window entirely; it also stops the old clip painting over the new page's image.

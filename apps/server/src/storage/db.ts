@@ -4,7 +4,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { strConfig } from "../config/index.js";
 
-const dbPath = strConfig("DATABASE_URL", (c) => c.server?.databaseUrl, "./data/flipbook.db");
+const dbPath = strConfig("DATABASE_URL", (c) => c.server?.databaseUrl, "./data/orbis.db");
 fs.mkdirSync(path.dirname(path.resolve(dbPath)), { recursive: true });
 
 export const db = new DatabaseSync(dbPath);

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { GenerateRequestSchema, type GenerateErrorCode, type GenerateEvent } from "@flipbook/shared";
+import { GenerateRequestSchema, type GenerateErrorCode, type GenerateEvent } from "@orbis/shared";
 import { toProviderOverrides, type ProviderResolver, type Providers } from "../providers/index.js";
 import { withModelFallback } from "../providers/image/modelFallback.js";
 import { runGenerate } from "../pipeline/generate.js";

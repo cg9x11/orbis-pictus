@@ -1,4 +1,4 @@
-import type { AspectRatio } from "@flipbook/shared";
+import type { AspectRatio } from "@orbis/shared";
 
 /** ~4% grid (layer 1): cell = round(ratio * 24). */
 export const TAP_CACHE_GRID = 24;
