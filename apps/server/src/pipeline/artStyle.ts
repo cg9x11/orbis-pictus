@@ -140,7 +140,7 @@ export interface BuildImagePromptOptions {
   composition?: string;
 }
 
-/** Task framing, sent first. Adopts flipbook.page's proven prompt order (framing -> style ->
+/** Task framing, sent first. Uses the proven prompt order (framing -> style ->
  *  quality -> `Content:`), which lands markedly better on modern image models (Gemini / GPT Image /
  *  nano-banana) than appending the style after the content did. Model-agnostic: it states what to
  *  make and that the page's own text is part of the artwork, nothing style-specific. */
@@ -150,13 +150,13 @@ const FRAMING =
   "below, with its title, callout labels and footer caption drawn as an integral part of the artwork.";
 
 /** Appended to FRAMING only when a reference image accompanies the request (tap/edit), so continuity
- *  is asked for explicitly — the opposite of flipbook.page's "entirely new composition", because our
+ *  is asked for explicitly — the opposite of asking for an "entirely new composition", because our
  *  tap/edit flows deliberately keep the parent scene. */
 const REFERENCE_REUSE =
   " A reference image is provided: keep its overall scene, layout and rendering as the base, and apply " +
   "the content described below on top of it so the result reads as the same place.";
 
-/** Quality / integration directives, sent just before the content — flipbook.page's closer, which
+/** Quality / integration directives, sent just before the content — the closer, which
  *  measurably lifts composition and legibility. Positive phrasing replaces the old Seedream-era
  *  defensive text-locking. */
 const QUALITY =

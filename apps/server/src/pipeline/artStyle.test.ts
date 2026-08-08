@@ -129,7 +129,7 @@ test("buildImagePrompt threads the composition through to the built prompt", () 
   assert.match(buildImagePrompt("A page about cats.", "felt", { composition: "diorama" }), /isometric three-quarter aerial view/);
 });
 
-// flipbook.page's proven order for modern image models: framing -> style -> quality -> `Content:`.
+// Proven order for modern image models: framing -> style -> quality -> `Content:`.
 test("buildImagePrompt wraps content: framing first, art style embedded, content last", () => {
   const built = buildImagePrompt("A page about cats.");
   assert.match(built, /^You can generate a new visual article expanding on the chosen topic/, "framing leads");

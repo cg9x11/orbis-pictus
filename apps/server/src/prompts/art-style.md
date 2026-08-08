@@ -1,5 +1,5 @@
 Rendering style and layout contract. `pipeline/artStyle.ts` wraps the LLM's content-only prompt in
-flipbook.page's proven order for modern image models (Gemini / GPT Image / nano-banana): task framing
+the proven order for modern image models (Gemini / GPT Image / nano-banana): task framing
 → this style block → quality directives → `Content: <authored text>`. The framing and quality
 directives live in `artStyle.ts`; this file owns the layout furniture + one composition block
 (flat / diorama) + one style block, assembled in that order.

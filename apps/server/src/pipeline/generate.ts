@@ -124,8 +124,7 @@ async function resolveTapContext(
       parentAuthoredPrompt: parentNode?.authored_prompt,
       // Tap-mode scene continuity: the parent page's own rendered image, passed
       // to the image provider as a reference the same way edit mode passes the current page's
-      // image — verified against the real flipbook.page, whose tap child reuses the parent's exact
-      // scene.
+      // image — the tap child reuses the parent's exact scene.
       tapReferenceImageDataUrl: parentNode ? loadReferenceImageDataUrl(ctx.imagesDir, parentNode, req.aspect_ratio) : undefined,
     },
   };
