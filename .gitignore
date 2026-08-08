@@ -30,3 +30,7 @@ Thumbs.db
 .claude
 .agents
 skills-lock.json
+
+# internal planning/instruction docs, not for the public repo
+plans/*
+CLAUDE.md
