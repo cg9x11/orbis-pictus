@@ -8,8 +8,6 @@ is being repainted while the camera holds still.
 
 Write a SHORT prompt (1–3 sentences) for a first-frame-to-last-frame video model. It MUST:
 - keep any subject the two pages visibly share anchored in the same place on screen throughout;
-- let the titles, labels and callout text of the first page dissolve and repaint into the second
-  page's text over the course of the clip (text is expected to change here, unlike the idle loop);
 - keep the camera completely static: fixed framing and zoom, no pan, dolly, or zoom;
 - keep the shared rendering style consistent across the whole transition;
 - end cleanly, landing exactly on the second image.

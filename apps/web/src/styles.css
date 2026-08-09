@@ -386,6 +386,89 @@ body {
   text-align: center;
 }
 
+/* Layered page: title/callout-labels/footer text rendered as a DOM overlay on top of the clean
+   background image, not baked into it (see PLAN-layered-page.md). Display-only in v1 — the whole
+   layer and every child ignore pointer events, so taps fall through to the image underneath and
+   the existing tap-anywhere -> VLM flow is untouched. */
+.page-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.page-label-title {
+  position: absolute;
+  top: 4%;
+  left: 4%;
+  max-width: 60%;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(255, 253, 246, 0.85);
+  color: #2b2620;
+  font-weight: 600;
+  font-size: clamp(0.95rem, 2.4vw, 1.4rem);
+  line-height: 1.25;
+}
+
+.page-label-footer {
+  position: absolute;
+  bottom: 3%;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 80%;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(255, 253, 246, 0.8);
+  color: #4a4438;
+  font-size: clamp(0.65rem, 1.4vw, 0.8rem);
+  text-align: center;
+}
+
+.page-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* A short mark at the subject's own anchor point, so a rough offset between the plaque and the
+   subject the image model actually drew still reads as intentional (see PLAN-layered-page.md,
+   "Anchoring reality"). */
+.page-label-leader {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2e7d5b;
+  box-shadow: 0 0 0 2px rgba(255, 253, 246, 0.9);
+  margin-bottom: 4px;
+}
+
+.page-label-plaque {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 253, 246, 0.85);
+  color: #2b2620;
+  max-width: 34vw;
+  text-align: center;
+}
+
+.page-label-text {
+  font-size: clamp(0.65rem, 1.5vw, 0.85rem);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.page-label-description {
+  font-size: clamp(0.55rem, 1.2vw, 0.7rem);
+  color: #6b6153;
+  line-height: 1.2;
+}
+
 /* Already-explored tap points (PLAN §2.3). The container ignores pointer events so only the
    markers themselves are clickable and the rest of the picture still taps through to a new page. */
 .cached-taps {

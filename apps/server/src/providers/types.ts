@@ -1,4 +1,4 @@
-import type { AspectRatio } from "@orbis/shared";
+import type { AspectRatio, PageLabel } from "@orbis/shared";
 
 /** Thrown when a provider call fails specifically because of quota/rate-limit exhaustion, so
  *  callers (routes/generate.ts) can flag it on the SSE `error` event's `code` field for the
@@ -27,7 +27,12 @@ export interface AuthorPromptInput {
 
 export interface AuthorPromptOutput {
   pageTitle: string;
+  /** Clean background prose only — no label text, no title text, no footer text (see page-author.md). */
   authoredPrompt: string;
+  /** The callout labels for the page, with their rough {x, y} anchor on the background. */
+  labels: PageLabel[];
+  /** The footer caption, rendered as an overlay at the bottom — not baked into the image. */
+  footer: string;
 }
 
 export interface AuthorEditInput {
@@ -35,6 +40,10 @@ export interface AuthorEditInput {
   command: string;
   /** The image prompt that produced the page being edited — the edit rewrites this. */
   parentAuthoredPrompt: string;
+  /** The parent page's current labels, so the model can carry unchanged callouts over verbatim. */
+  parentLabels: PageLabel[];
+  /** The parent page's current footer, same rationale as parentLabels. */
+  parentFooter: string;
   parentTitle?: string;
   webSearchSummary?: string;
 }

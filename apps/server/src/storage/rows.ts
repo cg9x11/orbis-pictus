@@ -6,8 +6,10 @@ import type { Node } from "@orbis/shared";
  *  stored as raw TEXT and only take their Node-facing shape once parsed/validated in nodes.ts
  *  (ImageVariantsSchema.parse, toVideoStatus(), toMorphStatus()) — plus video_url/morph_url, never
  *  exposed via NodeSchema at all. */
-export interface NodeRow extends Omit<Node, "image_variants" | "video_status" | "morph_status"> {
+export interface NodeRow extends Omit<Node, "image_variants" | "video_status" | "morph_status" | "labels" | "labels_aspect"> {
   image_variants: string; // JSON-encoded ImageVariants
+  labels: string; // JSON-encoded PageLabel[]
+  labels_aspect: string | null;
   // Internal cache-layer metadata — never exposed via the public Node zod schema.
   normalized_subject: string;
   prompt_hash: string | null;

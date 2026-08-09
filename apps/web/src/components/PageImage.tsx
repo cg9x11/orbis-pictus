@@ -36,6 +36,9 @@ interface PageImageProps {
   loadingContent?: ReactNode;
   /** Overlay pinned to the image's own coordinate space — the already-explored tap markers. */
   markers?: ReactNode;
+  /** Overlay pinned to the image's own coordinate space — the layered-page title/labels/footer
+   *  text (see components/PageLabels.tsx). Display-only, `pointer-events: none`. */
+  labels?: ReactNode;
   /** A background idle-loop clip is being generated for this page. Unlike
    *  `loading`, the page is already finished and stays fully interactive — the indicator only says
    *  "a clip is coming", it must never block a tap. */
@@ -61,6 +64,7 @@ export function PageImage({
   loading,
   loadingContent,
   markers,
+  labels,
   videoGenerating,
   preparingClips,
   onTap,
@@ -203,6 +207,7 @@ export function PageImage({
         <div className="page-image-empty">Type something in the address bar to begin.</div>
       )}
       {imageUrl && markers}
+      {imageUrl && labels}
       {ripple && <TapRipple xRatio={ripple.xRatio} yRatio={ripple.yRatio} onDone={onRippleDone} />}
       {overlay !== "none" && <div className="page-loading-sheen" />}
       {overlay === "loading" && <div className="page-loading-overlay">{loadingContent ?? "Generating…"}</div>}

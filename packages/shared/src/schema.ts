@@ -25,6 +25,50 @@ export type VideoStatus = z.infer<typeof VideoStatusSchema>;
 export const MorphStatusSchema = z.enum(["pending", "ready", "failed"]);
 export type MorphStatus = z.infer<typeof MorphStatusSchema>;
 
+// --- Page labels (layered page: clean background + text overlay) ---
+// A callout only. Title and footer are NOT here — they are separate fields at fixed positions on
+// the Node (page_title, footer), so they need no x/y.
+export const PageLabelSchema = z.object({
+  text: z.string(), // exact label, WITH correct diacritics
+  description: z.string().default(""), // the caption sub-text, may be empty
+  subject: z.string(), // "what to draw" — reused as the child topic on tap
+  // {x, y} is the ANCHOR: the subject's own position on the background, not the plaque's. It
+  // serves double duty — the leader line points to it, AND it is the tap hotspot. The renderer
+  // places the plaque near it with a small offset.
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+});
+export type PageLabel = z.infer<typeof PageLabelSchema>;
+
+function clampUnit(value: unknown): number | null {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : null;
+}
+
+/**
+ * Turns an unknown array into validated PageLabel[]. Coordinates are CLAMPED to [0,1] (a model that
+ * answers "1.05" meant "near the edge", not "invalid page"), and any entry that is still malformed
+ * — missing text/subject, or a non-numeric coordinate — is DROPPED individually, never failing the
+ * whole array. One bad callout must never blank out the other three to five.
+ *
+ * This is the SINGLE parser shared by the author write path (providers/llm/authorOutput.ts) and the
+ * storage read path (storage/nodes.ts), so the two can never validate labels by different rules.
+ */
+export function sanitizePageLabels(raw: unknown): PageLabel[] {
+  if (!Array.isArray(raw)) return [];
+  const labels: PageLabel[] = [];
+  for (const item of raw) {
+    if (typeof item !== "object" || item === null) continue;
+    const candidate = item as Record<string, unknown>;
+    const x = clampUnit(candidate.x);
+    const y = clampUnit(candidate.y);
+    if (x === null || y === null) continue;
+    const parsed = PageLabelSchema.safeParse({ ...candidate, x, y });
+    if (parsed.success) labels.push(parsed.data);
+  }
+  return labels;
+}
+
 // --- Node ---
 export const NodeSchema = z.object({
   id: z.string(),
@@ -49,6 +93,15 @@ export const NodeSchema = z.object({
   composition: z.string().default(""),
   prompt_author_model: z.string(),
   authored_prompt: z.string(),
+  // The callout labels overlaid on the clean background image. Defaulted to `[]` so a node written
+  // before this field existed still parses, and renders with no overlay — identical to today.
+  labels: PageLabelSchema.array().default([]),
+  // Footer caption, rendered as an overlay at the bottom. Same back-compat default as `labels`.
+  footer: z.string().default(""),
+  // Which aspect ratio `labels` were authored for. A page has variants (16:9 / 3:4 / 1:1) that are
+  // RE-COMPOSED per ratio, so an {x,y} authored for one ratio does not line up on another. The
+  // overlay renders ONLY when the displayed variant equals this ratio.
+  labels_aspect: AspectRatioSchema.nullable().default(null),
   created_at: z.string(),
   version: z.number().int(),
   // Exposed on every node payload (detail, gallery list, and the `complete` event) so the client

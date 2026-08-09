@@ -136,6 +136,9 @@ test("web search: the query is sharpened with the parent page title as context (
     composition: "diorama",
     prompt_author_model: "mock-llm",
     authored_prompt: "content prompt for the parent page",
+    labels: [],
+    footer: "",
+    labels_aspect: null,
     created_at: new Date().toISOString(),
     version: 1,
     video_status: null,
@@ -205,6 +208,9 @@ test("edit mode: the built image prompt includes the house style and passes the 
     composition: "diorama",
     prompt_author_model: "mock-llm",
     authored_prompt: "content prompt for the parent page",
+    labels: [],
+    footer: "",
+    labels_aspect: null,
     created_at: new Date().toISOString(),
     version: 1,
     video_status: null,
@@ -243,6 +249,56 @@ test("edit mode: the built image prompt includes the house style and passes the 
   assert.notEqual(node.query, "make it night time");
 });
 
+test("edit mode: labels_aspect inherits the parent's ratio, not the edit request's, so carried label coordinates stay honest", async () => {
+  // Regression: an edit carries the parent's labels VERBATIM (their {x,y} live in the parent's
+  // composition). If the aspect picker was switched before the edit, stamping the request's ratio
+  // would show those coordinates on a differently-composed page. labels_aspect must follow the
+  // carried coordinates (the parent's ratio), so the overlay hides on a mismatch instead of lying.
+  const ctx = makeContext(new SpyImageProvider());
+  const parentImageUrl = saveImageVariant(ctx.imagesDir, "parent-edit-ratio", "16:9", Buffer.from("px"), "image/jpeg");
+  const parent: Node = {
+    id: "parent-edit-ratio",
+    parent_id: null,
+    session_id: "s1",
+    query: "Ha Noi street food",
+    page_title: "Ha Noi Street Food",
+    image_variants: { "16:9": parentImageUrl },
+    image_model: "mock-image",
+    image_provider: "mock",
+    art_style: "felt",
+    composition: "diorama",
+    prompt_author_model: "mock-llm",
+    authored_prompt: "content prompt for the parent page",
+    labels: [{ text: "Pho", description: "", subject: "a bowl of pho", x: 0.5, y: 0.5 }],
+    footer: "",
+    labels_aspect: "16:9",
+    created_at: new Date().toISOString(),
+    version: 1,
+    video_status: null,
+    morph_status: null,
+  };
+  insertNode(parent, { normalizedSubject: "root" });
+
+  const node = await runGenerate(
+    {
+      mode: "edit",
+      prompt: "make it night time",
+      currentImage: `data:image/jpeg;base64,${Buffer.from("cur").toString("base64")}`,
+      aspect_ratio: "3:4", // picker switched away from the parent's 16:9 before editing
+      web_search: false,
+      video_loop: false,
+      parent_title: "Ha Noi Street Food",
+      session_id: "s1",
+      current_node_id: "parent-edit-ratio",
+    },
+    ctx,
+    () => {},
+  );
+
+  assert.equal(node.labels_aspect, "16:9");
+  assert.notEqual(node.labels_aspect, "3:4");
+});
+
 test("tap mode: the built image prompt includes the house style and reuses the parent page image as reference", async () => {
   const ctx = makeContext(new SpyImageProvider());
   const parentImageBytes = Buffer.from("parent-page-pixels-for-tap");
@@ -260,6 +316,9 @@ test("tap mode: the built image prompt includes the house style and reuses the p
     composition: "diorama",
     prompt_author_model: "mock-llm",
     authored_prompt: "content prompt for the parent page",
+    labels: [],
+    footer: "",
+    labels_aspect: null,
     created_at: new Date().toISOString(),
     version: 1,
     video_status: null,
@@ -324,6 +383,9 @@ test("tap mode: force_new_image bypasses the layer-3 prompt-hash cache", async (
       composition: "diorama",
       prompt_author_model: "mock-llm",
       authored_prompt: "content prompt for the force-new parent",
+      labels: [],
+      footer: "",
+      labels_aspect: null,
       created_at: new Date().toISOString(),
       version: 1,
       video_status: null,

@@ -10,6 +10,7 @@ import { ModelSettingsPanel } from "./components/ModelSettingsPanel";
 import { VideoLoopToggle } from "./components/VideoLoopToggle";
 import { GenerationProgress } from "./components/GenerationProgress";
 import { CachedTapMarkers } from "./components/CachedTapMarkers";
+import { PageLabels } from "./components/PageLabels";
 import { TapVariantPanel } from "./components/TapVariantPanel";
 import { Landing } from "./components/Landing";
 import { classNames } from "./lib/classNames";
@@ -156,6 +157,16 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
               mode={tapDedupMode}
               onOpen={handleOpenCachedTap}
               onInspect={handleInspectCachedTap}
+              hidden={busy || morphActive}
+            />
+          }
+          labels={
+            <PageLabels
+              title={current?.page_title ?? ""}
+              labels={current?.labels ?? []}
+              footer={current?.footer ?? ""}
+              labelsAspect={current?.labels_aspect ?? null}
+              displayedAspect={aspectRatio}
               hidden={busy || morphActive}
             />
           }

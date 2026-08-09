@@ -85,7 +85,7 @@ test("listArtStyles reports every style with a label taken from art-style.md", (
 test("the art style block is always included in the layout contract", () => {
   // The layout-furniture cap survives in every block; the isometric phrase now lives in the diorama
   // composition, which is the default composition, so getArtStyleBlock() (no args) still carries it.
-  assert.match(getArtStyleBlock(), /five or six labelled elements/);
+  assert.match(getArtStyleBlock(), /four to six clearly distinct labelled subjects/);
   assert.match(getArtStyleBlock(), /isometric three-quarter aerial view/);
 });
 

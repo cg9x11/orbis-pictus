@@ -143,11 +143,13 @@ export interface BuildImagePromptOptions {
 /** Task framing, sent first. Uses the proven prompt order (framing -> style ->
  *  quality -> `Content:`), which lands markedly better on modern image models (Gemini / GPT Image /
  *  nano-banana) than appending the style after the content did. Model-agnostic: it states what to
- *  make and that the page's own text is part of the artwork, nothing style-specific. */
+ *  make and that the result is a CLEAN scene — the app renders the title, callout labels and
+ *  footer caption itself as a separate text overlay, nothing style-specific. */
 const FRAMING =
   "You can generate a new visual article expanding on the chosen topic. The result is one single, " +
   "self-contained page: a highly detailed, beautifully composed illustration of the scene described " +
-  "below, with its title, callout labels and footer caption drawn as an integral part of the artwork.";
+  "below. Draw ONLY the scene — no title, no labels, no captions, and no lettering of any kind " +
+  "anywhere in the image; all of the page's text is added separately afterward, on top of this image.";
 
 /** Appended to FRAMING only when a reference image accompanies the request (tap/edit), so continuity
  *  is asked for explicitly — the opposite of asking for an "entirely new composition", because our
@@ -157,12 +159,13 @@ const REFERENCE_REUSE =
   "the content described below on top of it so the result reads as the same place.";
 
 /** Quality / integration directives, sent just before the content — the closer, which
- *  measurably lifts composition and legibility. Positive phrasing replaces the old Seedream-era
- *  defensive text-locking. */
+ *  measurably lifts composition and legibility. Ends with an explicit no-text instruction: image
+ *  models like to add their own labels even when not asked to, and a page with baked-in text under
+ *  the real overlay is not usable (see PLAN-layered-page.md, "Biggest technical risk"). */
 const QUALITY =
   "Make every element beautiful, well-organized, clearly legible and native to the medium, integrated " +
-  "into one coherent picture rather than pasted on top. Render all lettering crisply, spelled exactly " +
-  "as written.";
+  "into one coherent picture rather than pasted on top. Do not draw any text, letters, words, labels, " +
+  "titles, or captions anywhere in the image. Leave the scene clean.";
 
 /**
  * Wraps a content-only prompt (authored by page-author.md / edit-author.md) in the art style and

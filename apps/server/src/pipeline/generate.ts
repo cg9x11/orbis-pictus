@@ -1,11 +1,13 @@
 import crypto from "node:crypto";
 import type {
+  AspectRatio,
   GenerateEditRequest,
   GenerateEvent,
   GenerateRequest,
   GenerateSearchRequest,
   GenerateTapRequest,
   Node,
+  PageLabel,
 } from "@orbis/shared";
 import type { Providers } from "../providers/index.js";
 import { getNode, insertNode, findChildBySubject, findNodeByPromptHash } from "../storage/nodes.js";
@@ -52,6 +54,14 @@ interface ModeContext {
   parentTitle: string | undefined;
   parentAuthoredPrompt: string | undefined;
   tapReferenceImageDataUrl: string | undefined;
+  // Only edit mode sets these — authorEdit needs the parent's current labels/footer so it can
+  // carry unchanged callouts over verbatim (see AuthorEditInput.parentLabels/parentFooter).
+  parentLabels: PageLabel[] | undefined;
+  parentFooter: string | undefined;
+  // The aspect ratio the parent's labels were authored for. Edit mode carries the parent labels
+  // verbatim, so the new node's labels_aspect must be THIS, not the edit request's ratio — the
+  // carried {x,y} live in the parent's composition. Undefined for non-edit modes.
+  parentLabelsAspect: AspectRatio | null | undefined;
 }
 
 // Only tap mode can short-circuit the rest of generation. Layer 2 does this when an existing
@@ -70,6 +80,9 @@ function resolveSearchContext(req: GenerateSearchRequest): ModeResolution {
       parentTitle: parent?.page_title,
       parentAuthoredPrompt: parent?.authored_prompt,
       tapReferenceImageDataUrl: undefined,
+      parentLabels: undefined,
+      parentFooter: undefined,
+      parentLabelsAspect: undefined,
     },
   };
 }
@@ -91,6 +104,9 @@ function resolveEditContext(req: GenerateEditRequest): ModeResolution {
       parentTitle: req.parent_title || parent.page_title,
       parentAuthoredPrompt: parent.authored_prompt,
       tapReferenceImageDataUrl: undefined,
+      parentLabels: parent.labels,
+      parentFooter: parent.footer,
+      parentLabelsAspect: parent.labels_aspect,
     },
   };
 }
@@ -133,6 +149,9 @@ async function resolveTapContext(
       // it to the image provider as a reference, in the same way that edit mode passes the image
       // of the current page. The tap child then reuses the exact scene of the parent.
       tapReferenceImageDataUrl: parentNode ? loadReferenceImageDataUrl(ctx.imagesDir, parentNode, req.aspect_ratio) : undefined,
+      parentLabels: undefined,
+      parentFooter: undefined,
+      parentLabelsAspect: undefined,
     },
   };
 }
@@ -176,7 +195,8 @@ export async function runGenerate(
     return resolution.node;
   }
 
-  const { topic, parentNodeId, parentTitle, parentAuthoredPrompt, tapReferenceImageDataUrl } = resolution.context;
+  const { topic, parentNodeId, parentTitle, parentAuthoredPrompt, tapReferenceImageDataUrl, parentLabels, parentFooter, parentLabelsAspect } =
+    resolution.context;
 
   let webSearchSummary: string | undefined;
   let webSearchDegraded = false;
@@ -201,11 +221,13 @@ export async function runGenerate(
   }
 
   await emit({ event: "stage", data: { stage: "authoring" } });
-  const { pageTitle, authoredPrompt } =
+  const { pageTitle, authoredPrompt, labels, footer } =
     req.mode === "edit"
       ? await ctx.providers.llm.authorEdit({
           command: req.prompt,
           parentAuthoredPrompt: parentAuthoredPrompt!,
+          parentLabels: parentLabels ?? [],
+          parentFooter: parentFooter ?? "",
           parentTitle,
           webSearchSummary,
         })
@@ -347,6 +369,18 @@ export async function runGenerate(
     composition: resolveCompositionName(req.composition),
     prompt_author_model: ctx.providers.llm.modelId,
     authored_prompt: authoredPrompt,
+    labels,
+    footer,
+    // Which ratio `labels` were authored for — the overlay renders only when the displayed
+    // variant matches this, since a lazily-generated other-ratio variant re-composes the scene and
+    // the same {x,y} no longer lines up.
+    //
+    // Edit mode carries the parent's labels verbatim, so their {x,y} live in the PARENT's ratio,
+    // not this request's. Stamping req.aspect_ratio here would mislabel an edit made after the
+    // aspect picker was switched: the overlay would show the carried 16:9 coordinates on a 3:4
+    // page. Using the parent's ratio keeps the coordinate space honest — and if the edit runs at a
+    // different ratio, the overlay correctly hides on the mismatch instead of showing wrong spots.
+    labels_aspect: req.mode === "edit" ? (parentLabelsAspect ?? req.aspect_ratio) : req.aspect_ratio,
     created_at: new Date().toISOString(),
     version: 1,
     video_status: null,

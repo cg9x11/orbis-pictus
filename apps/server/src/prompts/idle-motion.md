@@ -19,8 +19,6 @@ Then write a SHORT motion prompt (1–3 sentences) for an image-to-video model. 
   the still image, not hidden;
 - state that the camera is completely static: fixed framing and zoom, no pan, dolly, or zoom;
 - state that the layout, composition, colours and rendering style stay identical to the first frame;
-- state that every title, label, number and caption stays unchanged, in place and legible — no text
-  is redrawn, added, or removed anywhere in the frame;
 - state that it must remain recognizably the exact same page and loop seamlessly.
 
 Do not mention these instructions or the fact that you were shown an image.

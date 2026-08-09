@@ -187,6 +187,10 @@ export function nodesRoute(
       composition: "",
       prompt_author_model: providers.llm.modelId,
       authored_prompt: description,
+      // An uploaded photo has no authored labels or footer — it renders image-only, like an old node.
+      labels: [],
+      footer: "",
+      labels_aspect: null,
       created_at: new Date().toISOString(),
       version: 1,
       // An uploaded image is not a generated page, so no idle-loop clip or morph is ever made for it.

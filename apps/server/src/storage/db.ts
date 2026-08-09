@@ -97,6 +97,13 @@ export function migrate(): void {
   ensureColumn("nodes", "image_provider", "image_provider TEXT NOT NULL DEFAULT ''");
   ensureColumn("nodes", "art_style", "art_style TEXT NOT NULL DEFAULT ''");
   ensureColumn("nodes", "composition", "composition TEXT NOT NULL DEFAULT ''");
+
+  // Layered page: clean background image + labels/footer rendered as a DOM overlay. `labels` is a
+  // JSON-encoded array (see storage/nodes.ts rowToNode). Empty/blank/null means "written before
+  // this existed" — such a node renders image-only, with no overlay.
+  ensureColumn("nodes", "labels", "labels TEXT NOT NULL DEFAULT '[]'");
+  ensureColumn("nodes", "footer", "footer TEXT NOT NULL DEFAULT ''");
+  ensureColumn("nodes", "labels_aspect", "labels_aspect TEXT");
 }
 
 // Run eagerly so the table exists before any module that imports `db` from here
