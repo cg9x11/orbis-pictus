@@ -13,7 +13,7 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-taps-"));
 process.env.DATABASE_URL = path.join(tmpDir, "test.db");
 const imagesDir = path.join(tmpDir, "images");
 
-const { insertNode } = await import("../storage/nodes.js");
+const { insertNode, insertVersionAsDefault } = await import("../storage/nodes.js");
 const { recordTapCache } = await import("../storage/tapCache.js");
 const { normalizeSubject } = await import("../pipeline/normalize.js");
 const { nodesRoute } = await import("./nodes.js");
@@ -90,6 +90,29 @@ test("taps: reuse mode reports the mode and the child behind each explored spot"
     ["taps-parent-reuse-child-0"],
   );
   assert.equal(body.taps[0]!.children[0]!.image_url, "/images/taps-parent-reuse-child-0/landscape.jpg");
+});
+
+test("taps: a marker resolves to the group's DEFAULT version, not the old primary child", async () => {
+  process.env.TAP_DEDUP = "reuse";
+  seed("taps-parent-versioned", "Gargoyle", 1);
+  // Edit the primary child into a new version that becomes the group default.
+  insertVersionAsDefault(
+    makeNode({
+      id: "gargoyle-v2",
+      parent_id: "taps-parent-versioned",
+      page_title: "Gargoyle (stone)",
+      image_variants: { "16:9": "/images/gargoyle-v2/landscape.jpg" },
+      created_at: "2026-06-01T00:00:00.000Z",
+      version_group_id: "taps-parent-versioned-child-0",
+      edited_from_id: "taps-parent-versioned-child-0",
+    }),
+    { normalizedSubject: normalizeSubject("Gargoyle") },
+  );
+
+  const body = await tapsBody("taps-parent-versioned");
+  // The marker must point at the default (gargoyle-v2), not the primary (…-child-0).
+  assert.deepEqual(body.taps[0]!.children.map((c) => c.id), ["gargoyle-v2"]);
+  assert.equal(body.taps[0]!.children[0]!.image_url, "/images/gargoyle-v2/landscape.jpg");
 });
 
 test("taps: variant mode returns every version of a subject, not an arbitrary one", async () => {

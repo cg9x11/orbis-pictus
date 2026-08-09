@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   isWithinTapRadius,
+  predecessorId,
   type AspectRatio,
   type CachedTap,
   type GenerateRequest,
   type ArtStyleOption,
   type ModelSettings,
   type Node,
+  type VersionSummary,
 } from "@orbis/shared";
 import { pruneEmptyPrefs, readModelPrefs, writeModelPrefs, type ModelPrefs } from "../lib/persistedPrefs";
 import { useCachedTaps } from "./useCachedTaps";
@@ -23,8 +25,10 @@ import {
   fetchConfig,
   fetchNode,
   fetchVariant,
+  fetchVersions,
   requestNodeMorph,
   requestNodeVideo,
+  setDefaultVersion,
   waitForMorphReady,
   waitForVideoReady,
 } from "../lib/api";
@@ -95,7 +99,7 @@ export function useOrbisController(initialNodeId?: string) {
   const [sessionId, setSessionId] = useState<string>(newSessionId);
   const [hydrating, setHydrating] = useState(!!initialNodeId);
   const [hydrateError, setHydrateError] = useState<string | null>(null);
-  const { trail, currentIndex, current, append, navigateTo, reset, updateNode } = useSessionTrail();
+  const { trail, currentIndex, current, append, navigateTo, reset, updateNode, replaceCurrent } = useSessionTrail();
   const { state, start, reset: resetGeneration } = useGenerationStream();
   const { captureTap } = useTapMarker();
   const { milestone, recordPage, dismissMilestone } = usePageAnalytics();
@@ -195,8 +199,11 @@ export function useOrbisController(initialNodeId?: string) {
   // be missing just one of them, so the action stays on offer while EITHER is absent. A morph needs
   // a parent to morph from, so a root page can only ever want the idle loop.
   const missingIdleLoop = !idleLoopVideoUrl && (current?.video_status === null || current?.video_status === "failed");
+  // A morph needs a source page — the current page's predecessor (its edit source, else its parent).
+  // A root that is not an edit has none, so it can only ever want the idle loop.
+  const morphSource = current ? predecessorId(current) : null;
   const missingMorph =
-    !!current?.parent_id && (current.morph_status === null || current.morph_status === "failed");
+    !!morphSource && (current?.morph_status === null || current?.morph_status === "failed");
   // Offer the action only when the feature is actually available and the toggle is on, never mid-generation.
   const canGenerateVideo =
     config.videoAvailable && videoLoopEnabled && !isStreaming && !!current && (missingIdleLoop || missingMorph);
@@ -211,6 +218,37 @@ export function useOrbisController(initialNodeId?: string) {
   // Spots on this page already explored, shown as markers so a free tap is visible
   // before it is made.
   const { taps: cachedTaps, mode: tapDedupMode, loading: tapsLoading } = useCachedTaps(current?.id, aspectRatio);
+
+  // Every version of the current page, for the branch control. Refetched whenever the current node
+  // changes — which includes right after an edit creates a new version, since the trail advances to
+  // it. An empty list (or a length of one) means there is nothing to branch, and the control hides.
+  const [versions, setVersions] = useState<VersionSummary[]>([]);
+  useCancellableEffect(
+    (cancelled) => {
+      if (!current?.id) {
+        setVersions([]);
+        return;
+      }
+      fetchVersions(current.id)
+        .then((vs) => {
+          if (!cancelled()) setVersions(vs);
+        })
+        .catch((err) => console.error(err));
+    },
+    [current?.id],
+  );
+
+  // The star action. The endpoint returns the fresh list, so the star state updates from this one
+  // call — no refetch, and no stale "two stars" (see PLAN-versions.md, finding 10).
+  const handleSetDefaultVersion = async (versionId: string) => {
+    setActionError(null);
+    try {
+      setVersions(await setDefaultVersion(versionId));
+    } catch (err) {
+      console.error(err);
+      setActionError(err instanceof Error ? err.message : "Couldn't set the default version");
+    }
+  };
 
   // The explored spot a variant-mode tap landed on, or null when no panel is open. Holding the tap
   // itself (not just its id) keeps the panel's own subject and child list stable while it is open,
@@ -304,7 +342,11 @@ export function useOrbisController(initialNodeId?: string) {
           setPreparingClips(false);
         }
       }
-      append(ready);
+      // An edit is a new VERSION of the current page, not a new step in the exploration, so it takes
+      // the current trail slot instead of extending it. This is what keeps the breadcrumb from
+      // showing the same page twice (the original bug). Every other mode is a real forward step.
+      if (request.mode === "edit") replaceCurrent(ready);
+      else append(ready);
       recordPage();
     } catch (err) {
       // useGenerationStream already set state.error/status before rejecting, so the error banner
@@ -409,6 +451,24 @@ export function useOrbisController(initialNodeId?: string) {
     } catch (err) {
       console.error(err);
       setActionError(err instanceof Error ? err.message : "Couldn't open that page");
+    }
+  };
+
+  /**
+   * Opens a VERSION of the current page from the branch control. Unlike openExistingChild, this
+   * REPLACES the current trail slot rather than appending: a version is a lateral move over the same
+   * page, so the breadcrumb must not grow. A one-step move (a peer edit) still plays the morph.
+   */
+  const openVersion = async (versionId: string) => {
+    if (busy) return;
+    setActionError(null);
+    try {
+      const { node } = await fetchNode(versionId);
+      replaceCurrent(node);
+      recordPage();
+    } catch (err) {
+      console.error(err);
+      setActionError(err instanceof Error ? err.message : "Couldn't open that version");
     }
   };
 
@@ -609,6 +669,7 @@ export function useOrbisController(initialNodeId?: string) {
     cachedTaps,
     tapDedupMode,
     variantPanelTap,
+    versions,
     milestone,
     dismissMilestone,
     handleSearch,
@@ -619,6 +680,8 @@ export function useOrbisController(initialNodeId?: string) {
     handleCloseVariantPanel,
     handleDrawNewVariant,
     openExistingChild,
+    openVersion,
+    handleSetDefaultVersion,
     handleEdit,
     handleAddressSubmit,
     handleRetry,

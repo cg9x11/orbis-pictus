@@ -39,6 +39,9 @@ interface PageImageProps {
   /** Overlay pinned to the image's own coordinate space — the layered-page title/labels/footer
    *  text (see components/PageLabels.tsx). Display-only, `pointer-events: none`. */
   labels?: ReactNode;
+  /** Overlay pinned to the image's own coordinate space — the branch control listing this page's
+   *  edit versions (see components/PageVersions.tsx). Only the control itself is interactive. */
+  versions?: ReactNode;
   /** A background idle-loop clip is being generated for this page. Unlike
    *  `loading`, the page is already finished and stays fully interactive — the indicator only says
    *  "a clip is coming", it must never block a tap. */
@@ -65,6 +68,7 @@ export function PageImage({
   loadingContent,
   markers,
   labels,
+  versions,
   videoGenerating,
   preparingClips,
   onTap,
@@ -208,6 +212,7 @@ export function PageImage({
       )}
       {imageUrl && markers}
       {imageUrl && labels}
+      {imageUrl && versions}
       {ripple && <TapRipple xRatio={ripple.xRatio} yRatio={ripple.yRatio} onDone={onRippleDone} />}
       {overlay !== "none" && <div className="page-loading-sheen" />}
       {overlay === "loading" && <div className="page-loading-overlay">{loadingContent ?? "Generating…"}</div>}

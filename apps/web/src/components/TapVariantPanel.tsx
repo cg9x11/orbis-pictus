@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { CachedTap } from "@orbis/shared";
+import { useDismiss } from "../hooks/useDismiss";
 
 interface TapVariantPanelProps {
   tap: CachedTap;
@@ -26,24 +27,11 @@ interface TapVariantPanelProps {
 export function TapVariantPanel({ tap, onOpen, onDrawNew, onClose, busy }: TapVariantPanelProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
-  // The effect below reads `onClose` through a ref, so it can depend on nothing. React rebuilds
-  // `onClose` on every controller render, and the controller re-renders often while the panel is
-  // open (the tap ripple clears after ~600ms, the idle-loop video polls). An effect with
-  // `onClose` in its dependency list re-runs on each of those renders. Each re-run pulls focus
-  // back to the close button in the middle of an interaction.
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-
-  // The panel interrupts a tap, so Escape must undo that interruption. Without Escape, the only
-  // way out is the close button. A user who tapped by accident is then stuck with a decision that
-  // they did not ask for.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCloseRef.current();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  // The panel interrupts a tap, so Escape must undo that interruption — without it, the only way out
+  // is the close button, which strands a user who tapped by accident. No outside-click here: the
+  // backdrop below already handles that via its onClick. The hook reads `onClose` through a ref, so
+  // this does not re-subscribe on the frequent controller re-renders (ripple clear, idle-loop poll).
+  useDismiss(true, onClose);
 
   // This effect runs on mount only. The focus hand-off into the panel happens one time. It must
   // not repeat whenever the parent renders.

@@ -2,15 +2,19 @@ import crypto from "node:crypto";
 import { Hono } from "hono";
 import {
   AspectRatioSchema,
+  groupIdOf,
   ModelOverridesSchema,
   NodesCreateRequestSchema,
   NodesUploadRequestSchema,
   type ModelOverrides,
   type Node,
   type NodeTapsResponse,
+  type NodesVersionsResponse,
+  type VersionSummary,
 } from "@orbis/shared";
 import {
   addImageVariant,
+  countGroupVersions,
   decodeGalleryCursor,
   findChildrenBySubject,
   getHistory,
@@ -19,6 +23,9 @@ import {
   getVideoInfo,
   insertNode,
   listGalleryPage,
+  listVersions,
+  resolveGroupDefault,
+  setDefaultVersion,
 } from "../storage/nodes.js";
 import { listTapCache } from "../storage/tapCache.js";
 import { saveImageVariantResized } from "../pipeline/imageStorage.js";
@@ -59,6 +66,26 @@ async function readOverrides(c: { req: { json: () => Promise<unknown> } }): Prom
 /** The clip-only slice of an override bag, for the background-clip pipelines. */
 function toClipOptions(o: ModelOverrides): { resolution?: string; durationSeconds?: number } {
   return { resolution: o.video_resolution, durationSeconds: o.video_duration_seconds };
+}
+
+/** The branch control's list view of one version — a thin projection of a Node. The thumbnail is the
+ *  first available aspect-ratio variant, since a version may not have the ratio the client shows. */
+function toVersionSummary(node: Node): VersionSummary {
+  return {
+    id: node.id,
+    page_title: node.page_title,
+    image_url: node.image_variants["16:9"] ?? node.image_variants["3:4"] ?? node.image_variants["1:1"] ?? null,
+    edit_command: node.edit_command ?? null,
+    edited_from_id: node.edited_from_id ?? null,
+    is_default: node.is_default ?? false,
+    created_at: node.created_at,
+  };
+}
+
+/** The branch control's response for a node: every version of its group, oldest first, projected.
+ *  Shared by the /versions and /default routes, which build the exact same payload. */
+function versionsPayload(node: Node): NodesVersionsResponse {
+  return { versions: listVersions(groupIdOf(node)).map(toVersionSummary) };
 }
 
 export function nodesRoute(
@@ -141,7 +168,11 @@ export function nodesRoute(
     }
 
     const { nodes, nextCursor } = listGalleryPage({ limit, cursor });
-    return c.json({ nodes, next_cursor: nextCursor });
+    // Per-card version count for the branch badge. One COUNT per card — fine at limit <= 24, backed
+    // by nodes_version_group_idx (see PLAN-versions.md, finding 12).
+    const version_counts: Record<string, number> = {};
+    for (const n of nodes) version_counts[n.id] = countGroupVersions(groupIdOf(n));
+    return c.json({ nodes, next_cursor: nextCursor, version_counts });
   });
 
   // User-uploaded photo becomes a root node (parent_id null), titled by the VLM.
@@ -165,10 +196,14 @@ export function nodesRoute(
     const bytes = Buffer.from(data, "base64");
 
     const providers = resolveProviders();
-    const { title, description } = await providers.llm.titleImage(image);
-
     const id = crypto.randomUUID().replace(/-/g, "");
-    const imageUrl = await saveImageVariantResized(imagesDir, id, aspect_ratio, bytes, contentType);
+    // The VLM title and the image resize+write are independent — the write needs only the id and the
+    // decoded bytes, not the title — so overlap them rather than paying the resize latency serially
+    // after the multi-second VLM call.
+    const [{ title, description }, imageUrl] = await Promise.all([
+      providers.llm.titleImage(image),
+      saveImageVariantResized(imagesDir, id, aspect_ratio, bytes, contentType),
+    ]);
 
     const node: Node = {
       id,
@@ -225,15 +260,21 @@ export function nodesRoute(
           x: row.x,
           y: row.y,
           subject: row.subject,
-          children: children.map((child) => ({
-            id: child.id,
-            page_title: child.page_title,
-            // Null rather than omitted: a child first drawn at another aspect ratio has no image
-            // for this one until the variant route lazily makes it, and the panel must render that
-            // row as a placeholder instead of dropping a real page from the list.
-            image_url: child.image_variants[ratio.data] ?? null,
-            created_at: child.created_at,
-          })),
+          children: children.map((child) => {
+            // `children` are the PRIMARY child of each variant (edit versions are excluded). Open the
+            // group's current default instead, so a marker matches what a repeat tap and the branch
+            // control resolve to.
+            const target = resolveGroupDefault(child);
+            return {
+              id: target.id,
+              page_title: target.page_title,
+              // Null rather than omitted: a child first drawn at another aspect ratio has no image
+              // for this one until the variant route lazily makes it, and the panel must render that
+              // row as a placeholder instead of dropping a real page from the list.
+              image_url: target.image_variants[ratio.data] ?? null,
+              created_at: target.created_at,
+            };
+          }),
         },
       ];
     });
@@ -339,6 +380,25 @@ export function nodesRoute(
       case "unavailable":
         return c.json({ error: "This page has no parent page to morph from" }, 422);
     }
+  });
+
+  // Every version of a page, oldest first, for the branch control. Resolves the group from any member
+  // id, so the client can ask with whichever version it currently shows.
+  app.get("/:id/versions", (c) => {
+    const id = c.req.param("id");
+    const node = getNode(id);
+    if (!node) return c.json({ error: "Not found" }, 404);
+    return c.json(versionsPayload(node));
+  });
+
+  // Makes this version the group's default — the one the gallery card opens (the star action). The
+  // storage layer clears the old default in the same transaction. Returns the fresh list, so the
+  // client updates its star state without a second request.
+  app.post("/:id/default", (c) => {
+    const id = c.req.param("id");
+    const updated = setDefaultVersion(id);
+    if (!updated) return c.json({ error: "Not found" }, 404);
+    return c.json(versionsPayload(updated));
   });
 
   app.get("/:id", (c) => {

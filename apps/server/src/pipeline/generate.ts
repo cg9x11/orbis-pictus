@@ -9,8 +9,9 @@ import type {
   Node,
   PageLabel,
 } from "@orbis/shared";
+import { groupIdOf } from "@orbis/shared";
 import type { Providers } from "../providers/index.js";
-import { getNode, insertNode, findChildBySubject, findNodeByPromptHash } from "../storage/nodes.js";
+import { getNode, insertNode, insertVersionAsDefault, findChildBySubject, findNodeByPromptHash, resolveGroupDefault } from "../storage/nodes.js";
 import { findTapCacheHit, recordTapCache } from "../storage/tapCache.js";
 import { loadReferenceImageDataUrl, saveImageVariantResized } from "./imageStorage.js";
 import { normalizeSubject } from "./normalize.js";
@@ -62,6 +63,14 @@ interface ModeContext {
   // verbatim, so the new node's labels_aspect must be THIS, not the edit request's ratio — the
   // carried {x,y} live in the parent's composition. Undefined for non-edit modes.
   parentLabelsAspect: AspectRatio | null | undefined;
+  // Page versions (peer model). `nodeParentId` is the parent_id STORED on the new node. For search
+  // and tap it is the page explored from. For an EDIT it is the edited version's OWN parent, so all
+  // versions of a page share one exploration parent and stay out of each other's breadcrumb.
+  nodeParentId: string | null;
+  // Edit only: the group the new version joins, and the version it was edited from. Undefined for a
+  // non-edit mode — a fresh page is its own group (the storage layer fills the group with its id).
+  versionGroupId: string | undefined;
+  editedFromId: string | undefined;
 }
 
 // Only tap mode can short-circuit the rest of generation. Layer 2 does this when an existing
@@ -83,6 +92,9 @@ function resolveSearchContext(req: GenerateSearchRequest): ModeResolution {
       parentLabels: undefined,
       parentFooter: undefined,
       parentLabelsAspect: undefined,
+      nodeParentId: parentNodeId,
+      versionGroupId: undefined,
+      editedFromId: undefined,
     },
   };
 }
@@ -107,6 +119,11 @@ function resolveEditContext(req: GenerateEditRequest): ModeResolution {
       parentLabels: parent.labels,
       parentFooter: parent.footer,
       parentLabelsAspect: parent.labels_aspect,
+      // Peer model: the new version attaches to the edited version's OWN parent (not to the edited
+      // version), joins its group, and records that it was edited from it.
+      nodeParentId: parent.parent_id,
+      versionGroupId: groupIdOf(parent),
+      editedFromId: parent.id,
     },
   };
 }
@@ -162,10 +179,14 @@ async function resolveTapContext(
   await emit({ event: "tap_subject", data: { subject } });
 
   // Layer 2: subject-level child dedup. Navigation to an existing child is instant, and it starts
-  // no generation.
+  // no generation. The lookup finds the PRIMARY child of the subject (edit versions are excluded), so
+  // resolve it to that group's current default — otherwise a repeat tap on a subject the user edited
+  // and re-defaulted would open the old primary, not their chosen version.
   if (tapDedup === "reuse") {
     const existingChild = findChildBySubject(parentNodeId, normalizeSubject(subject));
-    if (existingChild) return { kind: "cache-hit", node: existingChild };
+    if (existingChild) {
+      return { kind: "cache-hit", node: resolveGroupDefault(existingChild) };
+    }
   }
 
   return {
@@ -182,6 +203,9 @@ async function resolveTapContext(
       parentLabels: undefined,
       parentFooter: undefined,
       parentLabelsAspect: undefined,
+      nodeParentId: parentNodeId,
+      versionGroupId: undefined,
+      editedFromId: undefined,
     },
   };
 }
@@ -225,7 +249,7 @@ export async function runGenerate(
     return resolution.node;
   }
 
-  const { topic, parentNodeId, parentTitle, parentAuthoredPrompt, tapReferenceImageDataUrl, parentLabels, parentFooter, parentLabelsAspect } =
+  const { topic, nodeParentId, parentTitle, parentAuthoredPrompt, tapReferenceImageDataUrl, parentLabels, parentFooter, parentLabelsAspect, versionGroupId, editedFromId } =
     resolution.context;
 
   let webSearchSummary: string | undefined;
@@ -390,7 +414,7 @@ export async function runGenerate(
 
   const node: Node = {
     id: nodeId,
-    parent_id: parentNodeId,
+    parent_id: nodeParentId,
     session_id: req.session_id,
     query: topic,
     page_title: pageTitle,
@@ -418,10 +442,21 @@ export async function runGenerate(
     version: 1,
     video_status: null,
     morph_status: null,
+    // Page versions. For a non-edit these are undefined/null, so the storage layer makes the node its
+    // own group and its own default. For an edit they carry the group, the source version, and the
+    // command, and insertVersionAsDefault (below) makes this the group's new default.
+    version_group_id: versionGroupId,
+    edited_from_id: editedFromId ?? null,
+    edit_command: req.mode === "edit" ? req.prompt : null,
   };
 
+  // An edit joins an existing version group and becomes its default, so the old default must be
+  // cleared in the same transaction (insertVersionAsDefault). withRetry wraps the whole call, so a
+  // retry re-runs the clear and the insert atomically. Every other mode is a fresh page and its own
+  // group, so a plain insert is right.
+  const persist = req.mode === "edit" ? insertVersionAsDefault : insertNode;
   await withRetry(() =>
-    insertNode(node, { normalizedSubject: normalizeSubject(topic), promptHash: canReuseImage ? promptHash : null }),
+    persist(node, { normalizedSubject: normalizeSubject(topic), promptHash: canReuseImage ? promptHash : null }),
   );
 
   // Fire-and-forget background clips. They start BEFORE the code announces `complete`.

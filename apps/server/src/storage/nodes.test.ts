@@ -9,6 +9,11 @@ process.env.DATABASE_URL = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "orbi
 
 const {
   insertNode,
+  insertVersionAsDefault,
+  setDefaultVersion,
+  listVersions,
+  countGroupVersions,
+  getGroupDefault,
   findChildBySubject,
   findChildrenBySubject,
   findNodeByPromptHash,
@@ -403,4 +408,137 @@ test("decodeGalleryCursor accepts a round trip and rejects malformed input", () 
   assert.equal(decodeGalleryCursor("no-separator"), null);
   assert.equal(decodeGalleryCursor("|missing-timestamp"), null);
   assert.equal(decodeGalleryCursor("2026-10-01T00:00:00.000Z|"), null);
+});
+
+// --- Page versions -------------------------------------------------------------------------
+
+test("a plain insert is its own version group and its own default", () => {
+  insertNode(makeNode({ id: "vg-solo" }), { normalizedSubject: "solo" });
+
+  const read = getNode("vg-solo");
+  assert.ok(read);
+  assert.equal(read.version_group_id, "vg-solo");
+  assert.equal(read.is_default, true);
+  assert.equal(read.edited_from_id, null);
+  assert.equal(read.edit_command, null);
+  assert.equal(countGroupVersions("vg-solo"), 1);
+});
+
+test("insertVersionAsDefault adds a peer, makes it the default, and demotes the old one", () => {
+  insertNode(makeNode({ id: "vg-day", created_at: "2026-01-01T00:00:00.000Z" }), { normalizedSubject: "eiffel" });
+  insertVersionAsDefault(
+    makeNode({
+      id: "vg-night",
+      created_at: "2026-01-02T00:00:00.000Z",
+      version_group_id: "vg-day",
+      edited_from_id: "vg-day",
+      edit_command: "make it night time",
+    }),
+    { normalizedSubject: "eiffel", promptHash: null },
+  );
+
+  assert.equal(getNode("vg-day")?.is_default, false);
+  assert.equal(getNode("vg-night")?.is_default, true);
+  assert.equal(getNode("vg-night")?.edited_from_id, "vg-day");
+  assert.equal(getNode("vg-night")?.edit_command, "make it night time");
+
+  const versions = listVersions("vg-day");
+  assert.deepEqual(versions.map((v) => v.id), ["vg-day", "vg-night"]); // oldest first
+  assert.equal(versions.filter((v) => v.is_default).length, 1); // exactly one default
+  assert.equal(countGroupVersions("vg-day"), 2);
+});
+
+test("a third version still leaves exactly one default in the group", () => {
+  insertNode(makeNode({ id: "t3-a", created_at: "2026-01-01T00:00:00.000Z" }), { normalizedSubject: "t3" });
+  insertVersionAsDefault(
+    makeNode({ id: "t3-b", created_at: "2026-01-02T00:00:00.000Z", version_group_id: "t3-a", edited_from_id: "t3-a" }),
+    { normalizedSubject: "t3" },
+  );
+  insertVersionAsDefault(
+    makeNode({ id: "t3-c", created_at: "2026-01-03T00:00:00.000Z", version_group_id: "t3-a", edited_from_id: "t3-b" }),
+    { normalizedSubject: "t3" },
+  );
+
+  const versions = listVersions("t3-a");
+  assert.deepEqual(versions.map((v) => v.id), ["t3-a", "t3-b", "t3-c"]);
+  assert.equal(versions.filter((v) => v.is_default).length, 1);
+  assert.equal(getNode("t3-c")?.is_default, true);
+  assert.equal(countGroupVersions("t3-a"), 3);
+});
+
+test("setDefaultVersion moves the default and keeps exactly one", () => {
+  insertNode(makeNode({ id: "sd-a", created_at: "2026-01-01T00:00:00.000Z" }), { normalizedSubject: "sd" });
+  insertVersionAsDefault(
+    makeNode({ id: "sd-b", created_at: "2026-01-02T00:00:00.000Z", version_group_id: "sd-a", edited_from_id: "sd-a" }),
+    { normalizedSubject: "sd" },
+  );
+
+  // sd-b is the default now; move it back to sd-a.
+  const updated = setDefaultVersion("sd-a");
+  assert.equal(updated?.is_default, true);
+  assert.equal(getNode("sd-b")?.is_default, false);
+  assert.equal(listVersions("sd-a").filter((v) => v.is_default).length, 1);
+
+  assert.equal(setDefaultVersion("no-such-node"), null);
+});
+
+test("listGalleryPage shows only the default version of a root group", () => {
+  insertNode(
+    makeNode({ id: "gv-day", parent_id: null, page_title: "GV Eiffel", created_at: "2026-01-01T00:00:00.000Z" }),
+    { normalizedSubject: "gv" },
+  );
+  insertVersionAsDefault(
+    makeNode({
+      id: "gv-night",
+      parent_id: null,
+      page_title: "GV Eiffel",
+      created_at: "2026-01-02T00:00:00.000Z",
+      version_group_id: "gv-day",
+      edited_from_id: "gv-day",
+    }),
+    { normalizedSubject: "gv" },
+  );
+
+  const ids = listGalleryPage({ limit: null }).nodes.map((n) => n.id);
+  assert.equal(ids.includes("gv-night"), true); // the default version is the card
+  assert.equal(ids.includes("gv-day"), false); // the demoted original is hidden
+});
+
+test("getGroupDefault returns the group's current default version", () => {
+  insertNode(makeNode({ id: "gd-a", created_at: "2026-01-01T00:00:00.000Z" }), { normalizedSubject: "gd" });
+  insertVersionAsDefault(
+    makeNode({ id: "gd-b", created_at: "2026-01-02T00:00:00.000Z", version_group_id: "gd-a", edited_from_id: "gd-a" }),
+    { normalizedSubject: "gd" },
+  );
+
+  assert.equal(getGroupDefault("gd-a")?.id, "gd-b"); // the newest edit is the default
+  setDefaultVersion("gd-a");
+  assert.equal(getGroupDefault("gd-a")?.id, "gd-a"); // follows a manual re-star
+  assert.equal(getGroupDefault("no-such-group"), null);
+});
+
+test("findChildBySubject and findChildrenBySubject ignore edit versions", () => {
+  insertNode(makeNode({ id: "sub-parent" }), { normalizedSubject: "root" });
+  // A real tap child of the parent.
+  insertNode(makeNode({ id: "sub-tap", parent_id: "sub-parent", created_at: "2026-01-01T00:00:00.000Z" }), {
+    normalizedSubject: "gargoyle",
+  });
+  // An edit VERSION of that tap child: same parent and subject, but edited_from_id is set. Without
+  // the `edited_from_id IS NULL` filter it would masquerade as a second tap sibling.
+  insertVersionAsDefault(
+    makeNode({
+      id: "sub-edit",
+      parent_id: "sub-parent",
+      created_at: "2026-01-02T00:00:00.000Z",
+      version_group_id: "sub-tap",
+      edited_from_id: "sub-tap",
+    }),
+    { normalizedSubject: "gargoyle" },
+  );
+
+  assert.equal(findChildBySubject("sub-parent", "gargoyle")?.id, "sub-tap");
+  assert.deepEqual(
+    findChildrenBySubject("sub-parent", "gargoyle").map((n) => n.id),
+    ["sub-tap"],
+  );
 });

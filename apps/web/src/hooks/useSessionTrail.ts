@@ -37,6 +37,23 @@ export function useSessionTrail(initial: Node[] = []) {
     }));
   }, []);
 
+  /**
+   * Swaps a DIFFERENT node into the current position, keeping the trail length, index, AND any
+   * forward history intact. Used to move between VERSIONS of one page: a version is a lateral change
+   * of the same page, not a new step in the exploration, so it takes the current slot instead of
+   * extending the trail — which keeps the breadcrumb from showing the same page twice. Unlike
+   * `append`, it does NOT truncate forward history: switching versions is a lateral peek, so stepping
+   * back to look at another version must not throw away the forward steps you already walked.
+   */
+  const replaceCurrent = useCallback((node: Node) => {
+    setState((prev) => {
+      if (prev.currentIndex < 0) return { trail: [node], currentIndex: 0 };
+      const trail = prev.trail.slice();
+      trail[prev.currentIndex] = node;
+      return { trail, currentIndex: prev.currentIndex };
+    });
+  }, []);
+
   return {
     trail: state.trail,
     currentIndex: state.currentIndex,
@@ -45,5 +62,6 @@ export function useSessionTrail(initial: Node[] = []) {
     navigateTo,
     reset,
     updateNode,
+    replaceCurrent,
   };
 }

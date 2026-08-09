@@ -7,11 +7,13 @@ import type {
   Node,
   NodesGetResponse,
   NodeTapsResponse,
+  VersionSummary,
 } from "@orbis/shared";
 import {
   ConfigResponseSchema,
   GenerateEventSchema,
   NodesListResponseSchema,
+  NodesVersionsResponseSchema,
   NodeTapsResponseSchema,
 } from "@orbis/shared";
 import { parseSSEStream } from "./sse";
@@ -60,6 +62,25 @@ export async function fetchNodeTaps(id: string, ratio: AspectRatio): Promise<Nod
   return NodeTapsResponseSchema.parse(await res.json());
 }
 
+/** Every version of a page (the branch control's list), oldest first. `id` is any member of the
+ *  group — the server resolves the group from it. Parsed, not cast, like the other readers. */
+export async function fetchVersions(id: string): Promise<VersionSummary[]> {
+  const res = await fetch(`/api/nodes/${id}/versions`);
+  if (!res.ok) throw new Error(`Failed to fetch versions for node ${id}`);
+  return NodesVersionsResponseSchema.parse(await res.json()).versions;
+}
+
+/** The star action: make `id` the version its group opens by default. Returns the fresh list so the
+ *  caller updates its star state without a second request. */
+export async function setDefaultVersion(id: string): Promise<VersionSummary[]> {
+  const res = await fetch(`/api/nodes/${id}/default`, { method: "POST" });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error((body as { error?: string } | null)?.error ?? `Couldn't set default version (${res.status})`);
+  }
+  return NodesVersionsResponseSchema.parse(await res.json()).versions;
+}
+
 export async function fetchVariant(id: string, ratio: AspectRatio): Promise<Node> {
   const res = await fetch(`/api/nodes/${id}/variant?ratio=${encodeURIComponent(ratio)}`);
   if (!res.ok) throw new Error(`Failed to fetch ${ratio} variant for node ${id}`);
@@ -72,6 +93,8 @@ export interface GalleryPage {
   nodes: Node[];
   /** Pass back to `fetchGalleryPage` for the next batch. Null means this batch was the last one. */
   nextCursor: string | null;
+  /** Per-card version count, keyed by the card's node id. A count above one gets the branch badge. */
+  versionCounts: Record<string, number>;
 }
 
 /**
@@ -91,8 +114,8 @@ export async function fetchGalleryPage(limit = 12, cursor?: string | null): Prom
   if (cursor) params.set("cursor", cursor);
   const res = await fetch(`/api/nodes?${params.toString()}`);
   if (!res.ok) throw new Error("Failed to fetch gallery");
-  const { nodes, next_cursor } = NodesListResponseSchema.parse(await res.json());
-  return { nodes, nextCursor: next_cursor };
+  const { nodes, next_cursor, version_counts } = NodesListResponseSchema.parse(await res.json());
+  return { nodes, nextCursor: next_cursor, versionCounts: version_counts };
 }
 
 export async function fetchConfig(): Promise<ConfigResponse> {

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { GenerateRequestSchema } from "./schema.js";
+import { GenerateRequestSchema, sanitizePageLabels, MAX_PAGE_LABELS } from "./schema.js";
 
 // L1: a `mode`-less request must default to "search". The default has to be applied before the
 // discriminatedUnion resolves its branch — a `.default` on the branch's own literal never fires.
@@ -85,4 +85,24 @@ test("a wrongly-typed override degrades to the server default", () => {
   assert.equal(parsed.success, true);
   assert.equal(parsed.success && parsed.data.image_provider, undefined);
   assert.equal(parsed.success && parsed.data.video_duration_seconds, undefined);
+});
+
+// The prompt asks for at most six callouts, but a model reply is not bound by the prompt. Without a
+// hard cap a runaway reply could stamp a dozen plaques onto one image.
+test("sanitizePageLabels caps the number of labels at MAX_PAGE_LABELS", () => {
+  const many = Array.from({ length: 15 }, (_, i) => ({ text: `L${i}`, subject: `s${i}`, x: 0.5, y: 0.5 }));
+  const out = sanitizePageLabels(many);
+  assert.equal(out.length, MAX_PAGE_LABELS);
+  // The kept labels are the FIRST ones, in order — extras beyond the cap are dropped.
+  assert.equal(out[0]!.text, "L0");
+  assert.equal(out[MAX_PAGE_LABELS - 1]!.text, `L${MAX_PAGE_LABELS - 1}`);
+});
+
+test("sanitizePageLabels keeps a normal (under-cap) reply intact", () => {
+  const three = [
+    { text: "A", subject: "a", x: 0.1, y: 0.1 },
+    { text: "B", subject: "b", x: 0.2, y: 0.2 },
+    { text: "C", subject: "c", x: 0.3, y: 0.3 },
+  ];
+  assert.equal(sanitizePageLabels(three).length, 3);
 });

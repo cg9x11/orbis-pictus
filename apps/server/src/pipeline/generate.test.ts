@@ -252,6 +252,68 @@ test("edit mode: the built image prompt includes the house style and passes the 
   // (when enabled) would search for the edit instruction, and the persisted query would be it too.
   assert.equal(node.query, parent.query);
   assert.notEqual(node.query, "make it night time");
+
+  // Peer model: the edit is a new VERSION of the same page, not a nested child. parent-edit is a
+  // root, so the version attaches to its parent (null), joins parent-edit's group, records what it
+  // was edited from and the command, and becomes the group's default.
+  assert.equal(node.parent_id, null);
+  assert.equal(node.version_group_id, "parent-edit");
+  assert.equal(node.edited_from_id, "parent-edit");
+  assert.equal(node.edit_command, "make it night time");
+  assert.equal(node.is_default, true);
+});
+
+test("edit mode (peer model): the version attaches to the edited page's PARENT, not to the edited page", async () => {
+  const ctx = makeContext(new SpyImageProvider());
+  const mkImg = (id: string) => saveImageVariant(ctx.imagesDir, id, "16:9", Buffer.from(`px-${id}`), "image/jpeg");
+  const base = (id: string, parentId: string | null): Node => ({
+    id,
+    parent_id: parentId,
+    session_id: "s-peer",
+    query: "Sydney",
+    page_title: "Sydney",
+    image_variants: { "16:9": mkImg(id) },
+    image_model: "mock-image",
+    image_provider: "mock",
+    art_style: "felt",
+    composition: "diorama",
+    prompt_author_model: "mock-llm",
+    authored_prompt: "content",
+    labels: [],
+    footer: "",
+    labels_aspect: null,
+    created_at: new Date().toISOString(),
+    version: 1,
+    video_status: null,
+    morph_status: null,
+  });
+  // A root page, and a child explored from it. We edit the CHILD.
+  insertNode(base("peer-root", null), { normalizedSubject: "root" });
+  insertNode(base("peer-child", "peer-root"), { normalizedSubject: "child" });
+
+  const node = await runGenerate(
+    {
+      mode: "edit",
+      prompt: "make it gold",
+      currentImage: `data:image/jpeg;base64,${Buffer.from("cur").toString("base64")}`,
+      aspect_ratio: "16:9",
+      web_search: false,
+      video_loop: false,
+      parent_title: "Sydney",
+      session_id: "s-peer",
+      current_node_id: "peer-child",
+    },
+    ctx,
+    () => {},
+  );
+
+  // The edited page is peer-child (parent peer-root). The new version attaches to peer-root — the
+  // edited page's OWN parent — NOT to peer-child, so the two versions are peers, not a chain.
+  assert.equal(node.parent_id, "peer-root");
+  assert.equal(node.edited_from_id, "peer-child");
+  assert.equal(node.version_group_id, "peer-child"); // joins peer-child's group
+  assert.equal(node.edit_command, "make it gold");
+  assert.equal(node.is_default, true);
 });
 
 test("edit mode: a ratio-changing edit drops the carried labels and stamps its own ratio, so no callout is ever misplaced", async () => {
@@ -463,6 +525,86 @@ test("tap mode: a free-form tap ON a labelled subject reuses the label's subject
 
   assert.equal(spyLlm.describeTapCalls, 0); // resolved from the label, not the VLM
   assert.equal(node.query, "twin-spired red-brick cathedral"); // same subject a plaque tap would give
+});
+
+test("tap reuse: a repeat tap on an edited subject opens the group's DEFAULT version, not the old primary", async () => {
+  const previousMode = process.env.TAP_DEDUP;
+  process.env.TAP_DEDUP = "reuse";
+  try {
+    const ctx = makeContext(new SpyImageProvider());
+    const parentImageUrl = saveImageVariant(ctx.imagesDir, "reuse-parent", "16:9", Buffer.from("px"), "image/jpeg");
+    const parent: Node = {
+      id: "reuse-parent",
+      parent_id: null,
+      session_id: "s-reuse",
+      query: "Notre-Dame quarter",
+      page_title: "Notre-Dame Quarter",
+      image_variants: { "16:9": parentImageUrl },
+      image_model: "mock-image",
+      image_provider: "mock",
+      art_style: "felt",
+      composition: "diorama",
+      prompt_author_model: "mock-llm",
+      authored_prompt: "content prompt for the reuse parent",
+      labels: [],
+      footer: "",
+      labels_aspect: null,
+      created_at: new Date().toISOString(),
+      version: 1,
+      video_status: null,
+      morph_status: null,
+    };
+    insertNode(parent, { normalizedSubject: "root" });
+
+    const tapGargoyle = () =>
+      runGenerate(
+        {
+          mode: "tap" as const,
+          known_subject: "gargoyle", // deterministic subject, no VLM
+          x: 0.5,
+          y: 0.5,
+          aspect_ratio: "16:9" as const,
+          web_search: false,
+          video_loop: false,
+          force_new_image: false,
+          parent_title: "Notre-Dame Quarter",
+          session_id: "s-reuse",
+          current_node_id: "reuse-parent",
+        },
+        ctx,
+        () => {},
+      );
+
+    // First tap creates the primary "gargoyle" child.
+    const primary = await tapGargoyle();
+
+    // Edit that child into a new version, which becomes the group default.
+    const edited = await runGenerate(
+      {
+        mode: "edit",
+        prompt: "make it weathered stone",
+        currentImage: `data:image/jpeg;base64,${Buffer.from("cur").toString("base64")}`,
+        aspect_ratio: "16:9",
+        web_search: false,
+        video_loop: false,
+        parent_title: "gargoyle",
+        session_id: "s-reuse",
+        current_node_id: primary.id,
+      },
+      ctx,
+      () => {},
+    );
+    assert.notEqual(edited.id, primary.id);
+    assert.equal(edited.is_default, true);
+
+    // Re-tap "gargoyle": reuse dedup must resolve to the DEFAULT version (edited), not the primary.
+    const reopened = await tapGargoyle();
+    assert.equal(reopened.id, edited.id);
+    assert.notEqual(reopened.id, primary.id);
+  } finally {
+    if (previousMode === undefined) delete process.env.TAP_DEDUP;
+    else process.env.TAP_DEDUP = previousMode;
+  }
 });
 
 // The tap panel's "Draw a new version" button is the user choosing to spend. If layer 3 could still

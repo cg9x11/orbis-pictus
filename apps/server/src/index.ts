@@ -77,16 +77,21 @@ const webDistIndexHtml = path.join(WEB_DIST, "index.html");
 // This route is not reached by a real browser in dev (Vite serves /n/:id itself via its SPA
 // fallback; it is deliberately NOT proxied here — see vite.config.ts), so the fallback exists only
 // for a direct hit on this server, e.g. a link-unfurling bot reading the OG tags below.
+//
+// Resolved and read ONCE at module load: the template is static in production, and dev never reaches
+// this route through it, so an existsSync + full-file read on every deep-link/unfurl hit was pure
+// waste on the synchronous event loop. Each request now only splices its OG tags into this string.
+const BASE_INDEX_HTML = fs.readFileSync(fs.existsSync(webDistIndexHtml) ? webDistIndexHtml : WEB_SRC_INDEX_HTML, "utf-8");
 
+const HTML_ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+  return s.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]!);
 }
 
 // Server-rendered so link-unfurling bots (which don't run JS) see the right title + image.
 app.get("/n/:id", (c) => {
   const id = c.req.param("id");
-  const indexPath = fs.existsSync(webDistIndexHtml) ? webDistIndexHtml : WEB_SRC_INDEX_HTML;
-  let html = fs.readFileSync(indexPath, "utf-8");
+  let html = BASE_INDEX_HTML;
 
   const node = getNode(id);
   if (node) {

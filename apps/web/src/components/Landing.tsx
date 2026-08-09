@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { Node } from "@orbis/shared";
 import { fetchGalleryPage } from "../lib/api";
 import { useCancellableEffect } from "../hooks/useCancellableEffect";
+import { BranchIcon } from "./PageVersions";
 
 const GALLERY_PAGE_SIZE = 12;
 
@@ -22,6 +23,9 @@ export function Landing({ onSuggestion }: { onSuggestion: (query: string) => voi
   // the loading state. An empty array means the first batch arrived and the gallery is genuinely
   // empty, which is the suggestions state. The two are different and must not be collapsed.
   const [gallery, setGallery] = useState<Node[] | null>(null);
+  // Per-card version count, keyed by card node id, accumulated across batches alongside `gallery`. A
+  // count above one shows the branch badge on that card.
+  const [versionCounts, setVersionCounts] = useState<Record<string, number>>({});
   // The cursor for the NEXT batch. Null means there is no next batch, so no "Load more" button.
   const [cursor, setCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -39,6 +43,7 @@ export function Landing({ onSuggestion }: { onSuggestion: (query: string) => voi
       .then((page) => {
         if (cancelled()) return;
         setGallery(page.nodes);
+        setVersionCounts(page.versionCounts);
         setCursor(page.nextCursor);
       })
       .catch(() => {
@@ -56,6 +61,7 @@ export function Landing({ onSuggestion }: { onSuggestion: (query: string) => voi
     fetchGalleryPage(GALLERY_PAGE_SIZE, cursor)
       .then((page) => {
         setGallery((prev) => [...(prev ?? []), ...page.nodes]);
+        setVersionCounts((prev) => ({ ...prev, ...page.versionCounts }));
         setCursor(page.nextCursor);
       })
       .catch(() => setLoadMoreError(true))
@@ -79,12 +85,23 @@ export function Landing({ onSuggestion }: { onSuggestion: (query: string) => voi
       {gallery !== null && gallery.length > 0 && (
         <>
           <div className="landing-gallery">
-            {gallery.map((node) => (
-              <Link key={node.id} to={`/n/${node.id}`} className="gallery-card">
-                {thumbnailUrl(node) && <img src={thumbnailUrl(node)} alt="" loading="lazy" />}
-                <span className="gallery-card-title">{node.page_title}</span>
-              </Link>
-            ))}
+            {gallery.map((node) => {
+              const count = versionCounts[node.id] ?? 0;
+              return (
+                <Link key={node.id} to={`/n/${node.id}`} className="gallery-card">
+                  {thumbnailUrl(node) && <img src={thumbnailUrl(node)} alt="" loading="lazy" />}
+                  {count > 1 && (
+                    // Only when a page has edit versions. The card already opens the DEFAULT version
+                    // (the gallery lists default rows), and the branch button inside surfaces the rest.
+                    <span className="card-branch-badge" title={`${count} versions`}>
+                      <BranchIcon strokeWidth={2.4} />
+                      {count}
+                    </span>
+                  )}
+                  <span className="gallery-card-title">{node.page_title}</span>
+                </Link>
+              );
+            })}
           </div>
 
           {loadMoreError && (

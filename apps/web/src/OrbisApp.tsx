@@ -11,6 +11,7 @@ import { VideoLoopToggle } from "./components/VideoLoopToggle";
 import { GenerationProgress } from "./components/GenerationProgress";
 import { CachedTapMarkers } from "./components/CachedTapMarkers";
 import { PageLabels } from "./components/PageLabels";
+import { PageVersions } from "./components/PageVersions";
 import { TapVariantPanel } from "./components/TapVariantPanel";
 import { Landing } from "./components/Landing";
 import { classNames } from "./lib/classNames";
@@ -60,6 +61,7 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
     cachedTaps,
     tapDedupMode,
     variantPanelTap,
+    versions,
     milestone,
     dismissMilestone,
     handleSearch,
@@ -70,6 +72,8 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
     handleCloseVariantPanel,
     handleDrawNewVariant,
     openExistingChild,
+    openVersion,
+    handleSetDefaultVersion,
     handleAddressSubmit,
     handleRetry,
     handleNavigate,
@@ -170,6 +174,15 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
               displayedAspect={aspectRatio}
               hidden={busy || morphActive}
               onLabelTap={handleLabelTap}
+            />
+          }
+          versions={
+            <PageVersions
+              versions={versions}
+              currentId={current?.id}
+              onOpen={openVersion}
+              onSetDefault={handleSetDefaultVersion}
+              hidden={busy || morphActive}
             />
           }
           videoGenerating={videoGenerating}

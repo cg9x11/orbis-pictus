@@ -33,5 +33,7 @@ export function usePageAnalytics() {
 
   const dismissMilestone = useCallback(() => setMilestone(null), []);
 
-  return { count, milestone, recordPage, dismissMilestone };
+  // `count` stays as internal state (it drives the milestone check) but is not returned — no consumer
+  // reads it, and exposing it invites a stale second source of the page total.
+  return { milestone, recordPage, dismissMilestone };
 }

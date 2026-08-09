@@ -49,7 +49,7 @@ export function AddressBar({ trail, currentIndex, onNavigate, onSubmit, disabled
           className="address-input"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder={editMode ? "Type a command to edit this page…" : trail.length > 0 ? "Continue this session" : "Type anything…"}
+          placeholder={editMode ? "Type a command to edit this page…" : "Type anything…"}
           disabled={disabled}
         />
       )}

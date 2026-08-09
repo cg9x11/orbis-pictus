@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ModelSettings, ProviderOption } from "@orbis/shared";
 import { pruneEmptyPrefs, type ModelPrefs } from "../lib/persistedPrefs";
 import { classNames } from "../lib/classNames";
+import { useDismiss } from "../hooks/useDismiss";
 
 interface ModelSettingsPanelProps {
   settings: ModelSettings;
@@ -194,25 +195,18 @@ export function ModelSettingsPanel({ settings, prefs, onChange, disabled }: Mode
     setAnchor({ top: rect.bottom + 8, left: Math.max(8, Math.min(rect.left, window.innerWidth - PANEL_WIDTH - 12)) });
   };
 
+  // Outside-click + Escape dismiss (shared with the other popovers).
+  useDismiss(open, () => setOpen(false), rootRef);
+
+  // Reposition the fixed panel as the button under it moves. Separate from dismiss on purpose: the
+  // panel is `fixed`, so its coordinates freeze at open time. A resize, or a scroll of the internally
+  // scrolling `.browser-frame`, would otherwise strand it over unrelated content. Capture phase,
+  // because that internal scroll never bubbles to `window`.
   useEffect(() => {
     if (!open) return;
-    const onPointerDown = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
     window.addEventListener("resize", placeUnderButton);
-    // Scroll matters as much as resize, and for a reason particular to this panel: it is `fixed`,
-    // so its coordinates are frozen at open time while the button they were measured from scrolls
-    // away, leaving the panel stranded over unrelated content. Capture phase, because `.browser-frame`
-    // scrolls internally and a scroll inside a descendant never bubbles to `window`.
     window.addEventListener("scroll", placeUnderButton, true);
     return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("resize", placeUnderButton);
       window.removeEventListener("scroll", placeUnderButton, true);
     };

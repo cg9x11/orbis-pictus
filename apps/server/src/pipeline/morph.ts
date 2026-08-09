@@ -1,4 +1,4 @@
-import type { AspectRatio, Node } from "@orbis/shared";
+import { predecessorId, type AspectRatio, type Node } from "@orbis/shared";
 import type { Providers } from "../providers/index.js";
 import { getMorphInfo, getNode, markMorphFailed, markMorphPending, markMorphReady } from "../storage/nodes.js";
 import { saveMorph, writeReversedMorph } from "./morphStorage.js";
@@ -42,17 +42,19 @@ export function createMorphPipeline(): MorphPipeline {
     maxPerSession: getMorphMaxPerSession,
     getStatus: getMorphInfo,
     buildRequest: (child) => {
-      if (!child.parent_id) return null; // only a tap/edit child has a parent to morph from
-      const parent = getNode(child.parent_id);
-      if (!parent) return null;
+      // The morph runs from the page the user came from, to this one — the child's predecessor.
+      const sourceId = predecessorId(child);
+      if (!sourceId) return null; // a root page that is not an edit has nothing to morph from
+      const source = getNode(sourceId);
+      if (!source) return null;
 
-      const ratio = pickSharedRatio(parent, child);
+      const ratio = pickSharedRatio(source, child);
       if (!ratio) return null; // no image both nodes share the same aspect ratio for — skip rather than generate one
 
       return {
         prompt: MORPH_TRANSITION_MOTION_PROMPT,
         aspectRatio: ratio,
-        firstFrameUrl: parent.image_variants[ratio]!,
+        firstFrameUrl: source.image_variants[ratio]!,
         lastFrameUrl: child.image_variants[ratio]!,
       };
     },

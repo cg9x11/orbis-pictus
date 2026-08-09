@@ -51,13 +51,11 @@ export function migrate(): void {
     CREATE INDEX IF NOT EXISTS nodes_prompt_hash_idx ON nodes(prompt_hash);
   `);
 
-  // Landing-gallery keyset pagination. The gallery selects roots and orders them by
-  // (created_at DESC, id DESC). Each later page seeks with a row-value comparison on the same two
-  // columns. This index matches that order column for column, so a seek jumps straight to the first
-  // row of the page. Without it, SQLite reads and sorts every root on every request.
-  //
-  // The id column is part of the index because created_at holds an ISO string at millisecond
-  // resolution, so two roots can tie. The primary key breaks the tie and makes the order total.
+  // Landing-gallery keyset pagination, original form. The gallery now filters on `is_default = 1` as
+  // well as `parent_id IS NULL`, and reads through the partial `nodes_default_root_idx` created in
+  // the page-versions block below. This index no longer matches the gallery query column for column,
+  // but it is kept (not dropped) because a bare `parent_id`-prefixed index is cheap and a future
+  // parent-scan query may want it. See plans/PLAN-versions.md, finding 12.
   db.exec(`
     CREATE INDEX IF NOT EXISTS nodes_root_created_idx
       ON nodes(parent_id, created_at DESC, id DESC);
@@ -104,6 +102,37 @@ export function migrate(): void {
   ensureColumn("nodes", "labels", "labels TEXT NOT NULL DEFAULT '[]'");
   ensureColumn("nodes", "footer", "footer TEXT NOT NULL DEFAULT ''");
   ensureColumn("nodes", "labels_aspect", "labels_aspect TEXT");
+
+  // Page versions (see plans/PLAN-versions.md). An edit becomes a first-class VERSION of a page,
+  // grouped with its siblings by version_group_id, rather than a hidden nested child.
+  //
+  // version_group_id is nullable at the SQL level, not `NOT NULL`. ALTER TABLE ADD COLUMN cannot add
+  // a NOT NULL column without a constant default, and the wanted default is the row's own id, which
+  // is not a constant. The backfill below fills every existing row, and rowToNode reads a missing
+  // value as the row's own id, so the column is always effectively populated.
+  ensureColumn("nodes", "version_group_id", "version_group_id TEXT");
+  // The version this row was edited from (null for a non-edit); the edit instruction that made it.
+  ensureColumn("nodes", "edited_from_id", "edited_from_id TEXT");
+  ensureColumn("nodes", "edit_command", "edit_command TEXT");
+  // One default per group opens by default. Every existing row becomes its own singleton default
+  // group: the constant DEFAULT 1 is allowed here, and the backfill gives each row a unique group.
+  ensureColumn("nodes", "is_default", "is_default INTEGER NOT NULL DEFAULT 1");
+
+  // Backfill BEFORE the unique index is created, so the index never sees two nulls collapse or two
+  // defaults collide. After this, every row is its own group (unique id) with exactly one default.
+  db.exec(`UPDATE nodes SET version_group_id = id WHERE version_group_id IS NULL`);
+
+  db.exec(`
+    -- Lists and counts every version of a page.
+    CREATE INDEX IF NOT EXISTS nodes_version_group_idx ON nodes(version_group_id);
+    -- The safety net: at most one default per group. A bug that sets two defaults fails loudly at
+    -- write time, which is the wanted behavior.
+    CREATE UNIQUE INDEX IF NOT EXISTS nodes_group_default_idx ON nodes(version_group_id) WHERE is_default = 1;
+    -- The landing gallery now selects the DEFAULT version of each root group. This partial index
+    -- matches that query (the WHERE plus the (created_at DESC, id DESC) order) column for column.
+    CREATE INDEX IF NOT EXISTS nodes_default_root_idx
+      ON nodes(created_at DESC, id DESC) WHERE is_default = 1 AND parent_id IS NULL;
+  `);
 }
 
 // Run eagerly so the table exists before any module that imports `db` from here

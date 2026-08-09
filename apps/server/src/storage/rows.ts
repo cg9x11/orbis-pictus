@@ -6,10 +6,29 @@ import type { Node } from "@orbis/shared";
  *  stored as raw TEXT and only take their Node-facing shape once parsed/validated in nodes.ts
  *  (ImageVariantsSchema.parse, toVideoStatus(), toMorphStatus()) — plus video_url/morph_url, never
  *  exposed via NodeSchema at all. */
-export interface NodeRow extends Omit<Node, "image_variants" | "video_status" | "morph_status" | "labels" | "labels_aspect"> {
+export interface NodeRow
+  extends Omit<
+    Node,
+    | "image_variants"
+    | "video_status"
+    | "morph_status"
+    | "labels"
+    | "labels_aspect"
+    | "is_default"
+    | "version_group_id"
+    | "edited_from_id"
+    | "edit_command"
+  > {
   image_variants: string; // JSON-encoded ImageVariants
   labels: string; // JSON-encoded PageLabel[]
   labels_aspect: string | null;
+  // Page versions. `is_default` is 0/1 in SQLite (no boolean column type), narrowed to a boolean in
+  // rowToNode. `version_group_id` is nullable at the SQL level (see db.ts) but always populated after
+  // the backfill; rowToNode reads a null as the row's own id.
+  version_group_id: string | null;
+  edited_from_id: string | null;
+  edit_command: string | null;
+  is_default: number;
   // Internal cache-layer metadata — never exposed via the public Node zod schema.
   normalized_subject: string;
   prompt_hash: string | null;

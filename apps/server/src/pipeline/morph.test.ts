@@ -19,7 +19,7 @@ process.env.MORPH_REVERSE = "false";
 
 const { createMorphPipeline } = await import("./morph.js");
 const { saveImageVariant } = await import("./imageStorage.js");
-const { insertNode, getMorphInfo } = await import("../storage/nodes.js");
+const { insertNode, insertVersionAsDefault, getMorphInfo } = await import("../storage/nodes.js");
 const { MockLlmProvider } = await import("../providers/llm/mock.js");
 const { MockImageProvider } = await import("../providers/image/mock.js");
 const { NoneSearchProvider } = await import("../providers/search/none.js");
@@ -95,6 +95,33 @@ test("triggers a morph generation for a fresh child, using the parent as first f
   const info = getMorphInfo(child.id);
   assert.equal(info?.status, "ready");
   assert.equal(info?.url, `/images/${child.id}/morph.mp4`);
+});
+
+test("an edit version morphs from the version it was edited from, even when its parent_id is null", async () => {
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
+  const pipeline = createMorphPipeline();
+  const video = new SpyVideoProvider();
+
+  // A root page (day) and its night EDIT version. In the peer model a version's parent_id is null
+  // (it inherits the root's null parent), so the morph must key off edited_from_id, not parent_id.
+  const day = makeNode("edit-day", "s-edit-morph", imagesDir, null);
+  insertNode(day, { normalizedSubject: "n" });
+  const night: Node = {
+    ...makeNode("edit-night", "s-edit-morph", imagesDir, null),
+    edited_from_id: "edit-day",
+    version_group_id: "edit-day",
+  };
+  // The real edit path: night joins day's group and becomes its default, so the old default (day) is
+  // cleared in the same transaction — a plain insert would trip the one-default-per-group index.
+  insertVersionAsDefault(night, { normalizedSubject: "n" });
+
+  pipeline.maybeStartMorph(night, makeProviders(video), imagesDir);
+  await flush();
+
+  assert.equal(video.calls.length, 1);
+  assert.equal(video.calls[0]!.firstFrameDataUrl, `data:image/jpeg;base64,${Buffer.from("pixels-edit-day").toString("base64")}`);
+  assert.equal(video.calls[0]!.lastFrameDataUrl, `data:image/jpeg;base64,${Buffer.from("pixels-edit-night").toString("base64")}`);
+  assert.equal(getMorphInfo(night.id)?.status, "ready");
 });
 
 test("the morph prompt is tailored to the two frames by the VLM, not the static fallback", async () => {

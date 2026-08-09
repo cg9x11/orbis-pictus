@@ -1,5 +1,5 @@
 import type { AspectRatio, MorphStatus, Node, VideoStatus } from "@orbis/shared";
-import { AspectRatioSchema, ImageVariantsSchema, MorphStatusSchema, sanitizePageLabels, VideoStatusSchema } from "@orbis/shared";
+import { AspectRatioSchema, groupIdOf, ImageVariantsSchema, MorphStatusSchema, sanitizePageLabels, VideoStatusSchema } from "@orbis/shared";
 import { db } from "./db.js";
 import type { NodeRow } from "./rows.js";
 
@@ -57,14 +57,20 @@ function rowToNode(row: NodeRow): Node {
     version: row.version,
     video_status: toVideoStatus(row.video_status),
     morph_status: toMorphStatus(row.morph_status),
+    // Page versions. `?? row.id` covers a row written before this column existed (the backfill fills
+    // it, but a read of a not-yet-migrated database still returns null). is_default is 0/1 in SQLite.
+    version_group_id: row.version_group_id ?? row.id,
+    edited_from_id: row.edited_from_id ?? null,
+    edit_command: row.edit_command ?? null,
+    is_default: row.is_default === 1,
   };
 }
 
 const insertStmt = db.prepare(`
   INSERT INTO nodes
-    (id, parent_id, session_id, query, page_title, image_variants, image_model, image_provider, art_style, composition, prompt_author_model, authored_prompt, labels, footer, labels_aspect, created_at, version, normalized_subject, prompt_hash)
+    (id, parent_id, session_id, query, page_title, image_variants, image_model, image_provider, art_style, composition, prompt_author_model, authored_prompt, labels, footer, labels_aspect, created_at, version, normalized_subject, prompt_hash, version_group_id, edited_from_id, edit_command, is_default)
   VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 /** Internal cache-layer metadata, stored alongside the node but not part of the public Node schema. */
@@ -75,7 +81,9 @@ export interface NodeCacheMeta {
   promptHash?: string | null;
 }
 
-export function insertNode(node: Node, meta: NodeCacheMeta): Node {
+/** Binds and runs one INSERT, defaulting the version fields: a brand-new page is its own group and
+ *  its own default. Only an edit overrides these — see insertVersionAsDefault. */
+function runInsert(node: Node, meta: NodeCacheMeta): void {
   insertStmt.run(
     node.id,
     node.parent_id,
@@ -96,8 +104,104 @@ export function insertNode(node: Node, meta: NodeCacheMeta): Node {
     node.version,
     meta.normalizedSubject,
     meta.promptHash ?? null,
+    groupIdOf(node),
+    node.edited_from_id ?? null,
+    node.edit_command ?? null,
+    (node.is_default ?? true) ? 1 : 0,
   );
+}
+
+export function insertNode(node: Node, meta: NodeCacheMeta): Node {
+  runInsert(node, meta);
   return node;
+}
+
+const clearGroupDefaultStmt = db.prepare(`UPDATE nodes SET is_default = 0 WHERE version_group_id = ? AND is_default = 1`);
+const setDefaultStmt = db.prepare(`UPDATE nodes SET is_default = 1 WHERE id = ?`);
+
+/**
+ * node:sqlite has no transaction helper, so BEGIN/COMMIT/ROLLBACK is explicit. This wraps `fn` in one
+ * transaction: a throw rolls the whole thing back and re-throws, so a multi-write is all-or-nothing.
+ * A caller that retries must retry the whole call, so a retry re-runs every step atomically.
+ */
+function inTransaction<T>(fn: () => T): T {
+  db.exec("BEGIN");
+  try {
+    const result = fn();
+    db.exec("COMMIT");
+    return result;
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+}
+
+/**
+ * Inserts a node that joins an EXISTING version group and becomes its default. The old default is
+ * cleared FIRST, in the same transaction, or the one-default-per-group unique index rejects the
+ * insert. A failure rolls the whole thing back, so the group is never left with zero defaults.
+ */
+export function insertVersionAsDefault(node: Node, meta: NodeCacheMeta): Node {
+  const groupId = groupIdOf(node);
+  inTransaction(() => {
+    clearGroupDefaultStmt.run(groupId);
+    runInsert({ ...node, version_group_id: groupId, is_default: true }, meta);
+  });
+  return node;
+}
+
+/**
+ * Makes `nodeId` the default of its group (the star action). Clears the group's old default first,
+ * in one transaction. Returns the updated node, or null when it does not exist.
+ */
+export function setDefaultVersion(nodeId: string): Node | null {
+  const node = getNode(nodeId);
+  if (!node) return null;
+  const groupId = groupIdOf(node);
+  inTransaction(() => {
+    clearGroupDefaultStmt.run(groupId);
+    setDefaultStmt.run(nodeId);
+  });
+  return getNode(nodeId);
+}
+
+const listVersionsStmt = db.prepare(`SELECT * FROM nodes WHERE version_group_id = ? ORDER BY created_at ASC, id ASC`);
+
+/** Every version of a page, oldest first. `groupId` is the version_group_id of any member. */
+export function listVersions(groupId: string): Node[] {
+  const rows = listVersionsStmt.all(groupId) as unknown as NodeRow[];
+  return rows.map(rowToNode);
+}
+
+const countGroupVersionsStmt = db.prepare(`SELECT COUNT(*) AS c FROM nodes WHERE version_group_id = ?`);
+
+/** How many versions a page has. One means a singleton (no edits), so the branch control hides. */
+export function countGroupVersions(groupId: string): number {
+  const row = countGroupVersionsStmt.get(groupId) as { c: number };
+  return row.c;
+}
+
+const getGroupDefaultStmt = db.prepare(`SELECT * FROM nodes WHERE version_group_id = ? AND is_default = 1 LIMIT 1`);
+
+/**
+ * The version a group opens by default. Tap reuse and the tap markers find the PRIMARY child of a
+ * subject (findChildBySubject excludes edit versions), but the page a user expects for that subject
+ * is now the group's current default. Resolving the primary through this keeps a repeat tap consistent
+ * with the branch control and the gallery card. Returns null only for an unknown group.
+ */
+export function getGroupDefault(groupId: string): Node | null {
+  const row = getGroupDefaultStmt.get(groupId) as NodeRow | undefined;
+  return row ? rowToNode(row) : null;
+}
+
+/**
+ * Resolves a PRIMARY child (as findChildBySubject returns) to its group's current default, falling
+ * back to the child itself for a group with no edits. Tap reuse and the tap markers both open the
+ * page the user expects for a subject, which is the group default — not the old primary — so this
+ * keeps a repeat tap consistent with the branch control and the gallery card.
+ */
+export function resolveGroupDefault(node: Node): Node {
+  return getGroupDefault(groupIdOf(node)) ?? node;
 }
 
 const updateImageVariantsStmt = db.prepare(`UPDATE nodes SET image_variants = ? WHERE id = ?`);
@@ -151,8 +255,12 @@ export function getHistory(nodeId: string): Node[] {
   return chain.reverse();
 }
 
+// `edited_from_id IS NULL` excludes edit versions. An edit inherits its source's parent_id and
+// normalized_subject (the edit topic is the parent's own topic), so without this filter a version
+// would look like a tap sibling: the tap panel would list it, and reuse-mode dedup would resolve a
+// repeat tap to it. Only the primary (non-edit) children count as tap children. See PLAN, finding 4.
 const findChildBySubjectStmt = db.prepare(`
-  SELECT * FROM nodes WHERE parent_id = ? AND normalized_subject = ? ORDER BY created_at ASC LIMIT 1
+  SELECT * FROM nodes WHERE parent_id = ? AND normalized_subject = ? AND edited_from_id IS NULL ORDER BY created_at ASC LIMIT 1
 `);
 
 /** Layer 2: an existing child of `parentId` that already covers this normalized subject. */
@@ -161,8 +269,10 @@ export function findChildBySubject(parentId: string, normalizedSubject: string):
   return row ? rowToNode(row) : null;
 }
 
+// `edited_from_id IS NULL` for the same reason as findChildBySubjectStmt above: the tap panel must
+// list only real tap children, never edit versions that happen to share the parent and subject.
 const findChildrenBySubjectStmt = db.prepare(`
-  SELECT * FROM nodes WHERE parent_id = ? AND normalized_subject = ? ORDER BY created_at ASC
+  SELECT * FROM nodes WHERE parent_id = ? AND normalized_subject = ? AND edited_from_id IS NULL ORDER BY created_at ASC
 `);
 
 /**
@@ -259,10 +369,13 @@ export function markMorphReady(id: string, url: string): void {
   setMorphReadyStmt.run(MorphStatusSchema.enum.ready, url, id);
 }
 
-// Root nodes only (`parent_id IS NULL`). A root is the opening page of an exploration, the kind
-// that a visitor gets from a typed query. This query excludes tap children and edit variants on
-// purpose. Those are mid-exploration pages, and they make no sense as a starting point. "Roadway
-// Deck" is a fine page, but it is a strange thing for the landing gallery to offer.
+// The DEFAULT version of each root group (`is_default = 1 AND parent_id IS NULL`). A root is the
+// opening page of an exploration, the kind that a visitor gets from a typed query. Every version of
+// a root group shares `parent_id IS NULL`, so the `is_default = 1` filter collapses the group to its
+// one default version — one card per page, not one per edit. This query still excludes tap children
+// (they have a non-null parent) and non-default edit versions on purpose. Those are mid-exploration
+// pages, and they make no sense as a starting point. "Roadway Deck" is a fine page, but it is a
+// strange thing for the landing gallery to offer.
 //
 // The query lists every eligible root, newest first. It does not deduplicate by page_title. A
 // repeat of the same search produces a genuinely new page with a fresh image. That new page
@@ -279,17 +392,18 @@ export function markMorphReady(id: string, url: string): void {
 // them. The primary key breaks every tie, so the order is total and each row has one position.
 const listGalleryFirstStmt = db.prepare(`
   SELECT * FROM nodes
-  WHERE parent_id IS NULL
+  WHERE is_default = 1 AND parent_id IS NULL
   ORDER BY created_at DESC, id DESC
   LIMIT ?
 `);
 
 // The same query, seeked to the row after the cursor. The row-value comparison
 // `(created_at, id) < (?, ?)` is the two-column form of "strictly older than the cursor row", and
-// it reads straight down nodes_root_created_idx.
+// it reads straight down the partial nodes_default_root_idx (the index that matches the
+// `is_default = 1 AND parent_id IS NULL` filter plus this order).
 const listGalleryAfterStmt = db.prepare(`
   SELECT * FROM nodes
-  WHERE parent_id IS NULL
+  WHERE is_default = 1 AND parent_id IS NULL
     AND (created_at, id) < (?, ?)
   ORDER BY created_at DESC, id DESC
   LIMIT ?

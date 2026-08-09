@@ -57,9 +57,12 @@ export function useMorphTransition(current: Node | undefined, enabled: boolean):
       setMorphPending(false);
       if (!enabled || !current || !previous || reducedMotion) return;
 
-      // Exactly one step, in either direction — anything else has no clip and never could.
-      const forward = current.parent_id === previous.id;
-      const back = previous.parent_id === current.id;
+      // Exactly one step, in either direction — anything else has no clip and never could. A tap
+      // child links to its parent via parent_id; an edit VERSION (peer model) links to the version it
+      // was edited from via edited_from_id — and a root edit has a null parent_id, so both links are
+      // checked. The morph clip is stored on the CHILD of the pair either way (see below).
+      const forward = current.parent_id === previous.id || current.edited_from_id === previous.id;
+      const back = previous.parent_id === current.id || previous.edited_from_id === current.id;
       if (!forward && !back) return;
 
       setMorphPending(true);
@@ -78,7 +81,7 @@ export function useMorphTransition(current: Node | undefined, enabled: boolean):
           if (!cancelled()) setMorphPending(false);
         });
     },
-    [current?.id, current?.parent_id, enabled, reducedMotion],
+    [current?.id, current?.parent_id, current?.edited_from_id, enabled, reducedMotion],
   );
 
   return {

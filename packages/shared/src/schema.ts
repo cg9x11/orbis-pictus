@@ -48,11 +48,16 @@ function clampUnit(value: unknown): number | null {
   return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : null;
 }
 
+/** The page-author prompt asks for at most this many callouts. Enforced here, not just requested in
+ *  the prompt, so a model reply with more cannot stamp a dozen plaques onto one image. */
+export const MAX_PAGE_LABELS = 6;
+
 /**
  * Turns an unknown array into validated PageLabel[]. Coordinates are CLAMPED to [0,1] (a model that
  * answers "1.05" meant "near the edge", not "invalid page"), and any entry that is still malformed
  * — missing text/subject, or a non-numeric coordinate — is DROPPED individually, never failing the
- * whole array. One bad callout must never blank out the other three to five.
+ * whole array. One bad callout must never blank out the other three to five. The count is capped at
+ * MAX_PAGE_LABELS: extras beyond it are dropped, so a runaway reply cannot bury the image in plaques.
  *
  * This is the SINGLE parser shared by the author write path (providers/llm/authorOutput.ts) and the
  * storage read path (storage/nodes.ts), so the two can never validate labels by different rules.
@@ -61,6 +66,7 @@ export function sanitizePageLabels(raw: unknown): PageLabel[] {
   if (!Array.isArray(raw)) return [];
   const labels: PageLabel[] = [];
   for (const item of raw) {
+    if (labels.length >= MAX_PAGE_LABELS) break;
     if (typeof item !== "object" || item === null) continue;
     const candidate = item as Record<string, unknown>;
     const x = clampUnit(candidate.x);
@@ -116,8 +122,46 @@ export const NodeSchema = z.object({
   // "none will ever exist" from the `complete` event alone, instead of only discovering it by
   // separately asking GET /api/nodes/:id/morph on every parent -> child navigation.
   morph_status: MorphStatusSchema.nullable().default(null),
+  // Page versions (see plans/PLAN-versions.md). All four are OPTIONAL on purpose: making them
+  // required would force every Node literal in the codebase (two routes plus the test factories) to
+  // set them, so the schema change could not stay in one phase. `rowToNode` in storage/nodes.ts
+  // always populates them, so a node read from the database always carries them.
+  //
+  // Groups every version of one page. A non-edit node is its own group (the storage layer fills this
+  // with the node's own id). An edit inherits the group of the version it was edited from.
+  version_group_id: z.string().optional(),
+  // The version this one was edited from. Null for a non-edit. Drives the transition morph, so it is
+  // exposed here (the client's one-step-move check reads it).
+  edited_from_id: z.string().nullable().optional(),
+  // The edit instruction that produced this version, for example "make it night time". Null for a
+  // non-edit. Shown in the versions list.
+  edit_command: z.string().nullable().optional(),
+  // True for the one version in a group that opens by default. Exactly one per group.
+  is_default: z.boolean().optional(),
 });
 export type Node = z.infer<typeof NodeSchema>;
+
+/**
+ * The page a node was reached FROM: the version it was edited from, else its exploration parent. An
+ * edit VERSION (peer model) attaches to the edited version's own parent but records `edited_from_id`,
+ * and a root edit has a null `parent_id` but a real `edited_from_id` — so `edited_from_id` wins. This
+ * is one shared domain rule; the server morph pipeline and the client both key off it. Null for a
+ * root page that is not an edit (nothing precedes it).
+ */
+export function predecessorId(node: Pick<Node, "edited_from_id" | "parent_id">): string | null {
+  return node.edited_from_id ?? node.parent_id;
+}
+
+/**
+ * The version group a node belongs to: its `version_group_id`, or its own `id` when it has none (a
+ * page that is its own group, or a legacy row written before the column existed). One shared rule —
+ * storage, routes, and the pipeline all resolve group membership through this, so versioning identity
+ * cannot drift between layers. `version_group_id` is typed optional on the schema, which is why the
+ * fallback is needed even though the storage read layer already backfills it.
+ */
+export function groupIdOf(node: Pick<Node, "version_group_id" | "id">): string {
+  return node.version_group_id ?? node.id;
+}
 
 // --- Generate request ---
 
@@ -156,10 +200,11 @@ export const ModelOverridesSchema = z.object({
 });
 export type ModelOverrides = z.infer<typeof ModelOverridesSchema>;
 
-// mode "search": user typed a query
-export const GenerateSearchRequestSchema = z.object({
-  mode: z.literal("search"),
-  query: z.string().min(1),
+// Fields common to every generate mode (search / tap / edit). Hoisted and `.merge()`d into each
+// branch — the same pattern ModelOverridesSchema uses below — so a change to one control (a default,
+// a comment) is a single edit, not three that can drift. `current_node_id` is NOT here: search
+// defaults it to "", the other two require it.
+const CommonGenerateFieldsSchema = z.object({
   aspect_ratio: AspectRatioSchema.default("16:9"),
   web_search: z.boolean().default(false),
   // Whether the client's "Live video stream" toggle is on. Gates background idle-loop AND morph
@@ -176,8 +221,14 @@ export const GenerateSearchRequestSchema = z.object({
   // as art_style above; the server falls back to its COMPOSITION default for anything unrecognised.
   composition: z.string().optional(),
   session_id: z.string(),
+});
+
+// mode "search": user typed a query
+export const GenerateSearchRequestSchema = z.object({
+  mode: z.literal("search"),
+  query: z.string().min(1),
   current_node_id: z.string().default(""),
-}).merge(ModelOverridesSchema);
+}).merge(CommonGenerateFieldsSchema).merge(ModelOverridesSchema);
 export type GenerateSearchRequest = z.infer<typeof GenerateSearchRequestSchema>;
 
 // mode "tap": user clicked a point on the current image (marker already drawn client-side)
@@ -198,21 +249,6 @@ export const GenerateTapRequestSchema = z.object({
   // the VLM never sees these, it still resolves the subject visually from the marker.
   x: z.number().min(0).max(1).default(0.5),
   y: z.number().min(0).max(1).default(0.5),
-  aspect_ratio: AspectRatioSchema.default("16:9"),
-  web_search: z.boolean().default(false),
-  // Whether the client's "Live video stream" toggle is on. Gates background idle-loop AND morph
-  // generation server-side, so no video quota is spent (and no provider call is attempted) when the
-  // user isn't using video — display was already gated client-side, but generation was not. Optional
-  // (injected by the client in one place); absent/undefined is treated as off, the safe default.
-  video_loop: z.boolean().optional(),
-  // Which block of art-style.md to append to the image prompt. Left as a free string rather than
-  // an enum so the style list stays defined in exactly one place (art-style.md, parsed by
-  // pipeline/artStyle.ts); the server falls back to its ART_STYLE default for anything it does
-  // not recognise, so a stale client can never break a generation.
-  art_style: z.string().optional(),
-  // Which composition block (flat / diorama) to use — same free-string + server-default rationale
-  // as art_style above; the server falls back to its COMPOSITION default for anything unrecognised.
-  composition: z.string().optional(),
   // Set only by the tap panel's "Draw a new version" button, which is an explicit, deliberate
   // request to spend. It suppresses the layer-3 prompt-hash image cache for this one generation.
   // Without it a repeat tap whose authored prompt happens to come out identical would be served the
@@ -220,9 +256,8 @@ export const GenerateTapRequestSchema = z.object({
   // Layers 1 and 2 are untouched: the VLM cache still applies, and reuse mode never reaches here.
   force_new_image: z.boolean().default(false),
   parent_title: z.string(),
-  session_id: z.string(),
   current_node_id: z.string(),
-}).merge(ModelOverridesSchema);
+}).merge(CommonGenerateFieldsSchema).merge(ModelOverridesSchema);
 export type GenerateTapRequest = z.infer<typeof GenerateTapRequestSchema>;
 
 // mode "edit": user typed a command while a page is open (re-render the current page)
@@ -232,25 +267,9 @@ export const GenerateEditRequestSchema = z.object({
   // The current page image, plain — unlike GenerateTapRequestSchema's markedImage, no marker is
   // ever drawn into this one.
   currentImage: z.string().startsWith("data:image/"),
-  aspect_ratio: AspectRatioSchema.default("16:9"),
-  web_search: z.boolean().default(false),
-  // Whether the client's "Live video stream" toggle is on. Gates background idle-loop AND morph
-  // generation server-side, so no video quota is spent (and no provider call is attempted) when the
-  // user isn't using video — display was already gated client-side, but generation was not. Optional
-  // (injected by the client in one place); absent/undefined is treated as off, the safe default.
-  video_loop: z.boolean().optional(),
-  // Which block of art-style.md to append to the image prompt. Left as a free string rather than
-  // an enum so the style list stays defined in exactly one place (art-style.md, parsed by
-  // pipeline/artStyle.ts); the server falls back to its ART_STYLE default for anything it does
-  // not recognise, so a stale client can never break a generation.
-  art_style: z.string().optional(),
-  // Which composition block (flat / diorama) to use — same free-string + server-default rationale
-  // as art_style above; the server falls back to its COMPOSITION default for anything unrecognised.
-  composition: z.string().optional(),
   parent_title: z.string(),
-  session_id: z.string(),
   current_node_id: z.string(),
-}).merge(ModelOverridesSchema);
+}).merge(CommonGenerateFieldsSchema).merge(ModelOverridesSchema);
 export type GenerateEditRequest = z.infer<typeof GenerateEditRequestSchema>;
 
 // A request that omits `mode` is treated as a search — the natural default for a bare `{query}`
@@ -345,7 +364,18 @@ export const GenerateEventSchema = z.discriminatedUnion("event", [
 export type GenerateEvent = z.infer<typeof GenerateEventSchema>;
 
 // --- Nodes persistence API ---
-export const NodesCreateRequestSchema = NodeSchema.omit({ created_at: true, version: true }).extend({
+// The four version fields are omitted as well as created_at/version: they are server-owned state.
+// A client that could POST is_default or version_group_id would either trip the one-default-per-group
+// unique index or hijack another group's default. The generate pipeline and the storage defaults are
+// the only writers of these fields.
+export const NodesCreateRequestSchema = NodeSchema.omit({
+  created_at: true,
+  version: true,
+  version_group_id: true,
+  edited_from_id: true,
+  edit_command: true,
+  is_default: true,
+}).extend({
   id: z.string().optional(),
 });
 export type NodesCreateRequest = z.infer<typeof NodesCreateRequestSchema>;
@@ -358,6 +388,27 @@ export type NodesGetResponse = z.infer<typeof NodesGetResponseSchema>;
 
 export const NodeVariantResponseSchema = z.object({ node: NodeSchema });
 export type NodeVariantResponse = z.infer<typeof NodeVariantResponseSchema>;
+
+// --- Page versions API (see plans/PLAN-versions.md) ---
+// A lightweight view of one version for the branch control's list — not the whole Node. Named
+// `VersionSummary`, never `Version`, because the `nodes` table already has an unrelated `version`
+// integer column.
+export const VersionSummarySchema = z.object({
+  id: z.string(),
+  page_title: z.string(),
+  // A representative thumbnail: the first available aspect-ratio variant, or null if none exists yet.
+  image_url: z.string().nullable(),
+  // The edit that produced this version ("make it night time"), or null for the original page.
+  edit_command: z.string().nullable(),
+  edited_from_id: z.string().nullable(),
+  is_default: z.boolean(),
+  created_at: z.string(),
+});
+export type VersionSummary = z.infer<typeof VersionSummarySchema>;
+
+// Returned by GET /:id/versions and POST /:id/default, oldest version first.
+export const NodesVersionsResponseSchema = z.object({ versions: z.array(VersionSummarySchema) });
+export type NodesVersionsResponse = z.infer<typeof NodesVersionsResponseSchema>;
 
 // --- Gallery listing (landing page) — reuses already-generated nodes, zero new generations ---
 //
@@ -374,6 +425,12 @@ export const NodesListResponseSchema = z.object({
    * an older server, which has no such field, still parses as "one page, and no more".
    */
   next_cursor: z.string().nullable().default(null),
+  /**
+   * Per-card version count, keyed by the card's node id. A count above one means the page has edit
+   * versions, so the client shows the branch badge. Defaulted so a response from an older server,
+   * which has no such field, still parses (every card then reads as a single-version page).
+   */
+  version_counts: z.record(z.string(), z.number()).default({}),
 });
 export type NodesListResponse = z.infer<typeof NodesListResponseSchema>;
 

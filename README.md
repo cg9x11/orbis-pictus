@@ -22,7 +22,11 @@ makes the same trade 368 years later.
 - **Infinite tap-to-explore navigation.** You click anything on the current page. The app draws a new
   page around that thing. There is no map and no link graph behind it.
 - **Search and edit, not only tap.** You type a query to start anywhere. Over an open page you type a
-  command such as "make it night time", and the app draws that page again.
+  command such as "make it night time", and the app draws that page again as a new version of it.
+- **Page versions.** Every edit is a first-class version of the same page, not a hidden copy. A branch
+  control (the git-branch icon, top-right) lists all versions of a page. You switch between them, and
+  a star sets which one opens by default. Versions are peers of one page, so the breadcrumb never
+  doubles and the landing gallery shows one card per page, with a badge for the version count.
 - **Breadcrumb address bar.** Every page you visit is a real stop on a trail. You can step back, step
   forward, or jump straight to any ancestor.
 - **Page-transition morphs (optional).** A generated clip shows the parent page as it melts into the
@@ -154,6 +158,14 @@ We ran this feature against the live Ark API frame by frame before we built it. 
 not hold the camera perfectly still, even with an explicit fixed-camera instruction. The movement
 reads more like a deliberate zoom into the tapped subject than like drift. It is still a real
 deviation from the prompt, not a style choice.
+
+**Page versions.** An edit does not replace a page, and it does not hide a copy under it. It saves a
+new *version* of that page. Every version of a page is a peer of the others: they share one version
+group, one exploration parent, and one slot on the trail, so the breadcrumb never shows the same page
+twice. The branch control at the top-right of a page lists the group, opens any version in place, and
+stars the one that opens by default. A new edit becomes the default on its own. The landing gallery
+shows the default version of each group as a single card, badged with the version count. Switching
+between two versions is a one-step move, so the page-transition morph plays between them.
 
 ## Setup
 
