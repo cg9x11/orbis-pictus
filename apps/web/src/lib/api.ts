@@ -6,10 +6,14 @@ import type {
   ModelOverrides,
   Node,
   NodesGetResponse,
-  NodesListResponse,
   NodeTapsResponse,
 } from "@orbis/shared";
-import { ConfigResponseSchema, GenerateEventSchema, NodeTapsResponseSchema } from "@orbis/shared";
+import {
+  ConfigResponseSchema,
+  GenerateEventSchema,
+  NodesListResponseSchema,
+  NodeTapsResponseSchema,
+} from "@orbis/shared";
 import { parseSSEStream } from "./sse";
 
 export async function streamGenerate(
@@ -63,16 +67,32 @@ export async function fetchVariant(id: string, ratio: AspectRatio): Promise<Node
   return node;
 }
 
+/** One batch of landing-gallery cards, plus the cursor that reaches the batch after it. */
+export interface GalleryPage {
+  nodes: Node[];
+  /** Pass back to `fetchGalleryPage` for the next batch. Null means this batch was the last one. */
+  nextCursor: string | null;
+}
+
 /**
- * Already-generated nodes for the landing-page example gallery — zero new generations.
- * Pass `"all"` to load the whole gallery with no cap; a number is clamped
- * server-side to MAX_GALLERY_LIMIT (24).
+ * One page of already-generated landing-gallery nodes — zero new generations.
+ *
+ * `limit` is clamped server-side to MAX_GALLERY_LIMIT (24). Pass `cursor`, which is the `nextCursor`
+ * of a previous page, to fetch the batch below it. A null `nextCursor` in the result means the last
+ * batch was served.
+ *
+ * The body is parsed, not cast, so the schema's `next_cursor` default runs. A response from an older
+ * server that omits the field then reads as "one page, and no more", instead of leaving the field
+ * undefined and breaking the "Load more" control. This matches `fetchConfig` below, and for the same
+ * reason.
  */
-export async function fetchGallery(limit: number | "all" = 8): Promise<Node[]> {
-  const res = await fetch(`/api/nodes?limit=${encodeURIComponent(limit)}`);
+export async function fetchGalleryPage(limit = 12, cursor?: string | null): Promise<GalleryPage> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor) params.set("cursor", cursor);
+  const res = await fetch(`/api/nodes?${params.toString()}`);
   if (!res.ok) throw new Error("Failed to fetch gallery");
-  const { nodes } = (await res.json()) as NodesListResponse;
-  return nodes;
+  const { nodes, next_cursor } = NodesListResponseSchema.parse(await res.json());
+  return { nodes, nextCursor: next_cursor };
 }
 
 export async function fetchConfig(): Promise<ConfigResponse> {

@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Node } from "@orbis/shared";
-import { fetchGallery } from "../lib/api";
+import { fetchGalleryPage } from "../lib/api";
 import { useCancellableEffect } from "../hooks/useCancellableEffect";
+
+const GALLERY_PAGE_SIZE = 12;
 
 const SUGGESTIONS = [
   "A coral reef ecosystem",
@@ -16,17 +18,52 @@ function thumbnailUrl(node: Node): string | undefined {
 }
 
 export function Landing({ onSuggestion }: { onSuggestion: (query: string) => void }) {
+  // `gallery` accumulates across batches. null means the first batch has not arrived yet, which is
+  // the loading state. An empty array means the first batch arrived and the gallery is genuinely
+  // empty, which is the suggestions state. The two are different and must not be collapsed.
   const [gallery, setGallery] = useState<Node[] | null>(null);
+  // The cursor for the NEXT batch. Null means there is no next batch, so no "Load more" button.
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  // Set only when a "Load more" click fails. It leaves the cards already on screen untouched and
+  // offers a retry, rather than replacing the gallery with an error.
+  const [loadMoreError, setLoadMoreError] = useState(false);
+
+  // The in-flight guard is a ref, not the `loadingMore` state. Two clicks in the same tick both read
+  // the same render's `loadingMore` (still false) and would each start a fetch with the same cursor,
+  // appending the batch twice. A ref updates synchronously, so the second click sees the lock.
+  const loadingRef = useRef(false);
 
   useCancellableEffect((cancelled) => {
-    fetchGallery("all")
-      .then((nodes) => {
-        if (!cancelled()) setGallery(nodes);
+    fetchGalleryPage(GALLERY_PAGE_SIZE)
+      .then((page) => {
+        if (cancelled()) return;
+        setGallery(page.nodes);
+        setCursor(page.nextCursor);
       })
       .catch(() => {
+        // A failed FIRST load has no cards to preserve, so it falls through to the empty state,
+        // which offers the suggestion chips — a usable page rather than a dead one.
         if (!cancelled()) setGallery([]);
       });
   }, []);
+
+  const loadMore = useCallback(() => {
+    if (cursor === null || loadingRef.current) return;
+    loadingRef.current = true;
+    setLoadingMore(true);
+    setLoadMoreError(false);
+    fetchGalleryPage(GALLERY_PAGE_SIZE, cursor)
+      .then((page) => {
+        setGallery((prev) => [...(prev ?? []), ...page.nodes]);
+        setCursor(page.nextCursor);
+      })
+      .catch(() => setLoadMoreError(true))
+      .finally(() => {
+        loadingRef.current = false;
+        setLoadingMore(false);
+      });
+  }, [cursor]);
 
   return (
     <div className="landing">
@@ -40,14 +77,26 @@ export function Landing({ onSuggestion }: { onSuggestion: (query: string) => voi
       {gallery === null && <p className="landing-loading">Loading examples…</p>}
 
       {gallery !== null && gallery.length > 0 && (
-        <div className="landing-gallery">
-          {gallery.map((node) => (
-            <Link key={node.id} to={`/n/${node.id}`} className="gallery-card">
-              {thumbnailUrl(node) && <img src={thumbnailUrl(node)} alt="" loading="lazy" />}
-              <span className="gallery-card-title">{node.page_title}</span>
-            </Link>
-          ))}
-        </div>
+        <>
+          <div className="landing-gallery">
+            {gallery.map((node) => (
+              <Link key={node.id} to={`/n/${node.id}`} className="gallery-card">
+                {thumbnailUrl(node) && <img src={thumbnailUrl(node)} alt="" loading="lazy" />}
+                <span className="gallery-card-title">{node.page_title}</span>
+              </Link>
+            ))}
+          </div>
+
+          {loadMoreError && (
+            <p className="landing-error">Could not load more pages. Try again.</p>
+          )}
+
+          {cursor !== null && (
+            <button type="button" className="load-more" onClick={loadMore} disabled={loadingMore}>
+              {loadingMore ? "Loading…" : "Load more"}
+            </button>
+          )}
+        </>
       )}
 
       {gallery !== null && gallery.length === 0 && (

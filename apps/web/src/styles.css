@@ -926,6 +926,37 @@ body {
   font-weight: 700;
 }
 
+/* Block with auto side margins, so it centers under the grid regardless of the parent's text-align.
+   Palette matches .suggestion-chip. */
+.load-more {
+  display: block;
+  margin: 20px auto 0;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 8px 22px;
+  border: 2px solid #2b2620;
+  border-radius: 999px;
+  background: #fffdf6;
+  color: #2b2620;
+  cursor: pointer;
+}
+
+.load-more:hover:not(:disabled) {
+  background: #efe3c6;
+}
+
+.load-more:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.landing-error {
+  margin: 14px 0 0;
+  color: #b3261e;
+  font-size: 0.85rem;
+}
+
 .landing-suggestions p {
   color: #6b6153;
   margin-bottom: 10px;
