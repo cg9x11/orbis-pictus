@@ -11,13 +11,14 @@ import {
 } from "@orbis/shared";
 import {
   addImageVariant,
+  decodeGalleryCursor,
   findChildrenBySubject,
   getHistory,
   getMorphInfo,
   getNode,
   getVideoInfo,
   insertNode,
-  listGalleryNodes,
+  listGalleryPage,
 } from "../storage/nodes.js";
 import { listTapCache } from "../storage/tapCache.js";
 import { saveImageVariantResized } from "../pipeline/imageStorage.js";
@@ -106,12 +107,17 @@ export function nodesRoute(
     return c.json({ node }, 201);
   });
 
-  // Landing-page example gallery — a random sample of already-generated
-  // nodes, zero new generations. `?limit=all` returns every gallery-eligible page with no cap;
-  // any other value is clamped to MAX_GALLERY_LIMIT. The uncapped form exists because the cap is
-  // a presentation choice, not a safety one, and a self-hosted instance may legitimately want the
-  // whole set — but it does read every matching row, so prefer a number for a public deployment
-  // whose database can grow without bound.
+  // Landing-page example gallery — a page of already-generated nodes, zero new generations.
+  // `?limit=all` returns every gallery-eligible page with no cap; any other value is clamped to
+  // MAX_GALLERY_LIMIT. The uncapped form exists because the cap is a presentation choice, not a
+  // safety one, and a self-hosted instance may legitimately want the whole set — but it does read
+  // every matching row, so prefer a number for a public deployment whose database can grow without
+  // bound.
+  //
+  // `?cursor=` continues below a previous batch. The response carries the cursor for the batch
+  // after it in `next_cursor`, which is null once the last batch is served. There is no `page`
+  // number and no total: the table gains a root on every generation, so a row's distance from the
+  // top changes under the reader, while its position relative to a cursor does not.
   app.get("/", (c) => {
     const raw = c.req.query("limit");
     const limitParam = Number(raw);
@@ -119,10 +125,23 @@ export function nodesRoute(
       raw === "all"
         ? null
         : Number.isFinite(limitParam) && limitParam > 0
-          ? Math.min(limitParam, MAX_GALLERY_LIMIT)
+          ? // Floor it, because a fractional limit would reach SQLite's LIMIT clause as a float.
+            // Then raise it to 1. A value such as 0.5 passes the "greater than zero" test above and
+            // floors to 0, which returns an empty gallery with status 200. The client cannot tell
+            // that from a database with no pages in it.
+            Math.max(1, Math.floor(Math.min(limitParam, MAX_GALLERY_LIMIT)))
           : DEFAULT_GALLERY_LIMIT;
-    const nodes = listGalleryNodes(limit);
-    return c.json({ nodes });
+
+    // Reject a malformed cursor instead of falling back to the first batch. A silent fallback makes
+    // the client append the same cards it already shows, and it never reaches the end.
+    const rawCursor = c.req.query("cursor");
+    const cursor = rawCursor === undefined ? null : decodeGalleryCursor(rawCursor);
+    if (rawCursor !== undefined && cursor === null) {
+      return c.json({ error: "Invalid cursor" }, 400);
+    }
+
+    const { nodes, nextCursor } = listGalleryPage({ limit, cursor });
+    return c.json({ nodes, next_cursor: nextCursor });
   });
 
   // User-uploaded photo becomes a root node (parent_id null), titled by the VLM.

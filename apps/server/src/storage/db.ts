@@ -51,6 +51,18 @@ export function migrate(): void {
     CREATE INDEX IF NOT EXISTS nodes_prompt_hash_idx ON nodes(prompt_hash);
   `);
 
+  // Landing-gallery keyset pagination. The gallery selects roots and orders them by
+  // (created_at DESC, id DESC). Each later page seeks with a row-value comparison on the same two
+  // columns. This index matches that order column for column, so a seek jumps straight to the first
+  // row of the page. Without it, SQLite reads and sorts every root on every request.
+  //
+  // The id column is part of the index because created_at holds an ISO string at millisecond
+  // resolution, so two roots can tie. The primary key breaks the tie and makes the order total.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS nodes_root_created_idx
+      ON nodes(parent_id, created_at DESC, id DESC);
+  `);
+
   // Coordinate-quantization VLM cache.
   db.exec(`
     CREATE TABLE IF NOT EXISTS tap_cache (

@@ -12,7 +12,8 @@ const {
   findChildBySubject,
   findChildrenBySubject,
   findNodeByPromptHash,
-  listGalleryNodes,
+  listGalleryPage,
+  decodeGalleryCursor,
   getHistory,
   getNode,
   addImageVariant,
@@ -133,18 +134,18 @@ test("findNodeByPromptHash returns null for no match, and ignores nodes with a n
   assert.equal(findNodeByPromptHash("does-not-exist"), null);
 });
 
-test("listGalleryNodes returns up to `limit` already-persisted nodes", () => {
+test("listGalleryPage returns up to `limit` already-persisted nodes", () => {
   for (let i = 0; i < 5; i++) {
     insertNode(makeNode(), { normalizedSubject: "gallery" });
   }
-  const gallery = listGalleryNodes(3);
+  const gallery = listGalleryPage({ limit: 3 }).nodes;
   assert.equal(gallery.length, 3);
   for (const node of gallery) {
     assert.equal(typeof node.id, "string");
   }
 });
 
-test("listGalleryNodes returns nodes newest first (created_at DESC)", () => {
+test("listGalleryPage returns nodes newest first (created_at DESC)", () => {
   insertNode(makeNode({ id: "order-old", page_title: "Order Old", created_at: "2026-01-01T00:00:00.000Z" }), {
     normalizedSubject: "order",
   });
@@ -155,7 +156,7 @@ test("listGalleryNodes returns nodes newest first (created_at DESC)", () => {
     normalizedSubject: "order",
   });
 
-  const ordered = listGalleryNodes(null).filter((n) => n.id.startsWith("order-"));
+  const ordered = listGalleryPage({ limit: null }).nodes.filter((n) => n.id.startsWith("order-"));
   assert.deepEqual(
     ordered.map((n) => n.id),
     ["order-new", "order-mid", "order-old"],
@@ -167,13 +168,13 @@ test("listGalleryNodes returns nodes newest first (created_at DESC)", () => {
 // get their own card. The old dedup collapsed a just-created page into an older same-titled one,
 // which made the new page look like it had vanished from the list. (A same-titled *child* is still
 // excluded — but by the root-only filter, not by any title rule; see the tap-children test below.)
-test("listGalleryNodes lists every root, keeping two roots that share a page_title (no title dedup)", () => {
+test("listGalleryPage lists every root, keeping two roots that share a page_title (no title dedup)", () => {
   const older = makeNode({ id: "takoyaki-older", parent_id: null, page_title: "Takoyaki", created_at: "2026-01-01T00:00:00.000Z" });
   insertNode(older, { normalizedSubject: "takoyaki" });
   const newer = makeNode({ id: "takoyaki-newer", parent_id: null, page_title: "Takoyaki", created_at: "2026-02-01T00:00:00.000Z" });
   insertNode(newer, { normalizedSubject: "takoyaki" });
 
-  const gallery = listGalleryNodes(50);
+  const gallery = listGalleryPage({ limit: 50 }).nodes;
   const takoyakiIds = gallery.filter((n) => n.page_title === "Takoyaki").map((n) => n.id);
   assert.equal(takoyakiIds.length, 2);
   // Newest first, so the freshly-created page is on top where it's easy to find.
@@ -200,13 +201,16 @@ test("listTapCache collapses points that fall under the same tap marker", () => 
   assert.equal(listTapCache("tapcache-node", "3:4").length, 0);
 });
 
-test("listGalleryNodes returns every eligible node when the limit is null", () => {
+test("listGalleryPage returns every eligible node when the limit is null", () => {
   for (let i = 0; i < 30; i++) {
     insertNode(makeNode(), { normalizedSubject: "unlimited" });
   }
   // Well past MAX_GALLERY_LIMIT (24), so a lingering cap anywhere below would show up here.
-  assert.ok(listGalleryNodes(null).length >= 30);
-  assert.equal(listGalleryNodes(3).length, 3);
+  const unlimited = listGalleryPage({ limit: null });
+  assert.ok(unlimited.nodes.length >= 30);
+  assert.equal(listGalleryPage({ limit: 3 }).nodes.length, 3);
+  // An unbounded read already returned everything, so there is no page after it to point at.
+  assert.equal(unlimited.nextCursor, null);
 });
 
 test("getHistory returns the ancestor chain root -> parent, excluding the node itself", () => {
@@ -265,14 +269,135 @@ test("addImageVariant returns null for a node that doesn't exist", () => {
   assert.equal(addImageVariant("no-such-node", "1:1", "/img/x.jpg"), null);
 });
 
-test("listGalleryNodes excludes tap children, returning only root nodes", () => {
+test("listGalleryPage excludes tap children, returning only root nodes", () => {
   const root = makeNode({ id: "bridge-root", parent_id: null, page_title: "Golden Gate Bridge" });
   insertNode(root, { normalizedSubject: "golden gate bridge" });
   const tapChild = makeNode({ id: "bridge-deck", parent_id: "bridge-root", page_title: "Roadway Deck" });
   insertNode(tapChild, { normalizedSubject: "roadway deck" });
 
-  const gallery = listGalleryNodes(50);
+  const gallery = listGalleryPage({ limit: 50 }).nodes;
   assert.ok(gallery.some((n) => n.id === "bridge-root"));
   assert.equal(gallery.some((n) => n.id === "bridge-deck"), false);
   assert.equal(gallery.every((n) => n.parent_id === null), true);
+});
+
+// --- Keyset pagination ---------------------------------------------------------------------
+
+/**
+ * Walks every page with `limit`, returning the ids in the order the client would append them.
+ *
+ * Pass `from` to begin below a known row instead of at the top of the gallery. Every test in this
+ * file shares one database, so a walk from the top also walks every other test's fixtures.
+ */
+function drainGallery(
+  limit: number,
+  filter: (id: string) => boolean,
+  from: { createdAt: string; id: string } | null = null,
+): string[] {
+  // The walk has to end, and the bound has to hold however many rows the file has accumulated by
+  // now. A fixed page budget would fail as an unrelated test adds fixtures above this one. Sizing
+  // the budget from the live row count still catches a cursor that fails to advance, which is the
+  // bug this guard exists for.
+  const totalRoots = listGalleryPage({ limit: null }).nodes.length;
+  const maxPages = Math.ceil(totalRoots / limit) + 2;
+
+  const ids: string[] = [];
+  let cursor = from;
+  for (let page = 0; page < maxPages; page++) {
+    const batch = listGalleryPage({ limit, cursor });
+    ids.push(...batch.nodes.map((n) => n.id).filter(filter));
+    if (batch.nextCursor === null) return ids;
+    cursor = decodeGalleryCursor(batch.nextCursor);
+    assert.ok(cursor, "the page's own next_cursor must decode");
+  }
+  throw new Error(`gallery never reported a last page within ${maxPages} pages`);
+}
+
+test("listGalleryPage walks every root exactly once across pages, with no repeats or gaps", () => {
+  for (let i = 0; i < 7; i++) {
+    insertNode(makeNode({ id: `walk-${i}`, created_at: `2026-05-0${i + 1}T00:00:00.000Z` }), {
+      normalizedSubject: "walk",
+    });
+  }
+
+  const walked = drainGallery(2, (id) => id.startsWith("walk-"));
+  // Newest first, and each of the seven appears once — the property that offset pagination loses.
+  assert.deepEqual(walked, ["walk-6", "walk-5", "walk-4", "walk-3", "walk-2", "walk-1", "walk-0"]);
+});
+
+test("listGalleryPage reports next_cursor null on the last page, even when it is exactly full", () => {
+  for (let i = 0; i < 4; i++) {
+    insertNode(makeNode({ id: `exact-${i}`, created_at: `2026-06-0${i + 1}T00:00:00.000Z` }), {
+      normalizedSubject: "exact",
+    });
+  }
+  // A page that fills to `limit` is ambiguous without the extra probe row: it looks identical
+  // whether or not more rows follow. The probe is what makes the final page report an end.
+  const all = listGalleryPage({ limit: 1000 });
+  assert.equal(all.nextCursor, null);
+  assert.equal(listGalleryPage({ limit: all.nodes.length }).nextCursor, null);
+});
+
+test("listGalleryPage separates roots that share a created_at, using the id as the tiebreak", () => {
+  // makeNode stamps created_at from the clock, so a burst of inserts really can tie in practice.
+  // A cursor on created_at alone would stop dead here, re-serving or skipping the whole tied group.
+  const sameInstant = "2026-07-01T00:00:00.000Z";
+  for (const suffix of ["a", "b", "c"]) {
+    insertNode(makeNode({ id: `tie-${suffix}`, created_at: sameInstant }), { normalizedSubject: "tie" });
+  }
+
+  // One row per page, so every step of the walk lands inside the tied group. Starting just above
+  // "tie-c" keeps the walk to the tied rows and whatever is older, instead of paging down from the
+  // newest row in the whole file one row at a time.
+  const walked = drainGallery(1, (id) => id.startsWith("tie-"), { createdAt: sameInstant, id: "tie-d" });
+  // Ordered by id DESC within the tie, and all three survive the walk.
+  assert.deepEqual(walked, ["tie-c", "tie-b", "tie-a"]);
+});
+
+test("listGalleryPage is unaffected by roots inserted above the cursor mid-walk", () => {
+  // Dated past every other row in this file, including the ones makeNode stamps from the clock.
+  // This test reads only the first two pages, so its rows have to BE the first two pages. The tests
+  // that walk to the end filter by id prefix instead and do not need this.
+  for (let i = 0; i < 4; i++) {
+    insertNode(makeNode({ id: `stable-${i}`, created_at: `2099-01-0${i + 1}T00:00:00.000Z` }), {
+      normalizedSubject: "stable",
+    });
+  }
+
+  const first = listGalleryPage({ limit: 2 });
+  assert.ok(first.nextCursor);
+
+  // A visitor generates a new page while reading. Under OFFSET this shifts everything down one, so
+  // the second request re-serves a card the first already showed. The cursor names a row, not a
+  // position, so the walk below is untouched.
+  insertNode(makeNode({ id: "stable-intruder", created_at: "2099-02-01T00:00:00.000Z" }), {
+    normalizedSubject: "stable",
+  });
+
+  const second = listGalleryPage({ limit: 2, cursor: decodeGalleryCursor(first.nextCursor) });
+  const seen = [...first.nodes, ...second.nodes].map((n) => n.id);
+  assert.equal(seen.includes("stable-intruder"), false);
+  assert.equal(new Set(seen).size, seen.length, "no card appears twice");
+  assert.deepEqual(
+    seen.filter((id) => id.startsWith("stable-")),
+    ["stable-3", "stable-2", "stable-1", "stable-0"],
+  );
+});
+
+test("decodeGalleryCursor accepts a round trip and rejects malformed input", () => {
+  insertNode(makeNode({ id: "cursor-round-trip", created_at: "2026-10-01T00:00:00.000Z" }), {
+    normalizedSubject: "cursor",
+  });
+  const { nextCursor } = listGalleryPage({ limit: 1 });
+  assert.ok(nextCursor);
+  assert.deepEqual(decodeGalleryCursor(nextCursor), {
+    createdAt: nextCursor.split("|")[0],
+    id: nextCursor.slice(nextCursor.indexOf("|") + 1),
+  });
+
+  // Each of these must be a 400 at the route, never a silent fall back to the first page.
+  assert.equal(decodeGalleryCursor(""), null);
+  assert.equal(decodeGalleryCursor("no-separator"), null);
+  assert.equal(decodeGalleryCursor("|missing-timestamp"), null);
+  assert.equal(decodeGalleryCursor("2026-10-01T00:00:00.000Z|"), null);
 });

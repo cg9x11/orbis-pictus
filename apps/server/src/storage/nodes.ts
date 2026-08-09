@@ -247,19 +247,109 @@ export function markMorphReady(id: string, url: string): void {
 //
 // Each root with the same title now gets its own card. The order by created_at keeps the newest
 // card on top, where it is easy to find.
-const listGalleryStmt = db.prepare(`
+//
+// The sort key is the pair (created_at, id), not created_at alone. created_at is an ISO string at
+// millisecond resolution, so two roots created in the same millisecond tie. A tie makes the order
+// of those two rows undefined, and keyset pagination on an undefined order drops rows or repeats
+// them. The primary key breaks every tie, so the order is total and each row has one position.
+const listGalleryFirstStmt = db.prepare(`
   SELECT * FROM nodes
   WHERE parent_id IS NULL
-  ORDER BY created_at DESC LIMIT ?
+  ORDER BY created_at DESC, id DESC
+  LIMIT ?
 `);
 
+// The same query, seeked to the row after the cursor. The row-value comparison
+// `(created_at, id) < (?, ?)` is the two-column form of "strictly older than the cursor row", and
+// it reads straight down nodes_root_created_idx.
+const listGalleryAfterStmt = db.prepare(`
+  SELECT * FROM nodes
+  WHERE parent_id IS NULL
+    AND (created_at, id) < (?, ?)
+  ORDER BY created_at DESC, id DESC
+  LIMIT ?
+`);
+
+/** Cursor field separator. Safe because an ISO timestamp never contains it. */
+const CURSOR_SEPARATOR = "|";
+
+/** Builds the cursor that points AT `node`, meaning the next page starts below it. */
+function encodeGalleryCursor(node: Node): string {
+  return `${node.created_at}${CURSOR_SEPARATOR}${node.id}`;
+}
+
 /**
- * Returns already-generated root pages for the example gallery on the landing page, newest first.
- * This function never starts a new generation.
- *
- * To apply no limit, pass `null`. SQLite reads any negative LIMIT as unbounded, so one prepared
- * statement covers both cases without a second query.
+ * The exact shape that `Date.prototype.toISOString` produces, which is what every writer of
+ * `created_at` uses. The timestamp half of a cursor is compared against that column as a string,
+ * so it has to be in the column's own format to mean anything.
  */
-export function listGalleryNodes(limit: number | null): Node[] {
-  return (listGalleryStmt.all(limit ?? -1) as unknown as NodeRow[]).map(rowToNode);
+const ISO_UTC_MILLIS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+/**
+ * Parses a `created_at|id` cursor, or returns null if it is malformed.
+ *
+ * The caller must treat null as a client error rather than silently serving the first page. A bad
+ * cursor that quietly returns page one makes "Load more" append a batch the reader already has.
+ *
+ * The timestamp half is validated, not merely separated out. The seek compares it as a string, so
+ * any text at all produces a valid-looking comparison and a wrong answer. `zzz|x` is the worst
+ * case: every real timestamp begins with a digit, digits sort below `z`, so every root matches and
+ * the whole gallery comes back as "the page after your cursor".
+ */
+export function decodeGalleryCursor(raw: string): { createdAt: string; id: string } | null {
+  // Split at the FIRST separator only. The timestamp cannot contain one, but no assumption is made
+  // about the id's alphabet, so everything after the first separator is the id.
+  const at = raw.indexOf(CURSOR_SEPARATOR);
+  if (at <= 0 || at === raw.length - 1) return null;
+
+  const createdAt = raw.slice(0, at);
+  // Both checks are needed. The pattern rejects free text such as "zzz". Date.parse rejects a
+  // string that fits the pattern but names no real instant, such as "2026-13-45T99:99:99.999Z".
+  if (!ISO_UTC_MILLIS.test(createdAt) || !Number.isFinite(Date.parse(createdAt))) return null;
+
+  return { createdAt, id: raw.slice(at + 1) };
+}
+
+/** One batch of gallery cards, plus the cursor that reaches the batch after it. */
+export type GalleryPage = {
+  nodes: Node[];
+  /** Pass back as `?cursor=`. Null means this batch was the last one. */
+  nextCursor: string | null;
+};
+
+/**
+ * Returns one page of already-generated root pages for the landing gallery, newest first. This
+ * function never starts a new generation.
+ *
+ * Pass `limit: null` for every eligible root with no cap. SQLite reads a negative LIMIT as
+ * unbounded, so the same prepared statement covers both cases. An unbounded read has nothing left
+ * to fetch afterwards, so its `nextCursor` is always null.
+ *
+ * Pass `cursor` to continue below a previous batch. A cursor the caller cannot parse must never
+ * reach this function — decode it first and reject it.
+ */
+export function listGalleryPage({
+  limit,
+  cursor = null,
+}: {
+  limit: number | null;
+  cursor?: { createdAt: string; id: string } | null;
+}): GalleryPage {
+  // Ask for one row more than the caller wants. If that extra row comes back, a further page
+  // exists. This costs one row instead of the separate COUNT(*) that a total would need, and it
+  // cannot disagree with the page itself the way a separately-counted total can.
+  const probe = limit === null ? -1 : limit + 1;
+  const rows = (
+    cursor
+      ? listGalleryAfterStmt.all(cursor.createdAt, cursor.id, probe)
+      : listGalleryFirstStmt.all(probe)
+  ) as unknown as NodeRow[];
+
+  const hasMore = limit !== null && rows.length > limit;
+  const nodes = (hasMore ? rows.slice(0, limit) : rows).map(rowToNode);
+  const last = nodes[nodes.length - 1];
+  return {
+    nodes,
+    nextCursor: hasMore && last ? encodeGalleryCursor(last) : null,
+  };
 }

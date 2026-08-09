@@ -297,7 +297,21 @@ export const NodeVariantResponseSchema = z.object({ node: NodeSchema });
 export type NodeVariantResponse = z.infer<typeof NodeVariantResponseSchema>;
 
 // --- Gallery listing (landing page) — reuses already-generated nodes, zero new generations ---
-export const NodesListResponseSchema = z.object({ nodes: z.array(NodeSchema) });
+//
+// The listing is keyset-paginated, not offset-paginated. The gallery is ordered newest first and
+// the table grows while a visitor reads it, because every generation inserts a new root. An OFFSET
+// therefore points at a different row by the time the second page is asked for, so cards repeat and
+// cards go missing. A cursor names the last row of the previous batch instead of counting from the
+// top, so inserts above it cannot disturb the sequence.
+export const NodesListResponseSchema = z.object({
+  nodes: z.array(NodeSchema),
+  /**
+   * Opaque key of the last returned row. Pass it back as `?cursor=` to get the next batch. A
+   * `null` value means the last batch was served. The field is defaulted so that a response from
+   * an older server, which has no such field, still parses as "one page, and no more".
+   */
+  next_cursor: z.string().nullable().default(null),
+});
 export type NodesListResponse = z.infer<typeof NodesListResponseSchema>;
 
 // --- Upload entry point ---
