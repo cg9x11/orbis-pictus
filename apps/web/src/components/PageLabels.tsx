@@ -13,34 +13,53 @@ interface PageLabelsProps {
   /** Hidden mid-generation / mid-transition, when the image underneath no longer matches these
    *  coordinates — same rationale as `CachedTapMarkers`'s `hidden` prop. */
   hidden: boolean;
+  /** Phase 6a: a tap on a plaque explores that label's subject directly. The subject is already
+   *  known, so this takes the deterministic, VLM-free tap path (see handleLabelTap). */
+  onLabelTap: (subject: string, x: number, y: number) => void;
 }
 
 /**
- * Display-only text overlay for a layered page: the title, the callout labels (each near its
- * subject's {x,y} anchor, with a leader line), and the footer caption — all rendered as real DOM
- * text on top of the clean background image, not baked into it.
+ * Text overlay for a layered page: the title and footer as display-only DOM text, and the callout
+ * labels as small buttons pinned near each subject's {x, y} anchor (with a leader line).
  *
- * `pointer-events: none` throughout (see styles.css), so every tap still falls through to the
- * image underneath and the existing tap-anywhere -> VLM flow is untouched. Making these plaques
- * interactive is Phase 6 (PLAN-layered-page.md), not this component.
+ * The container is `pointer-events: none`, so gaps between plaques still tap through to the image
+ * and the existing tap-anywhere -> VLM flow is untouched. Only the plaques themselves are clickable
+ * (`pointer-events: auto` in styles.css); clicking one explores its subject with no VLM call.
  */
-export function PageLabels({ title, labels, footer, labelsAspect, displayedAspect, hidden }: PageLabelsProps) {
-  if (hidden || labelsAspect === null || labelsAspect !== displayedAspect) return null;
+export function PageLabels({ title, labels, footer, labelsAspect, displayedAspect, hidden, onLabelTap }: PageLabelsProps) {
+  // No overlay for an old node (its text is baked into the image; labelsAspect is null) or while a
+  // generation/transition is under way.
+  if (hidden || labelsAspect === null) return null;
+  // Title and footer sit at fixed positions (top/bottom), independent of the scene composition, so
+  // they render at ANY ratio. Only the coordinate-anchored callouts hide on a ratio mismatch, where
+  // their {x,y} would land on the wrong spot in a re-composed variant.
+  const showCallouts = labelsAspect === displayedAspect;
 
   return (
-    <div className="page-labels" aria-hidden="true">
+    <div className="page-labels">
       {title && <div className="page-label-title">{title}</div>}
-      {labels.map((label, i) => (
+      {showCallouts &&
+        labels.map((label, i) => (
         <div
           key={`${label.text}:${label.x},${label.y}:${i}`}
           className="page-label"
           style={{ left: `${label.x * 100}%`, top: `${label.y * 100}%` }}
         >
           <span className="page-label-leader" />
-          <div className="page-label-plaque">
+          <button
+            type="button"
+            className="page-label-plaque"
+            title={`Explore: ${label.subject}`}
+            onClick={(e) => {
+              // The image beneath has its own tap handler that would draw a marker and call the VLM;
+              // stop it so a label tap takes the deterministic, VLM-free path only.
+              e.stopPropagation();
+              onLabelTap(label.subject, label.x, label.y);
+            }}
+          >
             <span className="page-label-text">{label.text}</span>
             {label.description && <span className="page-label-description">{label.description}</span>}
-          </div>
+          </button>
         </div>
       ))}
       {footer && <div className="page-label-footer">{footer}</div>}

@@ -64,6 +64,7 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
     dismissMilestone,
     handleSearch,
     handleTap,
+    handleLabelTap,
     handleOpenCachedTap,
     handleInspectCachedTap,
     handleCloseVariantPanel,
@@ -168,6 +169,7 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
               labelsAspect={current?.labels_aspect ?? null}
               displayedAspect={aspectRatio}
               hidden={busy || morphActive}
+              onLabelTap={handleLabelTap}
             />
           }
           videoGenerating={videoGenerating}

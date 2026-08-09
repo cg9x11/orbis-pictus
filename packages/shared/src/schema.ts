@@ -29,9 +29,12 @@ export type MorphStatus = z.infer<typeof MorphStatusSchema>;
 // A callout only. Title and footer are NOT here — they are separate fields at fixed positions on
 // the Node (page_title, footer), so they need no x/y.
 export const PageLabelSchema = z.object({
-  text: z.string(), // exact label, WITH correct diacritics
+  text: z.string().min(1), // exact label, WITH correct diacritics; min(1) so a blank plaque can't render
   description: z.string().default(""), // the caption sub-text, may be empty
-  subject: z.string(), // "what to draw" — reused as the child topic on tap
+  // "what to draw", reused as the child topic on tap. min(1) so a tap can never send known_subject:""
+  // (which the tap request rejects, turning a tap into an error). sanitizePageLabels drops any label
+  // that fails this, so one empty entry never blanks the rest.
+  subject: z.string().min(1),
   // {x, y} is the ANCHOR: the subject's own position on the background, not the plaque's. It
   // serves double duty — the leader line points to it, AND it is the tap hotspot. The renderer
   // places the plaque near it with a small offset.
@@ -180,9 +183,16 @@ export type GenerateSearchRequest = z.infer<typeof GenerateSearchRequestSchema>;
 // mode "tap": user clicked a point on the current image (marker already drawn client-side)
 export const GenerateTapRequestSchema = z.object({
   mode: z.literal("tap"),
-  // The current page image WITH a marker drawn at the click point — never the plain image. The
-  // VLM resolves the tapped subject visually from the marker, not from x/y.
-  markedImage: z.string().startsWith("data:image/"),
+  // The current page image WITH a marker drawn at the click point. The VLM resolves the tapped
+  // subject visually from the marker, not from x/y. Optional: a tap on a LABEL plaque sends
+  // `known_subject` instead and omits this — the subject is already known, so no VLM call and no
+  // marked image is needed. Exactly one of markedImage / known_subject must be present; that is
+  // enforced in resolveTapContext, not here, because a discriminatedUnion member cannot carry a
+  // cross-field refine.
+  markedImage: z.string().startsWith("data:image/").optional(),
+  // Set only by a tap on a label plaque (Phase 6a). The label already carries its subject, so the
+  // server uses it directly and skips describeTap. When present, markedImage is omitted.
+  known_subject: z.string().min(1).optional(),
   // Click point as a fraction (0..1) of the displayed image's width/height — same coordinate
   // space as the marker drawn into `markedImage`. Used server-side for the tap-cache lookup:
   // the VLM never sees these, it still resolves the subject visually from the marker.

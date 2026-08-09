@@ -111,6 +111,11 @@ function resolveEditContext(req: GenerateEditRequest): ModeResolution {
   };
 }
 
+/** Normalized radius around a label's {x,y} anchor within which a free-form tap is treated as a tap
+ *  ON that labelled subject (see resolveTapContext). Generous on purpose: the image model does not
+ *  place a subject exactly at the authored coordinate, so the hotspot must cover that drift. */
+const LABEL_HOTSPOT_RADIUS = 0.08;
+
 async function resolveTapContext(
   req: GenerateTapRequest,
   ctx: GenerateContext,
@@ -118,15 +123,41 @@ async function resolveTapContext(
 ): Promise<ModeResolution> {
   const parentNodeId = req.current_node_id;
   const tapDedup = getTapDedupMode();
+  const parent = getNode(parentNodeId);
 
-  // Layer 1: the coordinate-quantization VLM cache. On a hit, skip the VLM call entirely.
-  const cacheHit = tapDedup !== "off" ? findTapCacheHit(parentNodeId, req.aspect_ratio, req.x, req.y) : null;
   let subject: string;
-  if (cacheHit) {
-    subject = cacheHit.subject;
-  } else {
-    subject = (await ctx.providers.llm.describeTap(req.markedImage)).subject;
+  if (req.known_subject) {
+    // Phase 6a: a tap on a label plaque. The subject is already known, so skip the VLM entirely.
+    // Still record the tap cache at the label anchor, so a later free-form tap on that same object
+    // dedups to this one (both resolve to the same subject at the same cell).
+    subject = req.known_subject;
     if (tapDedup !== "off") recordTapCache(parentNodeId, req.aspect_ratio, req.x, req.y, subject);
+  } else {
+    // A free-form tap on the image. markedImage is required here (a label tap would have set
+    // known_subject above); the schema leaves both optional because it cannot cross-field refine.
+    if (!req.markedImage) throw new Error("tap request needs either known_subject or markedImage");
+    // If the tap landed ON a labelled subject (its anchor within the hotspot, and the labels match
+    // the displayed ratio so their {x,y} are valid), use that label's subject and skip the VLM — so
+    // a tap on the object and a tap on its plaque resolve to the SAME subject and dedup to one child
+    // (Layer 2 below), instead of the VLM's different name for it ("Notre-Dame Cathedral" vs the
+    // label's "twin-spired cathedral") minting a duplicate.
+    const onLabel =
+      parent && parent.labels_aspect === req.aspect_ratio
+        ? parent.labels.find((l) => Math.hypot(l.x - req.x, l.y - req.y) <= LABEL_HOTSPOT_RADIUS)
+        : undefined;
+    if (onLabel) {
+      subject = onLabel.subject;
+      if (tapDedup !== "off") recordTapCache(parentNodeId, req.aspect_ratio, req.x, req.y, subject);
+    } else {
+      // Layer 1: the coordinate-quantization VLM cache. On a hit, skip the VLM call entirely.
+      const cacheHit = tapDedup !== "off" ? findTapCacheHit(parentNodeId, req.aspect_ratio, req.x, req.y) : null;
+      if (cacheHit) {
+        subject = cacheHit.subject;
+      } else {
+        subject = (await ctx.providers.llm.describeTap(req.markedImage)).subject;
+        if (tapDedup !== "off") recordTapCache(parentNodeId, req.aspect_ratio, req.x, req.y, subject);
+      }
+    }
   }
   await emit({ event: "tap_subject", data: { subject } });
 
@@ -137,18 +168,17 @@ async function resolveTapContext(
     if (existingChild) return { kind: "cache-hit", node: existingChild };
   }
 
-  const parentNode = getNode(parentNodeId);
   return {
     kind: "resolved",
     context: {
       topic: subject,
       parentNodeId,
       parentTitle: req.parent_title,
-      parentAuthoredPrompt: parentNode?.authored_prompt,
+      parentAuthoredPrompt: parent?.authored_prompt,
       // Tap-mode scene continuity. This is the rendered image of the parent page. The code passes
       // it to the image provider as a reference, in the same way that edit mode passes the image
       // of the current page. The tap child then reuses the exact scene of the parent.
-      tapReferenceImageDataUrl: parentNode ? loadReferenceImageDataUrl(ctx.imagesDir, parentNode, req.aspect_ratio) : undefined,
+      tapReferenceImageDataUrl: parent ? loadReferenceImageDataUrl(ctx.imagesDir, parent, req.aspect_ratio) : undefined,
       parentLabels: undefined,
       parentFooter: undefined,
       parentLabelsAspect: undefined,
@@ -351,6 +381,13 @@ export async function runGenerate(
 
   await emit({ event: "preview", data: { aspectRatio: req.aspect_ratio, imageUrl } });
 
+  // A ratio-changing edit carries the parent's labels verbatim, but their {x,y} belong to the
+  // parent's composition, not this new image — they cannot be placed here, so drop them (the
+  // fixed-position title and footer still render). Every non-edit path authored its labels for this
+  // exact ratio, and a same-ratio edit's carried labels still match.
+  const nodeLabels =
+    req.mode === "edit" && parentLabelsAspect != null && parentLabelsAspect !== req.aspect_ratio ? [] : labels;
+
   const node: Node = {
     id: nodeId,
     parent_id: parentNodeId,
@@ -369,18 +406,14 @@ export async function runGenerate(
     composition: resolveCompositionName(req.composition),
     prompt_author_model: ctx.providers.llm.modelId,
     authored_prompt: authoredPrompt,
-    labels,
+    labels: nodeLabels,
     footer,
-    // Which ratio `labels` were authored for — the overlay renders only when the displayed
-    // variant matches this, since a lazily-generated other-ratio variant re-composes the scene and
-    // the same {x,y} no longer lines up.
-    //
-    // Edit mode carries the parent's labels verbatim, so their {x,y} live in the PARENT's ratio,
-    // not this request's. Stamping req.aspect_ratio here would mislabel an edit made after the
-    // aspect picker was switched: the overlay would show the carried 16:9 coordinates on a 3:4
-    // page. Using the parent's ratio keeps the coordinate space honest — and if the edit runs at a
-    // different ratio, the overlay correctly hides on the mismatch instead of showing wrong spots.
-    labels_aspect: req.mode === "edit" ? (parentLabelsAspect ?? req.aspect_ratio) : req.aspect_ratio,
+    // Always the ratio of THIS node's own image. A callout renders only when the displayed variant
+    // matches the composition its {x,y} were placed against (a lazily-generated other-ratio variant
+    // re-composes the scene, so the same {x,y} no longer line up). The title and footer are
+    // fixed-position and render at any ratio (see PageLabels.tsx). Carried labels that would not
+    // match this ratio were already dropped in nodeLabels above.
+    labels_aspect: req.aspect_ratio,
     created_at: new Date().toISOString(),
     version: 1,
     video_status: null,

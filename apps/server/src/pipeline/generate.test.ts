@@ -47,9 +47,14 @@ const noSearch: SearchProvider = { available: false, search: async () => null };
  *  (if any) web-search summary the pipeline handed the authoring model. */
 class SpyLlmProvider extends MockLlmProvider {
   lastAuthorInput: AuthorPromptInput | undefined;
+  describeTapCalls = 0;
   async authorPrompt(input: AuthorPromptInput): Promise<AuthorPromptOutput> {
     this.lastAuthorInput = input;
     return super.authorPrompt(input);
+  }
+  async describeTap(markedImageDataUrl: string) {
+    this.describeTapCalls++;
+    return super.describeTap(markedImageDataUrl);
   }
 }
 
@@ -249,11 +254,11 @@ test("edit mode: the built image prompt includes the house style and passes the 
   assert.notEqual(node.query, "make it night time");
 });
 
-test("edit mode: labels_aspect inherits the parent's ratio, not the edit request's, so carried label coordinates stay honest", async () => {
+test("edit mode: a ratio-changing edit drops the carried labels and stamps its own ratio, so no callout is ever misplaced", async () => {
   // Regression: an edit carries the parent's labels VERBATIM (their {x,y} live in the parent's
-  // composition). If the aspect picker was switched before the edit, stamping the request's ratio
-  // would show those coordinates on a differently-composed page. labels_aspect must follow the
-  // carried coordinates (the parent's ratio), so the overlay hides on a mismatch instead of lying.
+  // composition). If the aspect picker was switched before the edit, those coordinates cannot be
+  // placed on the new, differently-composed image. So the labels are dropped and labels_aspect is
+  // this node's own ratio — the callouts never show misplaced (the fixed title/footer still render).
   const ctx = makeContext(new SpyImageProvider());
   const parentImageUrl = saveImageVariant(ctx.imagesDir, "parent-edit-ratio", "16:9", Buffer.from("px"), "image/jpeg");
   const parent: Node = {
@@ -295,8 +300,8 @@ test("edit mode: labels_aspect inherits the parent's ratio, not the edit request
     () => {},
   );
 
-  assert.equal(node.labels_aspect, "16:9");
-  assert.notEqual(node.labels_aspect, "3:4");
+  assert.equal(node.labels_aspect, "3:4"); // this node's own image ratio, not the parent's
+  assert.deepEqual(node.labels, []); // carried 16:9 labels dropped — they can't be placed at 3:4
 });
 
 test("tap mode: the built image prompt includes the house style and reuses the parent page image as reference", async () => {
@@ -355,6 +360,109 @@ test("tap mode: the built image prompt includes the house style and reuses the p
   assert.equal(image.lastInput?.referenceImageDataUrl, expectedReference);
   assert.notEqual(image.lastInput?.referenceImageDataUrl, markedImageDataUrl);
   assert.doesNotMatch(image.lastInput!.prompt, NUMERAL_BADGE_INSTRUCTION);
+});
+
+test("tap mode: a known_subject (label tap) skips the VLM and generates a child for that subject", async () => {
+  // Phase 6a: tapping a label plaque carries the subject, so the server must NOT call describeTap.
+  const ctx = makeContext(new SpyImageProvider());
+  const spyLlm = new SpyLlmProvider();
+  const parentImageUrl = saveImageVariant(ctx.imagesDir, "parent-label-tap", "16:9", Buffer.from("px"), "image/jpeg");
+  const parent: Node = {
+    id: "parent-label-tap",
+    parent_id: null,
+    session_id: "s1",
+    query: "Ho Chi Minh City",
+    page_title: "Ho Chi Minh City",
+    image_variants: { "16:9": parentImageUrl },
+    image_model: "mock-image",
+    image_provider: "mock",
+    art_style: "felt",
+    composition: "diorama",
+    prompt_author_model: "mock-llm",
+    authored_prompt: "content prompt for the parent page",
+    labels: [{ text: "Notre-Dame", description: "", subject: "twin-spired red-brick cathedral", x: 0.2, y: 0.25 }],
+    footer: "",
+    labels_aspect: "16:9",
+    created_at: new Date().toISOString(),
+    version: 1,
+    video_status: null,
+    morph_status: null,
+  };
+  insertNode(parent, { normalizedSubject: "root" });
+
+  const node = await runGenerate(
+    {
+      mode: "tap",
+      known_subject: "twin-spired red-brick cathedral", // no markedImage — this is a label tap
+      x: 0.2,
+      y: 0.25,
+      aspect_ratio: "16:9",
+      web_search: false,
+      video_loop: false,
+      force_new_image: false,
+      parent_title: "Ho Chi Minh City",
+      session_id: "s1",
+      current_node_id: "parent-label-tap",
+    },
+    { ...ctx, providers: { ...ctx.providers, llm: spyLlm } },
+    () => {},
+  );
+
+  assert.equal(spyLlm.describeTapCalls, 0); // the VLM was never asked
+  assert.equal(node.query, "twin-spired red-brick cathedral"); // child is about the label's subject
+  assert.equal(node.parent_id, "parent-label-tap");
+});
+
+test("tap mode: a free-form tap ON a labelled subject reuses the label's subject and skips the VLM", async () => {
+  // Phase 6a dedup: tapping the drawn object (not the plaque) within a label's hotspot must resolve
+  // to that label's subject, so a tap on the object and a tap on its plaque produce ONE child, not
+  // two — and the VLM is not called for a spot we already have a subject for.
+  const ctx = makeContext(new SpyImageProvider());
+  const spyLlm = new SpyLlmProvider();
+  const parentImageUrl = saveImageVariant(ctx.imagesDir, "parent-hotspot", "16:9", Buffer.from("px"), "image/jpeg");
+  const parent: Node = {
+    id: "parent-hotspot",
+    parent_id: null,
+    session_id: "s1",
+    query: "Ho Chi Minh City",
+    page_title: "Ho Chi Minh City",
+    image_variants: { "16:9": parentImageUrl },
+    image_model: "mock-image",
+    image_provider: "mock",
+    art_style: "felt",
+    composition: "diorama",
+    prompt_author_model: "mock-llm",
+    authored_prompt: "content prompt for the parent page",
+    labels: [{ text: "Notre-Dame", description: "", subject: "twin-spired red-brick cathedral", x: 0.2, y: 0.25 }],
+    footer: "",
+    labels_aspect: "16:9",
+    created_at: new Date().toISOString(),
+    version: 1,
+    video_status: null,
+    morph_status: null,
+  };
+  insertNode(parent, { normalizedSubject: "root" });
+
+  const node = await runGenerate(
+    {
+      mode: "tap",
+      markedImage: `data:image/jpeg;base64,${Buffer.from("marked").toString("base64")}`,
+      x: 0.21, // inside the cathedral label's hotspot (anchor 0.2, 0.25)
+      y: 0.26,
+      aspect_ratio: "16:9",
+      web_search: false,
+      video_loop: false,
+      force_new_image: false,
+      parent_title: "Ho Chi Minh City",
+      session_id: "s1",
+      current_node_id: "parent-hotspot",
+    },
+    { ...ctx, providers: { ...ctx.providers, llm: spyLlm } },
+    () => {},
+  );
+
+  assert.equal(spyLlm.describeTapCalls, 0); // resolved from the label, not the VLM
+  assert.equal(node.query, "twin-spired red-brick cathedral"); // same subject a plaque tap would give
 });
 
 // The tap panel's "Draw a new version" button is the user choosing to spend. If layer 3 could still
