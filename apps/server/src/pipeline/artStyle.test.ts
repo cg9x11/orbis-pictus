@@ -73,7 +73,7 @@ test("listArtStyles reports every style with a label taken from art-style.md", (
   const styles = listArtStyles();
   assert.deepEqual(
     styles.map((s) => s.name),
-    ["felt", "papercut", "riso", "pixel", "editorial"],
+    ["felt", "papercut", "riso", "pixel", "editorial", "tiltshift"],
   );
   assert.equal(styles[0]?.label, "Needle-felted wool");
   for (const style of styles) {
@@ -106,6 +106,44 @@ test("getArtStyleBlock selects the requested composition block", () => {
   const isometric = getArtStyleBlock("felt", "isometric");
   assert.match(isometric, /## Composition: isometric diagram/i);
   assert.doesNotMatch(isometric, /isometric three-quarter aerial view/);
+});
+
+// Tilt-shift owns its own viewpoint: it must carry the photographic-camera language and drop the
+// craft composition block entirely, no matter which composition is requested — an isometric or flat
+// projection has no focal plane for the blur and fought the effect in testing.
+test("tilt-shift style skips the composition block and brings its own camera", () => {
+  const tilt = getArtStyleBlock("tiltshift", "diorama");
+  assert.match(tilt, /shallow depth of field/);
+  assert.match(tilt, /real\s+camera lens and natural perspective/i);
+  // Guard the Seedream fix: the blur is described as optical depth of field, never a flat "band" —
+  // the mechanical band wording made Seedream paint literal grey bars across the frame.
+  assert.match(tilt, /never a flat band, bar, or darkened strip/);
+  assert.doesNotMatch(tilt, /isometric three-quarter aerial view/);
+  assert.doesNotMatch(tilt, /## Composition:/);
+  // Even an explicit flat request is ignored — the style block is self-contained.
+  assert.doesNotMatch(getArtStyleBlock("tiltshift", "flat"), /flat, front-on educational infographic/i);
+});
+
+// Per-provider prompt dialects: the same style is worded differently for models that read prompts
+// differently. Gemini gets rich description; Seedream (ark) gets concise, imperative anti-artifact
+// wording. A provider with no variant uses the base block.
+test("tilt-shift serves a different prompt to each provider that has a variant", () => {
+  const gemini = getArtStyleBlock("tiltshift", undefined, "gemini");
+  const ark = getArtStyleBlock("tiltshift", undefined, "ark");
+  assert.match(gemini, /creamy out-of-focus haze/);
+  assert.match(ark, /do NOT draw any flat band, bar, gradient, or darkened strip/);
+  assert.notEqual(gemini, ark);
+});
+
+test("a provider without a tilt-shift variant falls back to the base block", () => {
+  const base = getArtStyleBlock("tiltshift");
+  assert.equal(getArtStyleBlock("tiltshift", undefined, "openai"), base);
+  assert.equal(getArtStyleBlock("tiltshift", undefined, undefined), base);
+});
+
+test("buildImagePrompt threads the drawing provider through to the per-provider style variant", () => {
+  assert.match(buildImagePrompt("A page about cats.", "tiltshift", { provider: "ark" }), /do NOT draw any flat band/);
+  assert.match(buildImagePrompt("A page about cats.", "tiltshift", { provider: "gemini" }), /creamy out-of-focus haze/);
 });
 
 test("an unrecognized composition falls back to the default (diorama)", () => {

@@ -452,7 +452,10 @@ export function nodesRoute(
 
       const { bytes, contentType } = await image.generate({
         prompt: buildImagePrompt(node.authored_prompt, node.art_style || undefined, {
+          // Same per-model dialect as the main generate path: the provider drawing this variant
+          // selects its own style wording (e.g. tiltshift@gemini vs tiltshift@ark).
           composition: node.composition || undefined,
+          provider: image.providerId,
         }),
         aspectRatio: ratio,
       });

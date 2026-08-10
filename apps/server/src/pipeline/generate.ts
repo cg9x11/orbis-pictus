@@ -284,6 +284,10 @@ export async function runGenerate(
   const imagePrompt = buildImagePrompt(authoredPrompt, req.art_style, {
     reference: req.mode === "search" ? "none" : "reuse",
     composition: req.composition,
+    // Per-model prompt dialect: the provider about to draw picks its own style variant (e.g.
+    // tiltshift@gemini vs tiltshift@ark). Uses providerId (the requested provider), matching the
+    // prompt-hash key below, which also keys on providerId — so each model caches its own wording.
+    provider: ctx.providers.image.providerId,
   });
 
   // Layer 3: the prompt-hash image cache. Its key is the full built prompt, so a change to

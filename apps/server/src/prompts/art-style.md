@@ -30,8 +30,18 @@ models — they cost nothing and still prevent avoidable failures):
 
 The sections below are machine-parsed by `pipeline/artStyle.ts` via the `<!-- art-style:* -->`
 anchor comments — keep them intact when editing prose. Style selected by env `ART_STYLE=felt|
-papercut|riso|pixel|editorial` (default `felt`); composition by env `COMPOSITION=flat|isometric|diorama`
-(default `diorama`). The layout section is style-independent and always included.
+papercut|riso|pixel|editorial|tiltshift` (default `felt`); composition by env `COMPOSITION=flat|isometric|diorama`
+(default `diorama`). The layout section is style-independent and always included. `tiltshift` is the
+one style that owns its own viewpoint: when it is active the composition block is skipped, because a
+tilt-shift photograph needs a real perspective camera that the flat/isometric projections cannot give.
+
+Per-provider variants: a style may carry extra `<!-- art-style:<style>@<provider> -->` blocks (e.g.
+`tiltshift@gemini`, `tiltshift@ark`). The image provider drawing the page picks its own variant; any
+provider without one uses the base `<!-- art-style:<style> -->` block. This lets one look be worded
+differently for models that read prompts differently — Gemini favours rich description, while Seedream
+(`ark`) favours concise, named effects. Only the style TEXT is swapped; the heading/label and the
+composition rule stay shared. Keep each variant pure prompt prose: everything between its anchor and
+the next is sent verbatim to that model, so no human notes or sub-headings inside a variant block.
 
 ---
 
@@ -122,5 +132,42 @@ diagram — every form drawn with precise, fine ink outlines and flat, lightly s
 legible, never cartoonish and never photographic. Restrained, desaturated palette of soft warm greys,
 natural greens and muted slate blue with sparing warm accents, all on a plain cream paper ground. Soft
 diffuse light, no harsh shadows; a calm, composed, technical-drawing quality throughout.
+
+<!-- art-style:tiltshift -->
+## Style: tilt-shift miniature
+
+A tilt-shift miniature photograph: a real scene that looks like a tiny, finely detailed tabletop
+model, shot from a high angle looking down with a real camera lens and natural perspective. Use a
+shallow depth of field so the central subject is in crisp focus while nearer and farther areas fall
+softly out of focus — true optical depth of field, never a flat band, bar, or darkened strip laid
+over the picture. Bright natural daylight, richly saturated toy-like colours, fine model-scale
+detail. Photographic and glossy, never illustrated, drawn, or made of any craft material. The main
+subject sits oversized and hero-scale in the centre, the other elements arranged clearly around it in
+one continuous real place that runs off all four edges. The label plaques and all lettering stay
+perfectly sharp and fully in focus, sitting cleanly above the photograph like a crisp UI overlay.
+
+<!-- art-style:tiltshift@gemini -->
+An extreme tilt-shift miniature photograph, shot from a high angle looking steeply down with a real
+camera lens and strong natural perspective, so the whole scene reads as a tiny handcrafted model on a
+tabletop. Use a very shallow depth of field with a pronounced, dreamy blur: only the hero subject in
+the centre is razor-sharp, and everything nearer to and farther from the camera melts progressively
+into a soft, creamy out-of-focus haze — real optical bokeh, never a flat band or overlay. Bright
+midday sunlight, richly saturated toy-like colours, crisp little shadows, exquisite model-scale
+detail. Photographic and glossy, never illustrated, drawn, or made of any craft material. The main
+subject sits oversized and hero-scale in the centre, the other elements arranged clearly around it in
+one continuous real place that runs off all four edges. The label plaques and all lettering stay
+perfectly sharp and fully in focus regardless of the blur, sitting cleanly above the photograph like
+a crisp UI overlay.
+
+<!-- art-style:tiltshift@ark -->
+A tilt-shift miniature-faking photograph of the scene, shot from a high angle looking down with
+natural perspective, so the real place looks like a tiny, finely detailed tabletop model. Shallow
+depth of field: the central subject is in sharp focus and the rest is gently, naturally out of focus.
+Use true optical depth of field only — do NOT draw any flat band, bar, gradient, or darkened strip
+across the picture. Bright daylight, saturated toy-like colours, fine model-scale detail; a real
+glossy photograph, not an illustration and not a craft model. The main subject is largest and
+central, the others arranged around it in one continuous place that fills the frame to every edge.
+The label plaques and all lettering stay perfectly sharp and fully in focus, like a crisp overlay
+above the photo.
 
 <!-- art-style:end -->

@@ -5,39 +5,63 @@ import { strConfig } from "../config/index.js";
 
 const ART_STYLE_PATH = path.join(PROMPTS_DIR, "art-style.md");
 
-export type ArtStyleName = "felt" | "papercut" | "riso" | "pixel" | "editorial";
-const STYLE_NAMES: ArtStyleName[] = ["felt", "papercut", "riso", "pixel", "editorial"];
+export type ArtStyleName = "felt" | "papercut" | "riso" | "pixel" | "editorial" | "tiltshift";
+const STYLE_NAMES: ArtStyleName[] = ["felt", "papercut", "riso", "pixel", "editorial", "tiltshift"];
 
 export type CompositionName = "flat" | "isometric" | "diorama";
 const COMPOSITION_NAMES: CompositionName[] = ["flat", "isometric", "diorama"];
 
-function anchor(name: string): string {
-  return `<!-- art-style:${name} -->`;
+/** Every `<!-- art-style:NAME -->` section keyed by its NAME, each trimmed. NAME is a bare section
+ *  ("layout", "felt", "composition-flat") or a per-provider variant ("tiltshift@gemini"). One pass
+ *  over the file, so a section runs from its own anchor up to whichever anchor comes next. */
+function extractAllSections(source: string): Map<string, string> {
+  const anchors = [...source.matchAll(/<!-- art-style:([a-z0-9@-]+) -->/g)];
+  const out = new Map<string, string>();
+  anchors.forEach((m, i) => {
+    const name = m[1];
+    const full = m[0];
+    if (name === undefined || full === undefined || m.index === undefined) return;
+    const start = m.index + full.length;
+    const end = anchors[i + 1]?.index ?? source.length;
+    out.set(name, source.slice(start, end).trim());
+  });
+  return out;
 }
 
-/** Text between an anchor comment and the next one (or EOF), trimmed. */
-function extractSection(source: string, name: string): string {
-  const marker = anchor(name);
-  const start = source.indexOf(marker);
-  if (start === -1) throw new Error(`art-style.md is missing anchor ${marker}`);
-  const afterMarker = start + marker.length;
-  const nextMarkerStart = source.indexOf("<!-- art-style:", afterMarker);
-  const end = nextMarkerStart === -1 ? source.length : nextMarkerStart;
-  return source.slice(afterMarker, end).trim();
+function required(all: Map<string, string>, name: string): string {
+  const text = all.get(name);
+  if (text === undefined) throw new Error(`art-style.md is missing anchor <!-- art-style:${name} -->`);
+  return text;
 }
 
 interface ParsedArtStyle {
   layout: string;
+  /** Base, provider-agnostic text for every style. */
   styles: Record<ArtStyleName, string>;
+  /** Per-style, per-provider overrides. `styleVariants.tiltshift.gemini` wins over `styles.tiltshift`
+   *  when the page is drawn by the gemini provider; a provider with no entry uses the base text. */
+  styleVariants: Record<ArtStyleName, Record<string, string>>;
   compositions: Record<CompositionName, string>;
 }
 
 function parseArtStyle(source: string): ParsedArtStyle {
+  const all = extractAllSections(source);
+  const styleVariants = Object.fromEntries(STYLE_NAMES.map((n) => [n, {} as Record<string, string>])) as Record<
+    ArtStyleName,
+    Record<string, string>
+  >;
+  for (const [key, text] of all) {
+    const at = key.indexOf("@");
+    if (at === -1) continue;
+    const base = key.slice(0, at);
+    if (isArtStyleName(base)) styleVariants[base][key.slice(at + 1)] = text;
+  }
   return {
-    layout: extractSection(source, "layout"),
-    styles: Object.fromEntries(STYLE_NAMES.map((n) => [n, extractSection(source, n)])) as Record<ArtStyleName, string>,
+    layout: required(all, "layout"),
+    styles: Object.fromEntries(STYLE_NAMES.map((n) => [n, required(all, n)])) as Record<ArtStyleName, string>,
+    styleVariants,
     compositions: Object.fromEntries(
-      COMPOSITION_NAMES.map((n) => [n, extractSection(source, `composition-${n}`)]),
+      COMPOSITION_NAMES.map((n) => [n, required(all, `composition-${n}`)]),
     ) as Record<CompositionName, string>,
   };
 }
@@ -124,11 +148,20 @@ export function listCompositions(): { name: CompositionName; label: string }[] {
  * server default rather than erroring: a bad value should render the house look, never break a
  * generation.
  */
-export function getArtStyleBlock(style?: string, composition?: string): string {
+export function getArtStyleBlock(style?: string, composition?: string, provider?: string): string {
   const styleName = resolveArtStyleName(style);
   const compName = resolveCompositionName(composition);
-  const { layout, compositions, styles } = sections();
-  return `${layout}\n\n${compositions[compName]}\n\n${styles[styleName]}`;
+  const { layout, compositions, styles, styleVariants } = sections();
+  // A style may ship a per-provider variant (e.g. tiltshift@gemini): different image models read the
+  // same intent from differently-worded prompts, so the block is tuned per provider. A provider with
+  // no variant — or a request that names none — falls back to the base style text.
+  const styleText = (provider !== undefined && styleVariants[styleName][provider]) || styles[styleName];
+  // Tilt-shift is a photographic look that fixes its own camera (a real high-angle lens with natural
+  // perspective). It therefore owns the viewpoint and skips the craft compositions (flat / isometric
+  // / diorama), whose parallel or flat projections have no focal plane for the blur to sit on —
+  // pairing them fought the effect in testing. The whole look lives in the tiltshift style block.
+  if (styleName === "tiltshift") return `${layout}\n\n${styleText}`;
+  return `${layout}\n\n${compositions[compName]}\n\n${styleText}`;
 }
 
 export interface BuildImagePromptOptions {
@@ -138,6 +171,9 @@ export interface BuildImagePromptOptions {
   reference?: "none" | "reuse";
   /** Which composition block (flat / diorama) to include. Falls back to the server default. */
   composition?: string;
+  /** The image provider that will draw this page (e.g. "gemini", "ark"). Selects a per-provider
+   *  style variant when one exists in art-style.md; falls back to the base style text otherwise. */
+  provider?: string;
 }
 
 /** Task framing, sent first. Uses the proven prompt order (framing -> style ->
@@ -173,5 +209,5 @@ const QUALITY =
  */
 export function buildImagePrompt(contentPrompt: string, style?: string, opts?: BuildImagePromptOptions): string {
   const framing = opts?.reference === "reuse" ? FRAMING + REFERENCE_REUSE : FRAMING;
-  return `${framing}\n\n${getArtStyleBlock(style, opts?.composition)}\n\n${QUALITY}\n\nContent: ${contentPrompt}`;
+  return `${framing}\n\n${getArtStyleBlock(style, opts?.composition, opts?.provider)}\n\n${QUALITY}\n\nContent: ${contentPrompt}`;
 }
