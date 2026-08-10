@@ -7,7 +7,6 @@ import type {
   GenerateSearchRequest,
   GenerateTapRequest,
   Node,
-  PageLabel,
 } from "@orbis/shared";
 import { groupIdOf } from "@orbis/shared";
 import type { Providers } from "../providers/index.js";
@@ -55,14 +54,6 @@ interface ModeContext {
   parentTitle: string | undefined;
   parentAuthoredPrompt: string | undefined;
   tapReferenceImageDataUrl: string | undefined;
-  // Only edit mode sets these — authorEdit needs the parent's current labels/footer so it can
-  // carry unchanged callouts over verbatim (see AuthorEditInput.parentLabels/parentFooter).
-  parentLabels: PageLabel[] | undefined;
-  parentFooter: string | undefined;
-  // The aspect ratio the parent's labels were authored for. Edit mode carries the parent labels
-  // verbatim, so the new node's labels_aspect must be THIS, not the edit request's ratio — the
-  // carried {x,y} live in the parent's composition. Undefined for non-edit modes.
-  parentLabelsAspect: AspectRatio | null | undefined;
   // Page versions (peer model). `nodeParentId` is the parent_id STORED on the new node. For search
   // and tap it is the page explored from. For an EDIT it is the edited version's OWN parent, so all
   // versions of a page share one exploration parent and stay out of each other's breadcrumb.
@@ -89,9 +80,6 @@ function resolveSearchContext(req: GenerateSearchRequest): ModeResolution {
       parentTitle: parent?.page_title,
       parentAuthoredPrompt: parent?.authored_prompt,
       tapReferenceImageDataUrl: undefined,
-      parentLabels: undefined,
-      parentFooter: undefined,
-      parentLabelsAspect: undefined,
       nodeParentId: parentNodeId,
       versionGroupId: undefined,
       editedFromId: undefined,
@@ -116,9 +104,6 @@ function resolveEditContext(req: GenerateEditRequest): ModeResolution {
       parentTitle: req.parent_title || parent.page_title,
       parentAuthoredPrompt: parent.authored_prompt,
       tapReferenceImageDataUrl: undefined,
-      parentLabels: parent.labels,
-      parentFooter: parent.footer,
-      parentLabelsAspect: parent.labels_aspect,
       // Peer model: the new version attaches to the edited version's OWN parent (not to the edited
       // version), joins its group, and records that it was edited from it.
       nodeParentId: parent.parent_id,
@@ -127,11 +112,6 @@ function resolveEditContext(req: GenerateEditRequest): ModeResolution {
     },
   };
 }
-
-/** Normalized radius around a label's {x,y} anchor within which a free-form tap is treated as a tap
- *  ON that labelled subject (see resolveTapContext). Generous on purpose: the image model does not
- *  place a subject exactly at the authored coordinate, so the hotspot must cover that drift. */
-const LABEL_HOTSPOT_RADIUS = 0.08;
 
 async function resolveTapContext(
   req: GenerateTapRequest,
@@ -142,39 +122,14 @@ async function resolveTapContext(
   const tapDedup = getTapDedupMode();
   const parent = getNode(parentNodeId);
 
+  // Layer 1: the coordinate-quantization VLM cache. On a hit, skip the VLM call entirely.
+  const cacheHit = tapDedup !== "off" ? findTapCacheHit(parentNodeId, req.aspect_ratio, req.x, req.y) : null;
   let subject: string;
-  if (req.known_subject) {
-    // Phase 6a: a tap on a label plaque. The subject is already known, so skip the VLM entirely.
-    // Still record the tap cache at the label anchor, so a later free-form tap on that same object
-    // dedups to this one (both resolve to the same subject at the same cell).
-    subject = req.known_subject;
-    if (tapDedup !== "off") recordTapCache(parentNodeId, req.aspect_ratio, req.x, req.y, subject);
+  if (cacheHit) {
+    subject = cacheHit.subject;
   } else {
-    // A free-form tap on the image. markedImage is required here (a label tap would have set
-    // known_subject above); the schema leaves both optional because it cannot cross-field refine.
-    if (!req.markedImage) throw new Error("tap request needs either known_subject or markedImage");
-    // If the tap landed ON a labelled subject (its anchor within the hotspot, and the labels match
-    // the displayed ratio so their {x,y} are valid), use that label's subject and skip the VLM — so
-    // a tap on the object and a tap on its plaque resolve to the SAME subject and dedup to one child
-    // (Layer 2 below), instead of the VLM's different name for it ("Notre-Dame Cathedral" vs the
-    // label's "twin-spired cathedral") minting a duplicate.
-    const onLabel =
-      parent && parent.labels_aspect === req.aspect_ratio
-        ? parent.labels.find((l) => Math.hypot(l.x - req.x, l.y - req.y) <= LABEL_HOTSPOT_RADIUS)
-        : undefined;
-    if (onLabel) {
-      subject = onLabel.subject;
-      if (tapDedup !== "off") recordTapCache(parentNodeId, req.aspect_ratio, req.x, req.y, subject);
-    } else {
-      // Layer 1: the coordinate-quantization VLM cache. On a hit, skip the VLM call entirely.
-      const cacheHit = tapDedup !== "off" ? findTapCacheHit(parentNodeId, req.aspect_ratio, req.x, req.y) : null;
-      if (cacheHit) {
-        subject = cacheHit.subject;
-      } else {
-        subject = (await ctx.providers.llm.describeTap(req.markedImage)).subject;
-        if (tapDedup !== "off") recordTapCache(parentNodeId, req.aspect_ratio, req.x, req.y, subject);
-      }
-    }
+    subject = (await ctx.providers.llm.describeTap(req.markedImage)).subject;
+    if (tapDedup !== "off") recordTapCache(parentNodeId, req.aspect_ratio, req.x, req.y, subject);
   }
   await emit({ event: "tap_subject", data: { subject } });
 
@@ -200,9 +155,6 @@ async function resolveTapContext(
       // it to the image provider as a reference, in the same way that edit mode passes the image
       // of the current page. The tap child then reuses the exact scene of the parent.
       tapReferenceImageDataUrl: parent ? loadReferenceImageDataUrl(ctx.imagesDir, parent, req.aspect_ratio) : undefined,
-      parentLabels: undefined,
-      parentFooter: undefined,
-      parentLabelsAspect: undefined,
       nodeParentId: parentNodeId,
       versionGroupId: undefined,
       editedFromId: undefined,
@@ -249,7 +201,7 @@ export async function runGenerate(
     return resolution.node;
   }
 
-  const { topic, nodeParentId, parentTitle, parentAuthoredPrompt, tapReferenceImageDataUrl, parentLabels, parentFooter, parentLabelsAspect, versionGroupId, editedFromId } =
+  const { topic, nodeParentId, parentTitle, parentAuthoredPrompt, tapReferenceImageDataUrl, versionGroupId, editedFromId } =
     resolution.context;
 
   let webSearchSummary: string | undefined;
@@ -275,13 +227,11 @@ export async function runGenerate(
   }
 
   await emit({ event: "stage", data: { stage: "authoring" } });
-  const { pageTitle, authoredPrompt, labels, footer } =
+  const { pageTitle, authoredPrompt } =
     req.mode === "edit"
       ? await ctx.providers.llm.authorEdit({
           command: req.prompt,
           parentAuthoredPrompt: parentAuthoredPrompt!,
-          parentLabels: parentLabels ?? [],
-          parentFooter: parentFooter ?? "",
           parentTitle,
           webSearchSummary,
         })
@@ -405,13 +355,6 @@ export async function runGenerate(
 
   await emit({ event: "preview", data: { aspectRatio: req.aspect_ratio, imageUrl } });
 
-  // A ratio-changing edit carries the parent's labels verbatim, but their {x,y} belong to the
-  // parent's composition, not this new image — they cannot be placed here, so drop them (the
-  // fixed-position title and footer still render). Every non-edit path authored its labels for this
-  // exact ratio, and a same-ratio edit's carried labels still match.
-  const nodeLabels =
-    req.mode === "edit" && parentLabelsAspect != null && parentLabelsAspect !== req.aspect_ratio ? [] : labels;
-
   const node: Node = {
     id: nodeId,
     parent_id: nodeParentId,
@@ -430,14 +373,6 @@ export async function runGenerate(
     composition: resolveCompositionName(req.composition),
     prompt_author_model: ctx.providers.llm.modelId,
     authored_prompt: authoredPrompt,
-    labels: nodeLabels,
-    footer,
-    // Always the ratio of THIS node's own image. A callout renders only when the displayed variant
-    // matches the composition its {x,y} were placed against (a lazily-generated other-ratio variant
-    // re-composes the scene, so the same {x,y} no longer line up). The title and footer are
-    // fixed-position and render at any ratio (see PageLabels.tsx). Carried labels that would not
-    // match this ratio were already dropped in nodeLabels above.
-    labels_aspect: req.aspect_ratio,
     created_at: new Date().toISOString(),
     version: 1,
     video_status: null,

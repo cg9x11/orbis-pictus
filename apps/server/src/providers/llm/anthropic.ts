@@ -7,7 +7,6 @@ import { PROMPTS_DIR } from "../../paths.js";
 // 408/409/429, and 5xx) with its own backoff by default.
 import Anthropic from "@anthropic-ai/sdk";
 import { parseDataUrl } from "../../lib/dataUrl.js";
-import { parseAuthorOutput, type RawAuthorOutput } from "./authorOutput.js";
 import type {
   AuthorEditInput,
   AuthorPromptInput,
@@ -95,16 +94,14 @@ export class AnthropicLlmProvider implements LlmProvider {
       messages: [{ role: "user", content: contextLines.join("\n") }],
     });
 
-    const result = parseJsonLoose(textFromMessage(message)) as RawAuthorOutput;
-    return parseAuthorOutput(result);
+    const result = parseJsonLoose(textFromMessage(message)) as { page_title: string; image_prompt: string };
+    return { pageTitle: result.page_title, authoredPrompt: result.image_prompt };
   }
 
   async authorEdit(input: AuthorEditInput): Promise<AuthorPromptOutput> {
     const contextLines: string[] = [`Command: ${input.command}`];
     if (input.parentTitle) contextLines.push(`Parent page title: ${input.parentTitle}`);
-    contextLines.push(`Parent page background prompt: ${input.parentAuthoredPrompt}`);
-    contextLines.push(`Parent page labels (JSON): ${JSON.stringify(input.parentLabels)}`);
-    contextLines.push(`Parent page footer: ${input.parentFooter}`);
+    contextLines.push(`Parent page image prompt: ${input.parentAuthoredPrompt}`);
     if (input.webSearchSummary) contextLines.push(`Web search summary: ${input.webSearchSummary}`);
 
     const message = await this.client.messages.create({
@@ -114,8 +111,8 @@ export class AnthropicLlmProvider implements LlmProvider {
       messages: [{ role: "user", content: contextLines.join("\n") }],
     });
 
-    const result = parseJsonLoose(textFromMessage(message)) as RawAuthorOutput;
-    return parseAuthorOutput(result);
+    const result = parseJsonLoose(textFromMessage(message)) as { page_title: string; image_prompt: string };
+    return { pageTitle: result.page_title, authoredPrompt: result.image_prompt };
   }
 
   async describeTap(markedImageDataUrl: string): Promise<DescribeTapOutput> {

@@ -408,34 +408,6 @@ export function useOrbisController(initialNodeId?: string) {
   };
 
   /**
-   * Phase 6a: a tap on a layered-page label plaque. The label already carries its subject, so this
-   * sends `known_subject` and NO marked image — the server skips the VLM entirely. Everything else
-   * mirrors handleTap: the same money/busy guards, the same variant-mode "already explored" gate
-   * (so a second tap on a labelled spot opens the panel instead of spending), the same runRequest.
-   */
-  const handleLabelTap = (subject: string, x: number, y: number) => {
-    if (!current || busy || morphActive || tapsLoading) return;
-
-    const explored = tapDedupMode === "variant" ? findExploredTapAt(x, y) : undefined;
-    if (explored) {
-      setRipple({ xRatio: x, yRatio: y });
-      setVariantPanelTap(explored);
-      return;
-    }
-
-    setRipple({ xRatio: x, yRatio: y });
-    return runRequest({
-      mode: "tap",
-      known_subject: subject,
-      x,
-      y,
-      force_new_image: false,
-      parent_title: current.page_title,
-      ...baseRequestFields(),
-    });
-  };
-
-  /**
    * Opens an already-generated child by id. Deliberately does not go through runRequest: both
    * callers (the free `reuse` marker and the variant panel's list) exist precisely because this
    * path touches no provider at all, so it fetches the stored node and appends it to the trail.
@@ -674,7 +646,6 @@ export function useOrbisController(initialNodeId?: string) {
     dismissMilestone,
     handleSearch,
     handleTap,
-    handleLabelTap,
     handleOpenCachedTap,
     handleInspectCachedTap,
     handleCloseVariantPanel,

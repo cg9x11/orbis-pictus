@@ -12,16 +12,12 @@ export interface NodeRow
     | "image_variants"
     | "video_status"
     | "morph_status"
-    | "labels"
-    | "labels_aspect"
     | "is_default"
     | "version_group_id"
     | "edited_from_id"
     | "edit_command"
   > {
   image_variants: string; // JSON-encoded ImageVariants
-  labels: string; // JSON-encoded PageLabel[]
-  labels_aspect: string | null;
   // Page versions. `is_default` is 0/1 in SQLite (no boolean column type), narrowed to a boolean in
   // rowToNode. `version_group_id` is nullable at the SQL level (see db.ts) but always populated after
   // the backfill; rowToNode reads a null as the row's own id.

@@ -14,20 +14,21 @@ test("page-author.md preserves ordering for sequential topics via a connecting a
   assert.match(PAGE_AUTHOR, /continuous drawn arrow path/i);
 });
 
-// Layered page: the background image carries NO text at all — the title, every callout label, and
-// the footer caption render as a DOM overlay on top of it instead. These two tests pin that policy
-// so a future edit can't quietly reintroduce baked-in text (see PLAN-layered-page.md).
-test("art-style.md instructs a completely clean scene, with margins left open for the overlay text", () => {
-  assert.match(ART_STYLE, /NO text, letters, words, signs, plaques, or writing/i);
-  assert.match(ART_STYLE, /leave open, uncluttered space/i);
+// Policy change: a subtitle/tagline the renderer adds beside the title or caption used to be banned
+// outright, because on Seedream 4.x any text the model wrote itself came out garbled. Modern models
+// render it cleanly and it reads well, so only the supplied strings stay fixed — the decoration is
+// welcome. These two tests now pin the new policy so it can't be re-tightened by accident.
+test("art-style.md lets the renderer add its own supporting line near the title or caption", () => {
+  assert.match(ART_STYLE, /supporting line of your own/i);
+  assert.doesNotMatch(ART_STYLE, /title text\s+only/i);
 });
 
-test("art-style.md forbids drawing the title, labels, or caption — they render as a DOM overlay, not pixels", () => {
-  assert.match(ART_STYLE, /app draws all of that itself/i);
-  assert.doesNotMatch(ART_STYLE, /must render verbatim/i);
+test("art-style.md still pins the meaning-bearing strings as prompt-supplied and verbatim", () => {
+  assert.match(ART_STYLE, /supplied\s+exactly by a prompt/i);
+  assert.match(ART_STYLE, /must render verbatim/i);
 });
 
-test("page-author.md keeps background_prompt content-only: no style, palette, material, or lighting words requested from the LLM", () => {
+test("page-author.md keeps image_prompt content-only: no style, palette, material, or lighting words requested from the LLM", () => {
   assert.match(PAGE_AUTHOR, /never mention it|Do not write any style, palette, material, lighting/i);
 });
 
@@ -39,27 +40,25 @@ test("page-author.md and edit-author.md cap callouts at 6, matching art-style.md
   assert.doesNotMatch(PAGE_AUTHOR, /4 to 8|4–8|4-8/);
   assert.match(PAGE_AUTHOR, /never more than 6|never exceed 6|4 to 6|4–6/i);
   assert.match(EDIT_AUTHOR, /never exceed 6|never more than 6|no more than 6/i);
-  assert.match(ART_STYLE, /four to six clearly distinct labelled subjects/i);
+  assert.match(ART_STYLE, /five or six labelled elements/i);
 });
 
-// The title and footer are DOM overlay text now, not pixels the image model draws — so the
-// authoring prompts must say so explicitly, or a future edit could drift back to describing them
-// inside background_prompt (which would make the image model draw them, and layer them under the
-// real overlay text — see PLAN-layered-page.md, "Double text has no runtime handling").
-test("page-author.md and edit-author.md render the title and footer as overlay text, not baked into background_prompt", () => {
-  assert.match(PAGE_AUTHOR, /do not describe it in `background_prompt`/i);
-  assert.match(EDIT_AUTHOR, /render.*separately as overlay text/i);
+// The authoring prompts decide page content, so they have to carry the same policy as art-style.md
+// above: the supplied title string is fixed, and a line the renderer adds beside it is not their
+// problem to prevent. Anything they "fix" by instruction ends up fighting the renderer.
+test("page-author.md and edit-author.md fix the supplied title string without banning a renderer-added line", () => {
+  assert.match(PAGE_AUTHOR, /must render verbatim/i);
+  assert.match(EDIT_AUTHOR, /must render verbatim/i);
+  assert.doesNotMatch(PAGE_AUTHOR, /never author a subtitle/i);
+  assert.doesNotMatch(EDIT_AUTHOR, /never add a subtitle|still add no second line/i);
 });
 
-// Layered page retires the ASCII-diacritics-stripping workaround: labels/title/footer are real DOM
-// text now, not pixels an image model has to draw, so there is nothing left to garble. Both
-// authoring prompts must keep diacritics rather than stripping them (see memory
-// diacritics-anti-example-prompting for the workaround this replaces).
-test("page-author.md and edit-author.md keep diacritics on overlay text, retiring the ASCII-stripping workaround", () => {
-  assert.match(PAGE_AUTHOR, /diacritics.*safe to keep/i);
-  assert.match(EDIT_AUTHOR, /diacritics.*safe to keep/i);
-  assert.doesNotMatch(PAGE_AUTHOR, /diacritics removed/i);
-  assert.doesNotMatch(EDIT_AUTHOR, /diacritics removed/i);
+// Seedream 4.x garbles combined Vietnamese tone-and-vowel marks, so proper nouns must be authored in
+// plain ASCII ("Bui Vien", not "Bùi Viện") — verified against a real HCMC page where diacritics
+// rendered as gibberish. Both authoring prompts must carry the rule.
+test("page-author.md and edit-author.md require proper nouns in plain ASCII with diacritics removed", () => {
+  assert.match(PAGE_AUTHOR, /diacritics removed/i);
+  assert.match(EDIT_AUTHOR, /diacritics removed/i);
 });
 
 // Seedream garbles invented/dense figures into gibberish (verified: an HCMC page rendered prices as

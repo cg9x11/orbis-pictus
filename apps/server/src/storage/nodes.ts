@@ -1,5 +1,5 @@
 import type { AspectRatio, MorphStatus, Node, VideoStatus } from "@orbis/shared";
-import { AspectRatioSchema, groupIdOf, ImageVariantsSchema, MorphStatusSchema, sanitizePageLabels, VideoStatusSchema } from "@orbis/shared";
+import { groupIdOf, ImageVariantsSchema, MorphStatusSchema, VideoStatusSchema } from "@orbis/shared";
 import { db } from "./db.js";
 import type { NodeRow } from "./rows.js";
 
@@ -13,25 +13,6 @@ function toVideoStatus(raw: string | null): VideoStatus | null {
 function toMorphStatus(raw: string | null): MorphStatus | null {
   const parsed = MorphStatusSchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
-}
-
-/** The column is a bare TEXT field, so anything unrecognized (or NULL) reads as "no overlay" —
- *  same contract as toVideoStatus/toMorphStatus above. */
-function toLabelsAspect(raw: string | null): AspectRatio | null {
-  const parsed = AspectRatioSchema.safeParse(raw);
-  return parsed.success ? parsed.data : null;
-}
-
-/** The `labels` column is a JSON-encoded array. A row written before this existed, or corrupt
- *  JSON, reads as "no labels" rather than throwing and failing the whole node read. `sanitizePageLabels`
- *  clamps coordinates and drops any single malformed entry (the same rule the write path uses), so one
- *  bad stored label can never blank out the rest of the overlay. */
-function toLabels(raw: string): Node["labels"] {
-  try {
-    return sanitizePageLabels(JSON.parse(raw));
-  } catch {
-    return [];
-  }
 }
 
 function rowToNode(row: NodeRow): Node {
@@ -50,9 +31,6 @@ function rowToNode(row: NodeRow): Node {
     composition: row.composition ?? "",
     prompt_author_model: row.prompt_author_model,
     authored_prompt: row.authored_prompt,
-    labels: toLabels(row.labels),
-    footer: row.footer ?? "",
-    labels_aspect: toLabelsAspect(row.labels_aspect),
     created_at: row.created_at,
     version: row.version,
     video_status: toVideoStatus(row.video_status),
@@ -68,9 +46,9 @@ function rowToNode(row: NodeRow): Node {
 
 const insertStmt = db.prepare(`
   INSERT INTO nodes
-    (id, parent_id, session_id, query, page_title, image_variants, image_model, image_provider, art_style, composition, prompt_author_model, authored_prompt, labels, footer, labels_aspect, created_at, version, normalized_subject, prompt_hash, version_group_id, edited_from_id, edit_command, is_default)
+    (id, parent_id, session_id, query, page_title, image_variants, image_model, image_provider, art_style, composition, prompt_author_model, authored_prompt, created_at, version, normalized_subject, prompt_hash, version_group_id, edited_from_id, edit_command, is_default)
   VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 /** Internal cache-layer metadata, stored alongside the node but not part of the public Node schema. */
@@ -97,9 +75,6 @@ function runInsert(node: Node, meta: NodeCacheMeta): void {
     node.composition,
     node.prompt_author_model,
     node.authored_prompt,
-    JSON.stringify(node.labels),
-    node.footer,
-    node.labels_aspect,
     node.created_at,
     node.version,
     meta.normalizedSubject,

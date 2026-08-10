@@ -3,7 +3,6 @@ import path from "node:path";
 import { PROMPTS_DIR } from "../../paths.js";
 import { parseDataUrl } from "../../lib/dataUrl.js";
 import { fetchWithRetry } from "../../lib/retry.js";
-import { parseAuthorOutput, type RawAuthorOutput } from "./authorOutput.js";
 import type {
   AuthorEditInput,
   AuthorPromptInput,
@@ -66,24 +65,22 @@ export class GeminiLlmProvider implements LlmProvider {
 
     const result = (await callGemini(this.apiKey, this.modelId, PAGE_AUTHOR_SYSTEM, [
       { text: contextLines.join("\n") },
-    ])) as RawAuthorOutput;
+    ])) as { page_title: string; image_prompt: string };
 
-    return parseAuthorOutput(result);
+    return { pageTitle: result.page_title, authoredPrompt: result.image_prompt };
   }
 
   async authorEdit(input: AuthorEditInput): Promise<AuthorPromptOutput> {
     const contextLines: string[] = [`Command: ${input.command}`];
     if (input.parentTitle) contextLines.push(`Parent page title: ${input.parentTitle}`);
-    contextLines.push(`Parent page background prompt: ${input.parentAuthoredPrompt}`);
-    contextLines.push(`Parent page labels (JSON): ${JSON.stringify(input.parentLabels)}`);
-    contextLines.push(`Parent page footer: ${input.parentFooter}`);
+    contextLines.push(`Parent page image prompt: ${input.parentAuthoredPrompt}`);
     if (input.webSearchSummary) contextLines.push(`Web search summary: ${input.webSearchSummary}`);
 
     const result = (await callGemini(this.apiKey, this.modelId, EDIT_AUTHOR_SYSTEM, [
       { text: contextLines.join("\n") },
-    ])) as RawAuthorOutput;
+    ])) as { page_title: string; image_prompt: string };
 
-    return parseAuthorOutput(result);
+    return { pageTitle: result.page_title, authoredPrompt: result.image_prompt };
   }
 
   async describeTap(markedImageDataUrl: string): Promise<DescribeTapOutput> {

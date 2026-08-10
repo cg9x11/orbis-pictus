@@ -12,7 +12,7 @@ interface PageVersionsProps {
   onOpen: (id: string) => void;
   /** The star action: make this version the one the page opens by default. */
   onSetDefault: (id: string) => void;
-  /** Hidden mid-generation / mid-transition — same rationale as PageLabels and CachedTapMarkers. */
+  /** Hidden mid-generation / mid-transition — same rationale as CachedTapMarkers. */
   hidden: boolean;
 }
 

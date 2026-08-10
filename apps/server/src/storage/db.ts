@@ -96,13 +96,6 @@ export function migrate(): void {
   ensureColumn("nodes", "art_style", "art_style TEXT NOT NULL DEFAULT ''");
   ensureColumn("nodes", "composition", "composition TEXT NOT NULL DEFAULT ''");
 
-  // Layered page: clean background image + labels/footer rendered as a DOM overlay. `labels` is a
-  // JSON-encoded array (see storage/nodes.ts rowToNode). Empty/blank/null means "written before
-  // this existed" — such a node renders image-only, with no overlay.
-  ensureColumn("nodes", "labels", "labels TEXT NOT NULL DEFAULT '[]'");
-  ensureColumn("nodes", "footer", "footer TEXT NOT NULL DEFAULT ''");
-  ensureColumn("nodes", "labels_aspect", "labels_aspect TEXT");
-
   // Page versions (see plans/PLAN-versions.md). An edit becomes a first-class VERSION of a page,
   // grouped with its siblings by version_group_id, rather than a hidden nested child.
   //

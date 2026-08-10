@@ -10,7 +10,6 @@ import { ModelSettingsPanel } from "./components/ModelSettingsPanel";
 import { VideoLoopToggle } from "./components/VideoLoopToggle";
 import { GenerationProgress } from "./components/GenerationProgress";
 import { CachedTapMarkers } from "./components/CachedTapMarkers";
-import { PageLabels } from "./components/PageLabels";
 import { PageVersions } from "./components/PageVersions";
 import { TapVariantPanel } from "./components/TapVariantPanel";
 import { Landing } from "./components/Landing";
@@ -66,7 +65,6 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
     dismissMilestone,
     handleSearch,
     handleTap,
-    handleLabelTap,
     handleOpenCachedTap,
     handleInspectCachedTap,
     handleCloseVariantPanel,
@@ -163,17 +161,6 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
               onOpen={handleOpenCachedTap}
               onInspect={handleInspectCachedTap}
               hidden={busy || morphActive}
-            />
-          }
-          labels={
-            <PageLabels
-              title={current?.page_title ?? ""}
-              labels={current?.labels ?? []}
-              footer={current?.footer ?? ""}
-              labelsAspect={current?.labels_aspect ?? null}
-              displayedAspect={aspectRatio}
-              hidden={busy || morphActive}
-              onLabelTap={handleLabelTap}
             />
           }
           versions={

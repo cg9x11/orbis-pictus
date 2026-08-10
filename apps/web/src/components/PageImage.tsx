@@ -36,9 +36,6 @@ interface PageImageProps {
   loadingContent?: ReactNode;
   /** Overlay pinned to the image's own coordinate space — the already-explored tap markers. */
   markers?: ReactNode;
-  /** Overlay pinned to the image's own coordinate space — the layered-page title/labels/footer
-   *  text (see components/PageLabels.tsx). Display-only, `pointer-events: none`. */
-  labels?: ReactNode;
   /** Overlay pinned to the image's own coordinate space — the branch control listing this page's
    *  edit versions (see components/PageVersions.tsx). Only the control itself is interactive. */
   versions?: ReactNode;
@@ -67,7 +64,6 @@ export function PageImage({
   loading,
   loadingContent,
   markers,
-  labels,
   versions,
   videoGenerating,
   preparingClips,
@@ -211,7 +207,6 @@ export function PageImage({
         <div className="page-image-empty">Type something in the address bar to begin.</div>
       )}
       {imageUrl && markers}
-      {imageUrl && labels}
       {imageUrl && versions}
       {ripple && <TapRipple xRatio={ripple.xRatio} yRatio={ripple.yRatio} onDone={onRippleDone} />}
       {overlay !== "none" && <div className="page-loading-sheen" />}
