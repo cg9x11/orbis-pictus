@@ -76,6 +76,30 @@ test("a node stored with no provenance reads back as empty, not undefined", () =
   assert.equal(read.composition, "");
 });
 
+test("tap origin (tap_x, tap_y) survives a round trip", () => {
+  // The transition morph aims its push at these normalized coordinates; losing them in storage would
+  // bring back the un-aimed, frame-center zoom this column exists to fix.
+  const node = makeNode({ id: "tap-1", tap_x: 0.18, tap_y: 0.46 });
+  insertNode(node, { normalizedSubject: "tap" });
+
+  const read = getNode("tap-1");
+  assert.ok(read);
+  assert.equal(read.tap_x, 0.18);
+  assert.equal(read.tap_y, 0.46);
+});
+
+test("a node stored with no tap origin reads back as undefined, not null", () => {
+  // Roots, edits, and cached-tap opens carry no tap point; the morph pipeline treats undefined as
+  // "no aim" and falls back to an un-aimed transition, so the absence must be undefined.
+  const node = makeNode({ id: "tap-2" });
+  insertNode(node, { normalizedSubject: "tap2" });
+
+  const read = getNode("tap-2");
+  assert.ok(read);
+  assert.equal(read.tap_x, undefined);
+  assert.equal(read.tap_y, undefined);
+});
+
 test("findChildBySubject finds an existing child by normalized subject", () => {
   const parent = makeNode({ id: "parent-1" });
   insertNode(parent, { normalizedSubject: "root" });

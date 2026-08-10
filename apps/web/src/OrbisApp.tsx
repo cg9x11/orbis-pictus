@@ -100,7 +100,7 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
       }
       toolbar={
         <>
-          <AspectRatioPicker value={aspectRatio} onChange={handleRatioChange} disabled={busy || variantLoading} />
+          <AspectRatioPicker value={aspectRatio} onChange={handleRatioChange} disabled={busy || variantLoading || !!current} />
           <WebSearchToggle enabled={config.webSearch} onChange={setWebSearch} disabled={busy} />
           <ArtStylePicker styles={config.artStyles} value={config.artStyle} onChange={setArtStyle} disabled={busy} />
           <CompositionPicker compositions={config.compositions} value={config.composition} onChange={setComposition} disabled={busy} />

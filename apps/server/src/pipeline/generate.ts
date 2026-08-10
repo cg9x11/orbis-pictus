@@ -181,6 +181,23 @@ function buildSearchQuery(topic: string, parentTitle: string | undefined): strin
   return `${topic} (in the context of ${parent})`;
 }
 
+/**
+ * The shape a tap/edit child must be drawn at: its parent page's own shape, so every node in a scene
+ * shares one aspect ratio (see plans/PLAN-ratio-lock.md). Without this, a tap's normalized
+ * coordinates — and the morph marker later drawn from them — could map to a different-shaped image
+ * than the one tapped.
+ *
+ * Prefers the requested shape when the parent actually has that variant (the normal case: the UI
+ * shows the parent at that shape), otherwise falls back to the parent's own shape — ignoring a client
+ * that asked for one the parent does not have. If the parent can't be loaded, the request stands.
+ */
+function inheritedRatio(parent: Node | null | undefined, requested: AspectRatio): AspectRatio {
+  if (!parent) return requested;
+  if (parent.image_variants[requested]) return requested;
+  const own = Object.keys(parent.image_variants)[0] as AspectRatio | undefined;
+  return own ?? requested;
+}
+
 /** Runs the full generation pipeline and persists the resulting node. Calls `emit` for each SSE event. */
 export async function runGenerate(
   req: GenerateRequest,
@@ -188,6 +205,14 @@ export async function runGenerate(
   emit: (event: GenerateEvent) => void | Promise<void>,
 ): Promise<Node> {
   await emit({ event: "start", data: {} });
+
+  // A tap or edit inherits its parent page's shape, ignoring whatever the client asked for. The
+  // generate endpoint has no auth, so the invariant "every node in a scene shares one shape" is
+  // enforced here, not merely by hiding the picker in the UI. Set once at the top so every downstream
+  // reader (tap cache, reference image, prompt hash, image save, node record) uses the one shape.
+  if (req.mode === "tap" || req.mode === "edit") {
+    req.aspect_ratio = inheritedRatio(getNode(req.current_node_id), req.aspect_ratio);
+  }
 
   const resolution =
     req.mode === "tap"
@@ -383,6 +408,10 @@ export async function runGenerate(
     version_group_id: versionGroupId,
     edited_from_id: editedFromId ?? null,
     edit_command: req.mode === "edit" ? req.prompt : null,
+    // Tap origin (normalized 0..1 in the parent's space), recorded only for a tap so the transition
+    // morph can aim its push at the tapped spot. Every other mode leaves it undefined.
+    tap_x: req.mode === "tap" ? req.x : undefined,
+    tap_y: req.mode === "tap" ? req.y : undefined,
   };
 
   // An edit joins an existing version group and becomes its default, so the old default must be

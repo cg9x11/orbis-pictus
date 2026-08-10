@@ -16,6 +16,8 @@ export interface NodeRow
     | "version_group_id"
     | "edited_from_id"
     | "edit_command"
+    | "tap_x"
+    | "tap_y"
   > {
   image_variants: string; // JSON-encoded ImageVariants
   // Page versions. `is_default` is 0/1 in SQLite (no boolean column type), narrowed to a boolean in
@@ -25,6 +27,10 @@ export interface NodeRow
   edited_from_id: string | null;
   edit_command: string | null;
   is_default: number;
+  // Tap origin on the parent, normalized 0..1. Null for roots, edits, cached-tap opens, and legacy
+  // rows; rowToNode maps null to undefined. REAL columns, so they come back as numbers.
+  tap_x: number | null;
+  tap_y: number | null;
   // Internal cache-layer metadata — never exposed via the public Node zod schema.
   normalized_subject: string;
   prompt_hash: string | null;

@@ -57,11 +57,22 @@ export function createMorphPipeline(): MorphPipeline {
       const ratio = pickSharedRatio(source, child);
       if (!ratio) return null; // no image both nodes share the same aspect ratio for — skip rather than generate one
 
+      // A tap child carries where it was tapped on the source page; hand that to the pipeline so the
+      // motion prompt aims the push at that spot. Absent on edits and legacy taps — then the morph is
+      // un-aimed, exactly as before this feature.
+      const markerPoint =
+        child.tap_x != null && child.tap_y != null ? { x: child.tap_x, y: child.tap_y } : undefined;
+
       return {
         prompt: MORPH_TRANSITION_MOTION_PROMPT,
         aspectRatio: ratio,
         firstFrameUrl: source.image_variants[ratio]!,
         lastFrameUrl: child.image_variants[ratio]!,
+        markerPoint,
+        // Unlock the camera ONLY when there is a tap target to dive toward. A marker-less morph (an
+        // edit, or a legacy tap with no coords) keeps the camera locked, matching the "hold steady"
+        // branch of the motion prompt — otherwise it could drift when it should sit still.
+        cameraFixed: !markerPoint,
       };
     },
     markPending: markMorphPending,

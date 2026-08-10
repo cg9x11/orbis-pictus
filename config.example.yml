@@ -55,7 +55,7 @@ video:
   provider: mock               # ark | mock (defaults to mock even when ARK_API_KEY is set)
   model: seedance-1-0-pro-250528
   resolution: 480p             # 480p | 720p | 1080p — never 1080p outside a deliberate test
-  durationSeconds: 5
+  durationSeconds: 3
   maxPerSession: 5             # hard cap on idle-loop generations per browser session
   morph:
     enabled: false
@@ -76,12 +76,12 @@ video:
 search:
   provider: llm                # llm | none
   model: cc/claude-sonnet-5
-  timeoutMs: 45000             # wall-clock budget for one search before degrading gracefully
+  timeoutMs: 180000             # wall-clock budget for one search before degrading gracefully
   cacheEnabled: false          # in-memory reuse of summaries across repeated queries
 
 # --- Visual identity ---
-artStyle: felt                 # felt | papercut | riso | pixel | editorial
-composition: diorama           # flat | isometric | diorama
+artStyle: editorial                 # felt | papercut | riso | pixel | editorial
+composition: isometric           # flat | isometric | diorama
 
 # --- Photo upload ---
 upload:

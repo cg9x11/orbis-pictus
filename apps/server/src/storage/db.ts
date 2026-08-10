@@ -88,6 +88,12 @@ export function migrate(): void {
   ensureColumn("nodes", "morph_status", "morph_status TEXT");
   ensureColumn("nodes", "morph_url", "morph_url TEXT");
 
+  // Where on the parent this page was tapped, normalized 0..1 (x from left, y from top). Nullable,
+  // no default: null = unknown (roots, edits, cached-tap opens, and every row written before this
+  // column). Read only to aim the transition morph's push at the tapped spot.
+  ensureColumn("nodes", "tap_x", "tap_x REAL");
+  ensureColumn("nodes", "tap_y", "tap_y REAL");
+
   // Provenance: which provider drew the page, and in which art style/composition. Needed so a
   // lazily-generated aspect-ratio variant can be drawn to match the page it belongs to, rather than
   // with whatever the server is configured with at the time. Empty means "written before this

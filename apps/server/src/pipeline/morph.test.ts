@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import sharp from "sharp";
 import type { Node } from "@orbis/shared";
 import type { VideoGenInput, VideoGenResult, VideoProvider } from "../providers/types.js";
 
@@ -18,7 +19,7 @@ process.env.MORPH_MAX_PER_SESSION = "2";
 process.env.MORPH_REVERSE = "false";
 
 const { createMorphPipeline } = await import("./morph.js");
-const { saveImageVariant } = await import("./imageStorage.js");
+const { saveImageVariant, loadImageAsDataUrl } = await import("./imageStorage.js");
 const { insertNode, insertVersionAsDefault, getMorphInfo } = await import("../storage/nodes.js");
 const { MockLlmProvider } = await import("../providers/llm/mock.js");
 const { MockImageProvider } = await import("../providers/image/mock.js");
@@ -77,6 +78,26 @@ async function flush(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 20));
 }
 
+/** Polls until `cond` holds or the timeout elapses. Used by the marker tests, whose background task
+ *  does real async work (sharp re-encoding the marked frame), so a single fixed tick is not enough. */
+async function waitFor(cond: () => boolean, ms = 2000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < ms) {
+    if (cond()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+/** A MockLlmProvider that records the first-frame data URL it was asked to describe, so a test can
+ *  check whether the pipeline handed the VLM a MARKED copy or the clean frame. */
+class RecordingLlm extends MockLlmProvider {
+  morphFirstFrame: string | undefined;
+  override async describeMorphMotion(first: string, last: string) {
+    this.morphFirstFrame = first;
+    return super.describeMorphMotion(first, last);
+  }
+}
+
 test("triggers a morph generation for a fresh child, using the parent as first frame and the child as last frame", async () => {
   const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
   const pipeline = createMorphPipeline();
@@ -89,6 +110,9 @@ test("triggers a morph generation for a fresh child, using the parent as first f
   assert.equal(video.calls.length, 1);
   assert.equal(video.calls[0]!.firstFrameDataUrl, `data:image/jpeg;base64,${Buffer.from(`pixels-${parent.id}`).toString("base64")}`);
   assert.equal(video.calls[0]!.lastFrameDataUrl, `data:image/jpeg;base64,${Buffer.from(`pixels-${child.id}`).toString("base64")}`);
+  // This child has no tap coordinates, so there is no spot to dive toward: the camera stays LOCKED,
+  // matching the "hold steady" branch of the motion prompt. Only a tap-with-marker morph unlocks it.
+  assert.equal(video.calls[0]!.cameraFixed, true);
   const info = getMorphInfo(child.id);
   assert.equal(info?.status, "ready");
   assert.equal(info?.url, `/images/${child.id}/morph.mp4`);
@@ -147,6 +171,54 @@ test("an edit version does NOT morph by default — MORPH_EDIT_ENABLED is off", 
 
   assert.equal(video.calls.length, 0);
   assert.equal(getMorphInfo(night.id)?.status ?? null, null);
+});
+
+test("a tap morph marks the first frame for the VLM but sends the CLEAN frame to the video model", async () => {
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
+  const pipeline = createMorphPipeline();
+  const video = new SpyVideoProvider();
+  const llm = new RecordingLlm();
+
+  // The parent frame must be a real image so the marker can actually be drawn onto it (sharp).
+  const parent = makeNode("mark-parent", "s-mark", imagesDir, null);
+  const realJpeg = await sharp({ create: { width: 320, height: 180, channels: 3, background: { r: 200, g: 205, b: 190 } } })
+    .jpeg()
+    .toBuffer();
+  saveImageVariant(imagesDir, parent.id, "16:9", realJpeg, "image/jpeg"); // overwrite makeNode's fake bytes
+  insertNode(parent, { normalizedSubject: "n" });
+
+  const child: Node = { ...makeNode("mark-child", "s-mark", imagesDir, parent.id), tap_x: 0.3, tap_y: 0.4 };
+  insertNode(child, { normalizedSubject: "n" });
+
+  const cleanParent = loadImageAsDataUrl(imagesDir, parent.image_variants["16:9"]!);
+
+  pipeline.maybeStartMorph(child, { ...makeProviders(video), llm }, imagesDir);
+  await waitFor(() => video.calls.length > 0);
+
+  // The VLM saw a MARKED copy — the ring is drawn and the frame re-encoded, so it differs from clean.
+  assert.ok(llm.morphFirstFrame);
+  assert.notEqual(llm.morphFirstFrame, cleanParent);
+  // The video model received the CLEAN frame, unchanged: the mark never leaks into the finished clip.
+  assert.equal(video.calls.length, 1);
+  assert.equal(video.calls[0]!.firstFrameDataUrl, cleanParent);
+  // A tap target exists, so the camera unlocks to dive toward it.
+  assert.equal(video.calls[0]!.cameraFixed, false);
+});
+
+test("a morph with no tap coordinates shows the VLM the clean, unmarked frame", async () => {
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
+  const pipeline = createMorphPipeline();
+  const video = new SpyVideoProvider();
+  const llm = new RecordingLlm();
+  const { parent, child } = makeParentChild("no-mark", "s-no-mark", imagesDir); // child has no tap_x/tap_y
+
+  const cleanParent = loadImageAsDataUrl(imagesDir, parent.image_variants["16:9"]!);
+
+  pipeline.maybeStartMorph(child, { ...makeProviders(video), llm }, imagesDir);
+  await waitFor(() => video.calls.length > 0);
+
+  // No tap point -> no ring drawn -> the VLM sees exactly the clean frame.
+  assert.equal(llm.morphFirstFrame, cleanParent);
 });
 
 test("the morph prompt is tailored to the two frames by the VLM, not the static fallback", async () => {

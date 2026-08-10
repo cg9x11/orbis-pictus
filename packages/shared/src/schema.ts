@@ -76,6 +76,12 @@ export const NodeSchema = z.object({
   edit_command: z.string().nullable().optional(),
   // True for the one version in a group that opens by default. Exactly one per group.
   is_default: z.boolean().optional(),
+  // Where on the PARENT page this node was tapped, normalized 0..1 in the parent's coordinate space
+  // (x from the left, y from the top). Populated only for pages created by a tap; undefined for
+  // roots, edits, cached-tap opens, and legacy rows. Used to aim the transition morph's push toward
+  // the tapped spot instead of the frame center.
+  tap_x: z.number().optional(),
+  tap_y: z.number().optional(),
 });
 export type Node = z.infer<typeof NodeSchema>;
 

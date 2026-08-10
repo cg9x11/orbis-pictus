@@ -104,6 +104,24 @@ test("generate(): input.modelOverride wins over the provider's configured model 
   );
 });
 
+// A morph unlocks the camera so the transition can move/dive; the idle loop leaves it locked. The
+// flag is a dash-param on the text prompt, so a false value must render as `--camerafixed false`.
+test("generate(): cameraFixed:false renders --camerafixed false in the create body", async () => {
+  await withFetchSequence(
+    [
+      { status: 200, body: { id: "cgt-cam" } },
+      { status: 200, body: { id: "cgt-cam", status: "succeeded", content: { video_url: "https://example.com/m.mp4" } } },
+      { status: 200, body: null, isVideoDownload: true },
+    ],
+    async (calls) => {
+      const provider = new ArkVideoProvider("test-key", "https://ark.example.com", "seedance-1-0-pro-250528");
+      await provider.generate({ ...input, cameraFixed: false });
+      const createBody = JSON.parse(calls[0]!.init!.body as string);
+      assert.match(createBody.content[0].text, /--camerafixed false$/);
+    },
+  );
+});
+
 test("generate(): a quota/rate-limit error at task creation is surfaced distinguishably, not hung", async () => {
   await withFetchSequence(
     [{ status: 429, body: { error: { code: "TooManyRequests", message: "rate limit exceeded" } } }],

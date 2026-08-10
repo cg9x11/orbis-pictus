@@ -89,6 +89,12 @@ const DEFAULT_CONFIG: AppConfig = {
   modelSettings: EMPTY_MODEL_SETTINGS,
 };
 
+/** The shape a node is actually stored at: the first (and, inside a scene, only) variant it has.
+ *  Used to align the display shape to the page on screen. */
+function firstVariantRatio(node: Node): AspectRatio | undefined {
+  return Object.keys(node.image_variants)[0] as AspectRatio | undefined;
+}
+
 /**
  * All of OrbisApp's non-rendering state and behavior — session/trail, config, generation
  * requests, video/morph/tap-cache side state, and every handler — leaving the component itself as
@@ -193,6 +199,15 @@ export function useOrbisController(initialNodeId?: string) {
       updateNode({ ...current, video_status: "ready" });
     }
   }, [idleLoopVideoUrl, current, updateNode]);
+  // Inside a scene the shape picker is locked (see OrbisApp), so keep the selected shape aligned with
+  // the page on screen. When the current node lacks the selected shape — e.g. after navigating from a
+  // scene of a different shape — switch to one the node actually has, otherwise the image lookup
+  // `current.image_variants[aspectRatio]` comes back empty and the page shows blank.
+  useEffect(() => {
+    if (!current || current.image_variants[aspectRatio]) return;
+    const shape = firstVariantRatio(current);
+    if (shape) setAspectRatio(shape);
+  }, [current, aspectRatio]);
   // On-demand path: a page created while Live video was off has no clips and never
   // will automatically (both statuses null), and a prior on-demand attempt may have failed — all
   // retryable by explicit request. The two clips are tracked separately because a page can genuinely
@@ -532,7 +547,7 @@ export function useOrbisController(initialNodeId?: string) {
   };
 
   const handleUploaded = (node: Node) => {
-    const ratio = (Object.keys(node.image_variants)[0] as AspectRatio | undefined) ?? "16:9";
+    const ratio = firstVariantRatio(node) ?? "16:9";
     setAspectRatio(ratio);
     reset([node]);
   };

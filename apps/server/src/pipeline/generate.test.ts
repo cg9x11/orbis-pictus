@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { Node } from "@orbis/shared";
+import type { Node, AspectRatio } from "@orbis/shared";
 import type {
   AuthorPromptInput,
   AuthorPromptOutput,
@@ -355,6 +355,87 @@ test("tap mode: the built image prompt includes the house style and reuses the p
   assert.equal(image.lastInput?.referenceImageDataUrl, expectedReference);
   assert.notEqual(image.lastInput?.referenceImageDataUrl, markedImageDataUrl);
   assert.doesNotMatch(image.lastInput!.prompt, NUMERAL_BADGE_INSTRUCTION);
+});
+
+/** A parent page whose ONLY stored shape is `ratio`, so a tap/edit under it must inherit that shape
+ *  even when the request asks for a different one (review finding #2 / plans/PLAN-ratio-lock.md). */
+function makeShapedParent(ctx: ReturnType<typeof makeContext>, id: string, ratio: AspectRatio): void {
+  const url = saveImageVariant(ctx.imagesDir, id, ratio, Buffer.from(`pixels-${id}`), "image/jpeg");
+  const parent: Node = {
+    id,
+    parent_id: null,
+    session_id: "s1",
+    query: "Ha Noi street food",
+    page_title: "Ha Noi Street Food",
+    image_variants: { [ratio]: url },
+    image_model: "mock-image",
+    image_provider: "mock",
+    art_style: "felt",
+    composition: "diorama",
+    prompt_author_model: "mock-llm",
+    authored_prompt: "content prompt for the parent page",
+    created_at: new Date().toISOString(),
+    version: 1,
+    video_status: null,
+    morph_status: null,
+  };
+  insertNode(parent, { normalizedSubject: "root" });
+}
+
+test("tap mode: the child inherits the parent's shape, ignoring a different requested shape", async () => {
+  const ctx = makeContext(new SpyImageProvider());
+  makeShapedParent(ctx, "shape-parent-tap", "3:4");
+  const node = await runGenerate(
+    {
+      mode: "tap",
+      markedImage: `data:image/jpeg;base64,${Buffer.from("marked-shape").toString("base64")}`,
+      x: 0.5,
+      y: 0.5,
+      aspect_ratio: "16:9", // the request asks for a different shape than the parent has
+      web_search: false,
+      video_loop: false,
+      force_new_image: false,
+      parent_title: "Ha Noi Street Food",
+      session_id: "s1",
+      current_node_id: "shape-parent-tap",
+    },
+    ctx,
+    () => {},
+  );
+  // Drawn at the parent's 3:4, not the requested 16:9, so tap coords always map to the same shape.
+  assert.deepEqual(Object.keys(node.image_variants), ["3:4"]);
+  assert.equal(node.tap_x, 0.5);
+});
+
+test("edit mode: the new version inherits the edited page's shape, ignoring a different requested shape", async () => {
+  const ctx = makeContext(new SpyImageProvider());
+  makeShapedParent(ctx, "shape-parent-edit", "3:4");
+  const node = await runGenerate(
+    {
+      mode: "edit",
+      prompt: "make it night time",
+      currentImage: `data:image/jpeg;base64,${Buffer.from("current-shape").toString("base64")}`,
+      aspect_ratio: "16:9",
+      web_search: false,
+      video_loop: false,
+      parent_title: "Ha Noi Street Food",
+      session_id: "s1",
+      current_node_id: "shape-parent-edit",
+    },
+    ctx,
+    () => {},
+  );
+  assert.deepEqual(Object.keys(node.image_variants), ["3:4"]);
+});
+
+test("search mode: a new topic keeps its requested shape (no parent to inherit from)", async () => {
+  const ctx = makeContext(new SpyImageProvider());
+  const node = await runGenerate(
+    { mode: "search", query: "Kyoto temples", aspect_ratio: "3:4", web_search: false, video_loop: false, session_id: "s1", current_node_id: "" },
+    ctx,
+    () => {},
+  );
+  assert.deepEqual(Object.keys(node.image_variants), ["3:4"]);
 });
 
 test("tap reuse: a repeat tap on an edited subject opens the group's DEFAULT version, not the old primary", async () => {

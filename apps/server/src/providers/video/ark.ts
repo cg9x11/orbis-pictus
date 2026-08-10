@@ -24,7 +24,8 @@ function buildDashParamPrompt(input: VideoGenInput): string {
     `--duration ${input.durationSeconds}`,
     `--ratio ${input.aspectRatio}`,
     "--watermark false",
-    "--camerafixed true",
+    // Default true locks the camera (idle loop); a morph passes false so it can move/dive.
+    `--camerafixed ${input.cameraFixed ?? true}`,
   ];
   return `${input.prompt} ${flags.join(" ")}`;
 }

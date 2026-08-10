@@ -1,6 +1,7 @@
 import type { AspectRatio, Node } from "@orbis/shared";
 import type { Providers } from "../providers/index.js";
 import { loadImageAsDataUrl } from "./imageStorage.js";
+import { drawTapMarker } from "./tapMarker.js";
 import { getVideoDurationSeconds, getVideoResolution } from "./videoConfig.js";
 
 /**
@@ -52,6 +53,14 @@ export interface ClipRequest {
   aspectRatio: AspectRatio;
   firstFrameUrl: string;
   lastFrameUrl?: string;
+  /** Optional normalized (0..1) point to mark on the FIRST frame before it is shown to the motion
+   *  VLM, so the written prompt aims the transition at that spot (see describeMotion below). The mark
+   *  is for the prompt author only — the CLEAN first frame is always what the video model receives. */
+  markerPoint?: { x: number; y: number };
+  /** Whether the video model must hold the camera still. Per-request, not per-clip-type: a morph
+   *  with a tap target unlocks it (to dive toward the spot), while a marker-less morph or the idle
+   *  loop leaves it undefined and stays locked (default true in launch). */
+  cameraFixed?: boolean;
 }
 
 export interface BackgroundClipConfig<TNode extends Node> {
@@ -110,8 +119,18 @@ export function createBackgroundClipPipeline<TNode extends Node>(config: Backgro
         // static prompt if the VLM is unavailable or errors — the clip must still generate.
         let prompt = request.prompt;
         if (config.describeMotion) {
+          // Mark a COPY of the first frame for the VLM only; the clean `firstFrameDataUrl` still goes
+          // to the video model below. A draw failure degrades to the unmarked frame (see markerPoint).
+          let motionFirstFrame = firstFrameDataUrl;
+          if (request.markerPoint) {
+            try {
+              motionFirstFrame = await drawTapMarker(firstFrameDataUrl, request.markerPoint.x, request.markerPoint.y);
+            } catch (err) {
+              console.warn(`[orbis] ${config.label}: tap-marker draw failed, using unmarked frame:`, err instanceof Error ? err.message : err);
+            }
+          }
           try {
-            const dynamic = await config.describeMotion({ firstFrameDataUrl, lastFrameDataUrl }, providers);
+            const dynamic = await config.describeMotion({ firstFrameDataUrl: motionFirstFrame, lastFrameDataUrl }, providers);
             if (dynamic && dynamic.trim()) prompt = dynamic.trim();
           } catch (err) {
             console.warn(`[orbis] ${config.label}: motion-prompt generation failed, using generic fallback:`, err instanceof Error ? err.message : err);
@@ -126,6 +145,8 @@ export function createBackgroundClipPipeline<TNode extends Node>(config: Backgro
           durationSeconds: getVideoDurationSeconds(options.durationSeconds),
           resolution: getVideoResolution(options.resolution),
           modelOverride: config.videoModel?.(),
+          // Default locked; only a request that explicitly opts out (a morph with a tap target) moves.
+          cameraFixed: request.cameraFixed ?? true,
         });
         const url = config.save(imagesDir, node.id, bytes);
         config.markReady(node.id, url);

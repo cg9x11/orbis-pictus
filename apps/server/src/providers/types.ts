@@ -131,6 +131,10 @@ export interface VideoGenInput {
    *  `i2v`) — e.g. an idle loop on a fast i2v-only model while morph uses a flf2v-capable one. When
    *  absent, the provider uses its own configured model. */
   modelOverride?: string;
+  /** Whether the model must hold the camera still. Default (unset/true) locks it — right for the
+   *  ambient idle loop and any clip meant to sit still. A morph sets this false so the transition can
+   *  actually move the camera (dive/push toward the tapped spot) instead of a locked-off crossfade. */
+  cameraFixed?: boolean;
 }
 
 export interface VideoGenResult {

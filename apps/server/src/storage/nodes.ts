@@ -41,14 +41,18 @@ function rowToNode(row: NodeRow): Node {
     edited_from_id: row.edited_from_id ?? null,
     edit_command: row.edit_command ?? null,
     is_default: row.is_default === 1,
+    // Tap origin on the parent (normalized). A null column becomes undefined, so a non-tap page
+    // simply has no tap_x/tap_y — the morph pipeline then falls back to an un-aimed transition.
+    tap_x: row.tap_x ?? undefined,
+    tap_y: row.tap_y ?? undefined,
   };
 }
 
 const insertStmt = db.prepare(`
   INSERT INTO nodes
-    (id, parent_id, session_id, query, page_title, image_variants, image_model, image_provider, art_style, composition, prompt_author_model, authored_prompt, created_at, version, normalized_subject, prompt_hash, version_group_id, edited_from_id, edit_command, is_default)
+    (id, parent_id, session_id, query, page_title, image_variants, image_model, image_provider, art_style, composition, prompt_author_model, authored_prompt, created_at, version, normalized_subject, prompt_hash, version_group_id, edited_from_id, edit_command, is_default, tap_x, tap_y)
   VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 /** Internal cache-layer metadata, stored alongside the node but not part of the public Node schema. */
@@ -83,6 +87,8 @@ function runInsert(node: Node, meta: NodeCacheMeta): void {
     node.edited_from_id ?? null,
     node.edit_command ?? null,
     (node.is_default ?? true) ? 1 : 0,
+    node.tap_x ?? null,
+    node.tap_y ?? null,
   );
 }
 
