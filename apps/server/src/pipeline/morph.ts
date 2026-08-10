@@ -2,7 +2,7 @@ import { predecessorId, type AspectRatio, type Node } from "@orbis/shared";
 import type { Providers } from "../providers/index.js";
 import { getMorphInfo, getNode, markMorphFailed, markMorphPending, markMorphReady } from "../storage/nodes.js";
 import { saveMorph, writeReversedMorph } from "./morphStorage.js";
-import { getMorphMaxPerSession, getMorphVideoModel, isMorphEnabled, isMorphReverseEnabled } from "./morphConfig.js";
+import { getMorphMaxPerSession, getMorphVideoModel, isEditMorphEnabled, isMorphEnabled, isMorphReverseEnabled } from "./morphConfig.js";
 import { MORPH_TRANSITION_MOTION_PROMPT } from "./videoPrompt.js";
 import { createBackgroundClipPipeline, type ClipOptions, type StartNowResult } from "./backgroundClip.js";
 
@@ -42,6 +42,12 @@ export function createMorphPipeline(): MorphPipeline {
     maxPerSession: getMorphMaxPerSession,
     getStatus: getMorphInfo,
     buildRequest: (child) => {
+      // An edit (a new version) carries edited_from_id; a plain tap child does not. Edit transitions
+      // are gated behind their own flag (default off) so turning morphs on lights up tap transitions
+      // without spending quota on every small edit. Skipping here (return null) covers both the
+      // automatic and the user-triggered path — the latter simply reports "unavailable".
+      if (child.edited_from_id && !isEditMorphEnabled()) return null;
+
       // The morph runs from the page the user came from, to this one — the child's predecessor.
       const sourceId = predecessorId(child);
       if (!sourceId) return null; // a root page that is not an edit has nothing to morph from

@@ -67,6 +67,7 @@ export const FileConfigSchema = z
         morph: z
           .object({
             enabled: z.boolean().optional(),
+            editEnabled: z.boolean().optional(),
             maxPerSession: z.number().int().positive().optional(),
             model: z.string().optional(),
             reverse: z.boolean().optional(),

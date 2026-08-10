@@ -94,31 +94,59 @@ test("triggers a morph generation for a fresh child, using the parent as first f
   assert.equal(info?.url, `/images/${child.id}/morph.mp4`);
 });
 
-test("an edit version morphs from the version it was edited from, even when its parent_id is null", async () => {
-  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
-  const pipeline = createMorphPipeline();
-  const video = new SpyVideoProvider();
-
-  // A root page (day) and its night EDIT version. In the peer model a version's parent_id is null
-  // (it inherits the root's null parent), so the morph must key off edited_from_id, not parent_id.
-  const day = makeNode("edit-day", "s-edit-morph", imagesDir, null);
+/** Inserts a root page (day) and its EDIT version (night) sharing one imagesDir, and returns the
+ *  edit. In the peer model a version's parent_id is null (it inherits the root's null parent), so the
+ *  morph must key off edited_from_id, not parent_id. */
+function makeEditVersion(prefix: string, sessionId: string, imagesDir: string): { day: Node; night: Node } {
+  const day = makeNode(`${prefix}-day`, sessionId, imagesDir, null);
   insertNode(day, { normalizedSubject: "n" });
   const night: Node = {
-    ...makeNode("edit-night", "s-edit-morph", imagesDir, null),
-    edited_from_id: "edit-day",
-    version_group_id: "edit-day",
+    ...makeNode(`${prefix}-night`, sessionId, imagesDir, null),
+    edited_from_id: `${prefix}-day`,
+    version_group_id: `${prefix}-day`,
   };
   // The real edit path: night joins day's group and becomes its default, so the old default (day) is
   // cleared in the same transaction — a plain insert would trip the one-default-per-group index.
   insertVersionAsDefault(night, { normalizedSubject: "n" });
+  return { day, night };
+}
 
-  pipeline.maybeStartMorph(night, makeProviders(video), imagesDir);
-  await flush();
+test("an edit version morphs from the version it was edited from, even when its parent_id is null", async () => {
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
+  const pipeline = createMorphPipeline();
+  const video = new SpyVideoProvider();
+  const { night } = makeEditVersion("edit", "s-edit-morph", imagesDir);
+
+  // Edit morphs are off by default (see the next test); opt in for this case only, then restore.
+  const prev = process.env.MORPH_EDIT_ENABLED;
+  process.env.MORPH_EDIT_ENABLED = "true";
+  try {
+    pipeline.maybeStartMorph(night, makeProviders(video), imagesDir);
+    await flush();
+  } finally {
+    if (prev === undefined) delete process.env.MORPH_EDIT_ENABLED;
+    else process.env.MORPH_EDIT_ENABLED = prev;
+  }
 
   assert.equal(video.calls.length, 1);
   assert.equal(video.calls[0]!.firstFrameDataUrl, `data:image/jpeg;base64,${Buffer.from("pixels-edit-day").toString("base64")}`);
   assert.equal(video.calls[0]!.lastFrameDataUrl, `data:image/jpeg;base64,${Buffer.from("pixels-edit-night").toString("base64")}`);
   assert.equal(getMorphInfo(night.id)?.status, "ready");
+});
+
+test("an edit version does NOT morph by default — MORPH_EDIT_ENABLED is off", async () => {
+  const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
+  const pipeline = createMorphPipeline();
+  const video = new SpyVideoProvider();
+  // Guard against another test leaking the opt-in env var into this one.
+  delete process.env.MORPH_EDIT_ENABLED;
+  const { night } = makeEditVersion("edit-off", "s-edit-morph-off", imagesDir);
+
+  pipeline.maybeStartMorph(night, makeProviders(video), imagesDir);
+  await flush();
+
+  assert.equal(video.calls.length, 0);
+  assert.equal(getMorphInfo(night.id)?.status ?? null, null);
 });
 
 test("the morph prompt is tailored to the two frames by the VLM, not the static fallback", async () => {

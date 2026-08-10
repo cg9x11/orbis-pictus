@@ -21,6 +21,15 @@ export function isMorphReverseEnabled(): boolean {
   return boolConfig("MORPH_REVERSE", (c) => c.video?.morph?.reverse, true);
 }
 
+/** Whether an EDIT (a new version of a page) also generates a transition morph between the two
+ *  versions. Off by default: most edits are small text/style tweaks where a full repaint clip is not
+ *  worth the video quota, and stepping between versions crossfades fine without one. Independent of
+ *  the master `MORPH_ENABLED` switch — even with morphs on, tap transitions still generate while edit
+ *  transitions stay off until this is turned on. A tap (edited_from_id absent) is never gated here. */
+export function isEditMorphEnabled(): boolean {
+  return boolConfig("MORPH_EDIT_ENABLED", (c) => c.video?.morph?.editEnabled, false);
+}
+
 /** Model to run morphs on, when it must differ from the idle-loop model. Morphs are first-last-frame
  *  (`flf2v`) tasks, which some fast video models (e.g. seedance-1-0-pro-fast) don't support even
  *  though they handle the single-frame idle loop; set ARK_VIDEO_MORPH_MODEL to a flf2v-capable model

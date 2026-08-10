@@ -59,6 +59,10 @@ video:
   maxPerSession: 5             # hard cap on idle-loop generations per browser session
   morph:
     enabled: false
+    # Also generate a morph when a page is EDITED (a new version), playing between the two versions.
+    # Off by default: most edits are small tweaks not worth the video quota, and switching versions
+    # crossfades fine without a clip. With this off, only tap transitions generate morphs.
+    editEnabled: false
     maxPerSession: 5
     # A flf2v-capable model for morphs when it must differ from the idle-loop model above
     # (some fast models do i2v but not flf2v). Leave empty to reuse video.model.
