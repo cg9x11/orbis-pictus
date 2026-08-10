@@ -380,6 +380,12 @@ export const NodesUploadRequestSchema = z.object({
 export type NodesUploadRequest = z.infer<typeof NodesUploadRequestSchema>;
 
 // --- Server config, for feature-availability toggles in the UI ---
+
+/** The View value meaning "let the chosen style pick its paired composition". Shared so the server
+ *  (which resolves it per style) and the client (which labels it in the picker) never drift on the
+ *  sentinel string. A page is never stored with this value — only ever the concrete view it drew in. */
+export const AUTO_COMPOSITION = "auto";
+
 export const ArtStyleOptionSchema = z.object({ name: z.string(), label: z.string() });
 export type ArtStyleOption = z.infer<typeof ArtStyleOptionSchema>;
 
@@ -455,10 +461,17 @@ export const ConfigResponseSchema = z.object({
   artStyles: z.array(ArtStyleOptionSchema).default([]),
   /** The server's own default (the ART_STYLE env), used as the picker's initial value. */
   artStyle: z.string().default("felt"),
-  /** Every composition block available in art-style.md (flat / diorama), for the picker. */
+  /** Every composition block available in art-style.md, plus a leading "Auto" option, for the picker. */
   compositions: z.array(ArtStyleOptionSchema).default([]),
-  /** The server's own default (the COMPOSITION env), used as the picker's initial value. */
-  composition: z.string().default("diorama"),
+  /** The picker's initial View value. "auto" (the default) means "let the chosen style pick its
+   *  paired view"; the server resolves it per style at generation time. */
+  composition: z.string().default("auto"),
+  /** Style -> paired concrete view, so the picker can show what "Auto" resolves to for the current
+   *  style. A style absent here (or listed in viewLockedStyles) has no view choice. */
+  autoView: z.record(z.string()).default({}),
+  /** Styles whose View is fixed by the style itself (e.g. tilt-shift owns its camera). The picker
+   *  shows "built-in" and offers no view choice for these. */
+  viewLockedStyles: z.array(z.string()).default([]),
 });
 export type ConfigResponse = z.infer<typeof ConfigResponseSchema>;
 

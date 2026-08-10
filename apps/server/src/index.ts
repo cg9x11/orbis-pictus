@@ -15,7 +15,15 @@ import { videoPipeline } from "./pipeline/video.js";
 import { morphPipeline } from "./pipeline/morph.js";
 import { isVideoEnabled } from "./pipeline/videoConfig.js";
 import { isMorphEnabled } from "./pipeline/morphConfig.js";
-import { getDefaultArtStyleName, listArtStyles, getDefaultCompositionName, listCompositions } from "./pipeline/artStyle.js";
+import { AUTO_COMPOSITION } from "@orbis/shared";
+import {
+  getDefaultArtStyleName,
+  listArtStyles,
+  listCompositions,
+  getConfiguredView,
+  AUTO_VIEW,
+  VIEW_LOCKED_STYLES,
+} from "./pipeline/artStyle.js";
 import { isUploadEnabled } from "./pipeline/config.js";
 import { intConfig, strConfig, watchConfigFile, resolveConfigPath } from "./config/index.js";
 import { WEB_DIST, WEB_SRC_INDEX_HTML } from "./paths.js";
@@ -52,8 +60,14 @@ app.get("/api/config", (c) =>
     uploadEnabled: isUploadEnabled(),
     artStyles: listArtStyles(),
     artStyle: getDefaultArtStyleName(),
-    compositions: listCompositions(),
-    composition: getDefaultCompositionName(),
+    // A leading "Auto" option: it defers to each style's paired view (AUTO_VIEW), resolved
+    // server-side at generation time. The concrete blocks follow it in the dropdown.
+    compositions: [{ name: AUTO_COMPOSITION, label: "Auto" }, ...listCompositions()],
+    // The View the picker starts on: the operator's COMPOSITION when set (so `COMPOSITION=flat` is
+    // honoured by the UI, not only by direct API callers), otherwise "auto".
+    composition: getConfiguredView(),
+    autoView: AUTO_VIEW,
+    viewLockedStyles: VIEW_LOCKED_STYLES,
     // Built per request, not at boot, so a config.yml edit reaches the settings panel on the next
     // page load with no restart.
     modelSettings: buildModelSettings(),

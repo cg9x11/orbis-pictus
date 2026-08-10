@@ -39,8 +39,9 @@ makes the same trade 368 years later.
 - **Web search grounding (optional).** A real web search can ground the page content, instead of the
   knowledge of the model.
 - **Style and composition pickers.** You can swap the visual style of the whole app (felt, papercut,
-  riso, pixel, editorial). You can also swap the projection (flat, isometric, diorama). Both change
-  per page, with no restart.
+  riso, pixel, editorial, tiltshift). You can also swap the View (auto, flat, isometric, diorama).
+  "Auto" (the default) lets each style pick its best-matching view; tiltshift fixes its own. Both
+  change per page, with no restart.
 
 ## Supported providers
 
@@ -80,12 +81,15 @@ the LLM to describe style, palette, material, or lighting.
 
 A second, fixed file owns the visual style: `apps/server/src/prompts/art-style.md`. The server appends
 this file to every image prompt. The default style is a needle-felted-wool diorama, and `ART_STYLE`
-selects one of four alternates. Because of this split, every page shares one look whatever the topic.
-One file edit changes the look of the whole app.
+selects one of five alternates (`papercut`, `riso`, `pixel`, `editorial`, `tiltshift`). Because of
+this split, every page shares one look whatever the topic. One file edit changes the look of the
+whole app.
 
-`COMPOSITION` is a second, independent axis. It picks the projection for the scene: `flat`,
-`isometric`, or `diorama` (default `diorama`). The two axes combine freely, so "editorial style,
-isometric composition" and "felt style, diorama composition" are both valid pages.
+`COMPOSITION` is a second, independent axis. It picks the View for the scene: `auto` (default),
+`flat`, `isometric`, or `diorama`. `auto` pairs each style with its best-matching view (e.g. felt →
+diorama, editorial → isometric); otherwise the two axes combine freely, so "editorial style,
+isometric composition" and "felt style, diorama composition" are both valid pages. The `tiltshift`
+style is the exception: it fixes its own photographic view and ignores this axis.
 
 The style file also holds one rule that we learned from failures. A prompt must supply an exact string
 for every text region on the page. If a region has no string, the image model invents one. The result
@@ -235,8 +239,8 @@ inside `config.yml`.
 | `OPENAI_API_KEY`, `OPENAI_IMAGE_MODEL`, `OPENAI_IMAGE_QUALITY` | Credentials, model, and quality for `openai` image | For example `gpt-image-1.5`. Quality is `low`, `medium`, or `high` |
 | `SEARCH_PROVIDER` | Optional web search grounding for page content | `llm` (uses the server-side web-search tool of the Anthropic-compatible provider) · `none` |
 | `SEARCH_MODEL` | Model for the search | — |
-| `ART_STYLE` | Fixed visual style for every page | `felt` (default) · `papercut` · `riso` · `pixel` · `editorial` |
-| `COMPOSITION` | Projection for every page, independent of `ART_STYLE` | `diorama` (default) · `flat` · `isometric` |
+| `ART_STYLE` | Fixed visual style for every page | `felt` (default) · `papercut` · `riso` · `pixel` · `editorial` · `tiltshift` |
+| `COMPOSITION` | View for every page, independent of `ART_STYLE` | `auto` (default; pairs each style with its best view) · `flat` · `isometric` · `diorama` |
 | `TAP_DEDUP` | Tap caching mode (see above) | `reuse` (default) · `variant` · `off` |
 | `VIDEO_ENABLED` | Master switch for idle-loop video | `false` (default) |
 | `VIDEO_PROVIDER` | Video generation | `ark` (BytePlus Seedance) · `mock` (default even when `ARK_API_KEY` is set — video is opt-in separately from images) |

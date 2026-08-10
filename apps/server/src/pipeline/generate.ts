@@ -18,7 +18,7 @@ import { computePromptHash } from "./promptHash.js";
 import type { VideoPipeline } from "./video.js";
 import type { MorphPipeline } from "./morph.js";
 import { getTapDedupMode } from "./config.js";
-import { buildImagePrompt, resolveArtStyleName, resolveCompositionName } from "./artStyle.js";
+import { buildImagePrompt, resolveArtStyleName, resolveCompositionForStyle, isViewLocked } from "./artStyle.js";
 import { boolConfig } from "../config/index.js";
 import { estimateImageCost } from "../providers/image/pricing.js";
 import { withRetry } from "../lib/retry.js";
@@ -281,9 +281,13 @@ export async function runGenerate(
   // Search never carries a reference image. Tap and edit both carry one, the parent frame or the
   // current image. For those two modes, the framing asks the model to keep the scene of that
   // reference as the base.
+  // Resolve the View once. The request may name a concrete composition or "auto" (the default), which
+  // maps to the style's best-paired view. Both the prompt and the stored provenance below use this
+  // concrete value, so a page never stores "auto" — it stores the view it was actually drawn in.
+  const view = resolveCompositionForStyle(req.art_style, req.composition);
   const imagePrompt = buildImagePrompt(authoredPrompt, req.art_style, {
     reference: req.mode === "search" ? "none" : "reuse",
-    composition: req.composition,
+    composition: view,
     // Per-model prompt dialect: the provider about to draw picks its own style variant (e.g.
     // tiltshift@gemini vs tiltshift@ark). Uses providerId (the requested provider), matching the
     // prompt-hash key below, which also keys on providerId — so each model caches its own wording.
@@ -399,7 +403,9 @@ export async function runGenerate(
     // drew.
     image_provider: ctx.providers.image.providerId,
     art_style: resolveArtStyleName(req.art_style),
-    composition: resolveCompositionName(req.composition),
+    // A view-locked style (e.g. tilt-shift) draws with no composition block, so record "" — "no
+    // view" (the schema's meaning for empty) — not the AUTO_VIEW placeholder, which was never used.
+    composition: isViewLocked(resolveArtStyleName(req.art_style)) ? "" : view,
     prompt_author_model: ctx.providers.llm.modelId,
     authored_prompt: authoredPrompt,
     created_at: new Date().toISOString(),

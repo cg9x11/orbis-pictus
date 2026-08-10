@@ -1,6 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildImagePrompt, getArtStyleBlock, listArtStyles, listCompositions } from "./artStyle.js";
+import {
+  buildImagePrompt,
+  getArtStyleBlock,
+  listArtStyles,
+  listCompositions,
+  resolveCompositionForStyle,
+  getConfiguredView,
+  isViewLocked,
+  AUTO_VIEW,
+} from "./artStyle.js";
 
 test("default style (no ART_STYLE env) is felt", () => {
   delete process.env.ART_STYLE;
@@ -144,6 +153,52 @@ test("a provider without a tilt-shift variant falls back to the base block", () 
 test("buildImagePrompt threads the drawing provider through to the per-provider style variant", () => {
   assert.match(buildImagePrompt("A page about cats.", "tiltshift", { provider: "ark" }), /do NOT draw any flat band/);
   assert.match(buildImagePrompt("A page about cats.", "tiltshift", { provider: "gemini" }), /creamy out-of-focus haze/);
+});
+
+// Auto view: "auto" (the default View) maps to each style's best-paired composition, so choosing a
+// style loads a matching camera without the user picking one. An explicit view always overrides.
+test("resolveCompositionForStyle maps 'auto' to each style's paired view", () => {
+  assert.equal(resolveCompositionForStyle("felt", "auto"), "diorama");
+  assert.equal(resolveCompositionForStyle("riso", "auto"), "flat");
+  assert.equal(resolveCompositionForStyle("pixel", "auto"), "diorama");
+  assert.equal(resolveCompositionForStyle("editorial", "auto"), "isometric");
+  assert.equal(resolveCompositionForStyle("papercut", "auto"), "flat");
+});
+
+test("resolveCompositionForStyle: an explicit view overrides the auto pairing", () => {
+  assert.equal(resolveCompositionForStyle("felt", "flat"), "flat");
+  assert.equal(resolveCompositionForStyle("editorial", "diorama"), "diorama");
+});
+
+test("resolveCompositionForStyle: unknown or absent view falls back to the server default (diorama)", () => {
+  assert.equal(resolveCompositionForStyle("felt", "no-such-view"), "diorama");
+  assert.equal(resolveCompositionForStyle("felt", undefined), "diorama");
+});
+
+test("resolveCompositionForStyle: 'auto' with an unknown style uses the default style's pairing", () => {
+  assert.equal(resolveCompositionForStyle("not-a-style", "auto"), AUTO_VIEW.felt);
+});
+
+// getConfiguredView is the UI's starting View, distinct from getDefaultCompositionName (the concrete
+// fallback): it defaults to "auto" but passes an operator's COMPOSITION through, so `COMPOSITION=flat`
+// makes the picker start on Flat again rather than silently on Auto.
+test("getConfiguredView defaults to 'auto' and passes an explicit COMPOSITION through", () => {
+  const prev = process.env.COMPOSITION;
+  try {
+    delete process.env.COMPOSITION;
+    assert.equal(getConfiguredView(), "auto");
+    process.env.COMPOSITION = "flat";
+    assert.equal(getConfiguredView(), "flat");
+  } finally {
+    if (prev === undefined) delete process.env.COMPOSITION;
+    else process.env.COMPOSITION = prev;
+  }
+});
+
+test("isViewLocked is true only for styles that own their own camera", () => {
+  assert.equal(isViewLocked("tiltshift"), true);
+  assert.equal(isViewLocked("felt"), false);
+  assert.equal(isViewLocked("editorial"), false);
 });
 
 test("an unrecognized composition falls back to the default (diorama)", () => {

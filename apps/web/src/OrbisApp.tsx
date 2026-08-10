@@ -103,7 +103,15 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
           <AspectRatioPicker value={aspectRatio} onChange={handleRatioChange} disabled={busy || variantLoading || !!current} />
           <WebSearchToggle enabled={config.webSearch} onChange={setWebSearch} disabled={busy} />
           <ArtStylePicker styles={config.artStyles} value={config.artStyle} onChange={setArtStyle} disabled={busy} />
-          <CompositionPicker compositions={config.compositions} value={config.composition} onChange={setComposition} disabled={busy} />
+          <CompositionPicker
+            compositions={config.compositions}
+            value={config.composition}
+            onChange={setComposition}
+            disabled={busy}
+            artStyle={config.artStyle}
+            autoView={config.autoView}
+            viewLockedStyles={config.viewLockedStyles}
+          />
           <ModelSettingsPanel settings={config.modelSettings} prefs={modelPrefs} onChange={setModelPrefs} disabled={busy} />
           {config.videoAvailable && (
             <VideoLoopToggle

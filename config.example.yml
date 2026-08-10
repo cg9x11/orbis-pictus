@@ -80,8 +80,9 @@ search:
   cacheEnabled: false          # in-memory reuse of summaries across repeated queries
 
 # --- Visual identity ---
-artStyle: editorial                 # felt | papercut | riso | pixel | editorial
-composition: isometric           # flat | isometric | diorama
+artStyle: editorial                 # felt | papercut | riso | pixel | editorial | tiltshift
+composition: auto              # auto (default; each style picks its best view) | flat | isometric | diorama
+                                    # tiltshift ignores this — it fixes its own view
 
 # --- Photo upload ---
 upload:

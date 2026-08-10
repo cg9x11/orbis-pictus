@@ -51,6 +51,10 @@ interface AppConfig {
   artStyle: string;
   compositions: ArtStyleOption[];
   composition: string;
+  /** Style -> paired concrete view, so the View picker can show what "Auto" resolves to. */
+  autoView: Record<string, string>;
+  /** Styles whose View is fixed by the style itself (e.g. tilt-shift); the picker shows "built-in". */
+  viewLockedStyles: string[];
   /** What the settings panel can offer, and what the server is using — see ModelSettingsSchema. */
   modelSettings: ModelSettings;
 }
@@ -86,6 +90,8 @@ const DEFAULT_CONFIG: AppConfig = {
   artStyle: "",
   compositions: [],
   composition: "",
+  autoView: {},
+  viewLockedStyles: [],
   modelSettings: EMPTY_MODEL_SETTINGS,
 };
 
@@ -149,6 +155,8 @@ export function useOrbisController(initialNodeId?: string) {
           artStyle: fetched.artStyle,
           compositions: fetched.compositions,
           composition: fetched.composition,
+          autoView: fetched.autoView,
+          viewLockedStyles: fetched.viewLockedStyles,
           modelSettings: fetched.modelSettings,
         });
       })

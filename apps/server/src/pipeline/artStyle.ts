@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { AUTO_COMPOSITION } from "@orbis/shared";
 import { PROMPTS_DIR } from "../paths.js";
 import { strConfig } from "../config/index.js";
 
@@ -111,6 +112,14 @@ export function getDefaultCompositionName(): CompositionName {
   return isCompositionName(raw) ? raw : "diorama";
 }
 
+/** The View the settings panel starts on: the operator's `COMPOSITION` (env / config.yml) when set,
+ *  otherwise "auto". Unlike getDefaultCompositionName — the concrete server-side FALLBACK, which is
+ *  always a real composition — this may be the "auto" sentinel and is the value the client sends
+ *  back. So setting `COMPOSITION=flat` makes the UI start on Flat again, not silently on Auto. */
+export function getConfiguredView(): string {
+  return strConfig("COMPOSITION", (c) => c.composition, AUTO_COMPOSITION);
+}
+
 /** The style a request will actually be drawn in: the one it asked for when that is recognised,
  *  otherwise the server default. Exported so a generation can RECORD what it really used — a page
  *  stores this, and its aspect-ratio variants are later drawn from the stored value so they match
@@ -122,6 +131,41 @@ export function resolveArtStyleName(raw?: string): ArtStyleName {
 /** Composition counterpart of resolveArtStyleName. */
 export function resolveCompositionName(raw?: string): CompositionName {
   return isCompositionName(raw) ? raw : getDefaultCompositionName();
+}
+
+/** The best composition for each style, used when the requested View is "auto" (the default). Chosen
+ *  so the style and the camera reinforce each other instead of fighting: a handmade felt-diorama look
+ *  wants the diorama view, a flat print wants the flat view, an editorial architectural plate wants
+ *  the isometric view. tiltshift owns its own camera (getArtStyleBlock skips the composition for it),
+ *  so its entry is a placeholder that never reaches the prompt — the client shows "built-in" for it
+ *  instead (see VIEW_LOCKED_STYLES). */
+export const AUTO_VIEW: Record<ArtStyleName, CompositionName> = {
+  felt: "diorama",
+  papercut: "flat",
+  riso: "flat",
+  pixel: "diorama",
+  editorial: "isometric",
+  tiltshift: "diorama",
+};
+
+/** Styles whose View is fixed by the style itself, so a picker should offer no view choice for them.
+ *  One source of truth for the rule; getArtStyleBlock (which skips the composition), the picker, and
+ *  the stored provenance all read it through isViewLocked rather than naming a style. */
+export const VIEW_LOCKED_STYLES: ArtStyleName[] = ["tiltshift"];
+
+/** Whether a style owns its own View (fixes its own camera), so the composition slot does not apply. */
+export function isViewLocked(style: ArtStyleName): boolean {
+  return VIEW_LOCKED_STYLES.includes(style);
+}
+
+/** The composition a page is actually drawn in, from its style and the requested View. The View may
+ *  be a concrete composition, or "auto" (the default) which defers to AUTO_VIEW for the style; an
+ *  unrecognised View falls back to the server default, like resolveCompositionName. Both the built
+ *  prompt and the stored provenance use THIS, so a page never stores "auto" — it stores the concrete
+ *  view it was drawn in, which keeps aspect-ratio re-draws consistent. */
+export function resolveCompositionForStyle(style?: string, composition?: string): CompositionName {
+  if (composition === AUTO_COMPOSITION) return AUTO_VIEW[resolveArtStyleName(style)];
+  return resolveCompositionName(composition);
 }
 
 /** Human label taken from a section's own "## <Keyword>: …" heading, so a picker can never drift
@@ -156,11 +200,11 @@ export function getArtStyleBlock(style?: string, composition?: string, provider?
   // same intent from differently-worded prompts, so the block is tuned per provider. A provider with
   // no variant — or a request that names none — falls back to the base style text.
   const styleText = (provider !== undefined && styleVariants[styleName][provider]) || styles[styleName];
-  // Tilt-shift is a photographic look that fixes its own camera (a real high-angle lens with natural
-  // perspective). It therefore owns the viewpoint and skips the craft compositions (flat / isometric
-  // / diorama), whose parallel or flat projections have no focal plane for the blur to sit on —
-  // pairing them fought the effect in testing. The whole look lives in the tiltshift style block.
-  if (styleName === "tiltshift") return `${layout}\n\n${styleText}`;
+  // A view-locked style (e.g. tilt-shift) fixes its own camera — a real high-angle lens with natural
+  // perspective — so it skips the craft compositions (flat / isometric / diorama), whose parallel or
+  // flat projections have no focal plane for the blur to sit on; pairing them fought the effect in
+  // testing. The whole look lives in the style block. Rule lives in VIEW_LOCKED_STYLES, read here.
+  if (isViewLocked(styleName)) return `${layout}\n\n${styleText}`;
   return `${layout}\n\n${compositions[compName]}\n\n${styleText}`;
 }
 
