@@ -151,7 +151,7 @@ export type ModelOverrides = z.infer<typeof ModelOverridesSchema>;
 const CommonGenerateFieldsSchema = z.object({
   aspect_ratio: AspectRatioSchema.default("16:9"),
   web_search: z.boolean().default(false),
-  // Whether the client's "Live video stream" toggle is on. Gates background idle-loop AND morph
+  // Whether the client's "Live motion" toggle is on. Gates background idle-loop AND morph
   // generation server-side, so no video quota is spent (and no provider call is attempted) when the
   // user isn't using video — display was already gated client-side, but generation was not. Optional
   // (injected by the client in one place); absent/undefined is treated as off, the safe default.

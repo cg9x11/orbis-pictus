@@ -20,7 +20,7 @@ interface VideoLoopToggleProps {
 function describe(enabled: boolean, status: VideoStatus | null | undefined): { label: string; title: string } {
   if (!enabled) {
     return {
-      label: "Live video stream: off",
+      label: "Live motion: off",
       title: "Experimental: play a short looping motion clip on pages that have one, instead of a static image",
     };
   }
@@ -28,25 +28,27 @@ function describe(enabled: boolean, status: VideoStatus | null | undefined): { l
   // pages opened from here — saying "none on this page" there reads as a fault when nothing is wrong.
   if (status === undefined) {
     return {
-      label: "Live video stream: on",
+      label: "Live motion: on",
       title: "Experimental: pages that have a looping motion clip will play it instead of a static image",
     };
   }
   switch (status) {
     case "ready":
-      return { label: "Live video stream: on", title: "Playing this page's looping motion clip" };
+      return { label: "Live motion: on", title: "Playing this page's looping motion clip" };
     case "pending":
-      return { label: "Live video stream: generating…", title: "This page's clip is still being generated — it will start playing on its own" };
+      return { label: "Live motion: generating…", title: "This page's clip is still being generated — it will start playing on its own" };
     default:
       return {
-        label: "Live video stream: on (none on this page)",
+        label: "Live motion: on (none on this page)",
         title:
           "No clip exists for this page yet. Use the “Generate video” button to make one now, or newly generated pages will get one automatically while this is on.",
       };
   }
 }
 
-/** Experimental, off by default; wording echoes the original's "live video stream" feature. */
+/** Experimental, off by default. Plays a page's pre-generated looping motion clip — the original
+ *  flipbook.page calls this "live video stream"; we label it "Live motion" since it loops a clip
+ *  rather than streaming anything. */
 export function VideoLoopToggle({ enabled, onChange, disabled, status }: VideoLoopToggleProps) {
   const { label, title } = describe(enabled, status);
   const working = enabled && status === "pending";
