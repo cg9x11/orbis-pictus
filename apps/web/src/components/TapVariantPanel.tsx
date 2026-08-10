@@ -13,6 +13,9 @@ interface TapVariantPanelProps {
   /** True while a generation already runs. The panel refuses both actions during that time, and
    *  it must say so. If it stays silent, every click does nothing and the panel looks frozen. */
   busy: boolean;
+  /** Read-only demo: opening existing versions is free and stays, but drawing a new one spends
+   *  quota, so that action is hidden entirely rather than shown disabled. */
+  readOnly?: boolean;
 }
 
 /**
@@ -24,7 +27,7 @@ interface TapVariantPanelProps {
  * same subject, and none of them is the "right" one to open. The panel does not guess. It gives
  * the choice to the user before it spends anything.
  */
-export function TapVariantPanel({ tap, onOpen, onDrawNew, onClose, busy }: TapVariantPanelProps) {
+export function TapVariantPanel({ tap, onOpen, onDrawNew, onClose, busy, readOnly = false }: TapVariantPanelProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
   // The panel interrupts a tap, so Escape must undo that interruption — without it, the only way out
@@ -86,14 +89,20 @@ export function TapVariantPanel({ tap, onOpen, onDrawNew, onClose, busy }: TapVa
         </ul>
 
         <div className="tap-panel-actions">
-          <button type="button" className="tap-panel-draw" disabled={busy} onClick={() => onDrawNew(tap)}>
-            Draw a new version
-          </button>
-          <p className="tap-panel-note">
-            {busy
-              ? "A page is being generated. Wait for it to finish before opening or drawing anything here."
-              : "Drawing a new version generates a fresh image and uses quota."}
-          </p>
+          {readOnly ? (
+            <p className="tap-panel-note">This is a read-only demo. Pick a version above to open it.</p>
+          ) : (
+            <>
+              <button type="button" className="tap-panel-draw" disabled={busy} onClick={() => onDrawNew(tap)}>
+                Draw a new version
+              </button>
+              <p className="tap-panel-note">
+                {busy
+                  ? "A page is being generated. Wait for it to finish before opening or drawing anything here."
+                  : "Drawing a new version generates a fresh image and uses quota."}
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>

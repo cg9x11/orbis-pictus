@@ -43,6 +43,8 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
     variantLoading,
     showLoadingIndicator,
     showLanding,
+    isDemo,
+    displayRatio,
     imageUrl,
     ripple,
     setRipple,
@@ -84,9 +86,15 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
   if (hydrateError) return <div className="loading-screen">Couldn't load that page: {hydrateError}</div>;
 
   return (
+    <div className="app-shell">
+    <header className="app-masthead">
+      <span className="app-wordmark">Orbis Pictus</span>
+      <span className="app-tagline">An infinite visual encyclopedia, drawn as you explore it</span>
+    </header>
     <BrowserFrame
       onHome={handleClear}
-      homeDisabled={busy || showLanding}
+      // Already at the start in the demo, so Home has nowhere to go.
+      homeDisabled={busy || showLanding || isDemo}
       addressBar={
         <AddressBar
           trail={trail}
@@ -95,12 +103,15 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
           onSubmit={handleAddressSubmit}
           disabled={busy}
           pendingLabel={isStreaming ? state.tapSubject : undefined}
-          editMode={!!current}
+          // In the demo the address bar starts a fresh search, so it must not look like an edit box.
+          editMode={!!current && !isDemo}
         />
       }
       toolbar={
         <>
-          <AspectRatioPicker value={aspectRatio} onChange={handleRatioChange} disabled={busy || variantLoading || !!current} />
+          {/* On a real page the shape is locked to it. On the demo it is unlocked: it sets the shape
+              of the user's FIRST real page, so it stays usable even though a page is on screen. */}
+          <AspectRatioPicker value={aspectRatio} onChange={handleRatioChange} disabled={busy || variantLoading || (!!current && !isDemo)} />
           <WebSearchToggle enabled={config.webSearch} onChange={setWebSearch} disabled={busy} />
           <ArtStylePicker styles={config.artStyles} value={config.artStyle} onChange={setArtStyle} disabled={busy} />
           <CompositionPicker
@@ -142,14 +153,11 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
           {config.uploadAvailable && (
             <UploadButton
               sessionId={sessionId}
-              disabled={busy || variantLoading}
+              disabled={busy || variantLoading || isDemo}
               onUploaded={handleUploaded}
               onError={setActionError}
             />
           )}
-          <button type="button" className="toolbar-button" onClick={handleClear} disabled={busy || trail.length === 0}>
-            Clear
-          </button>
         </>
       }
     >
@@ -197,7 +205,7 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
           ripple={ripple}
           onRippleDone={() => setRipple(null)}
           imgRef={imgRef}
-          aspectRatio={aspectRatio}
+          aspectRatio={displayRatio}
         />
       )}
       {variantPanelTap && (
@@ -207,6 +215,7 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
           onDrawNew={handleDrawNewVariant}
           onClose={handleCloseVariantPanel}
           busy={busy}
+          readOnly={isDemo}
         />
       )}
       {isStreaming && state.tapSubject && <div className="tap-subject-banner">{state.tapSubject}</div>}
@@ -236,5 +245,22 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
         </div>
       )}
     </BrowserFrame>
+    {/* Sits directly under the mocked browser frame on every view — before the demo's intro/gallery
+        below — so it reads as a caption on the browser, not a footer pinned to the page bottom. It
+        states the plain fact that the whole app is AI-generated. */}
+    <p className="app-disclaimer">
+      Everything here is AI-generated. Images and text may be inaccurate or entirely made up — please don't
+      rely on it as fact.
+    </p>
+    {/* The intro text and gallery live BELOW the browser during the read-only demo. Once a real
+        session starts (isDemo false) they hide, leaving just the working page. The empty-trail
+        fallback (showLanding) still renders its own copy inside the frame, so this is suppressed
+        then to avoid showing it twice. */}
+    {isDemo && !showLanding && (
+      <div className="landing-below">
+        <Landing onSuggestion={handleSearch} />
+      </div>
+    )}
+    </div>
   );
 }

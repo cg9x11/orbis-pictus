@@ -73,11 +73,18 @@ export function Landing({ onSuggestion }: { onSuggestion: (query: string) => voi
 
   return (
     <div className="landing">
-      <h1 className="landing-title">An infinite visual encyclopedia, drawn as you explore it</h1>
+      {/* The headline tagline now lives in the app masthead above the browser, so it is not
+          repeated here — this section leads with the how-it-works copy and the gallery. Note the
+          copy must match the read-only demo above: it is pre-built, so the old "nothing is
+          pre-built anywhere" claim no longer holds and would read as a contradiction. */}
       <p className="landing-copy">
-        Type anything in the address bar above and a page renders in real time — a single generated image, not a
-        webpage. Click anything inside it and a new page opens exploring that thing in more depth. There's no
-        pre-built content anywhere: every page you see was invented the moment you asked for it.
+        The page above is a live demo — tap a glowing spot to open it, and use the trail to step back. It's
+        read-only, so nothing you do there spends anything.
+      </p>
+      <p className="landing-copy">
+        Ready for your own? Type anything in the address bar. Each page renders in real time as a single
+        generated image — not a webpage — and tapping anything inside it opens a new page about that thing.
+        Apart from this demo, nothing is pre-built: every page you make is invented the moment you ask.
       </p>
 
       {gallery === null && <p className="landing-loading">Loading examples…</p>}

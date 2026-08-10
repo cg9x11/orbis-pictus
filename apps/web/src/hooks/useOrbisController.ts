@@ -39,6 +39,12 @@ function newSessionId(): string {
   return `session_${crypto.randomUUID()}`;
 }
 
+// The fixed page shown, read-only, when the app first opens at "/". It is a guided tour of a
+// pre-built exploration tree: the user can dive into spots already explored (the markers) and step
+// back (breadcrumbs), but cannot generate anything new or type into the address bar to edit it.
+// Typing a fresh query, or opening a gallery card, leaves the demo and starts a real session.
+const DEMO_ROOT_ID = "ed2e2fd90cc040bc8b11ddf969a8a731";
+
 // Fetched (and, for webSearch/artStyle, later user-adjusted) as one unit — grouped into a single
 // state object rather than one useState per field, matching useGenerationStream's GenerationState
 // and useSessionTrail's TrailState.
@@ -109,7 +115,12 @@ function firstVariantRatio(node: Node): AspectRatio | undefined {
 export function useOrbisController(initialNodeId?: string) {
   const navigate = useNavigate();
   const [sessionId, setSessionId] = useState<string>(newSessionId);
-  const [hydrating, setHydrating] = useState(!!initialNodeId);
+  // With no deep-linked id, "/" boots the read-only demo node instead of an empty session. A real
+  // deep link (/n/:id) is a normal, editable page. Either way a node is always fetched on mount, so
+  // hydrating starts true in both cases.
+  const bootNodeId = initialNodeId ?? DEMO_ROOT_ID;
+  const [isDemo, setIsDemo] = useState(!initialNodeId);
+  const [hydrating, setHydrating] = useState(true);
   const [hydrateError, setHydrateError] = useState<string | null>(null);
   const { trail, currentIndex, current, append, navigateTo, reset, updateNode, replaceCurrent } = useSessionTrail();
   const { state, start, reset: resetGeneration } = useGenerationStream();
@@ -165,8 +176,7 @@ export function useOrbisController(initialNodeId?: string) {
 
   useCancellableEffect(
     (cancelled) => {
-      if (!initialNodeId) return;
-      fetchNode(initialNodeId)
+      fetchNode(bootNodeId)
         .then(({ node, history }) => {
           if (cancelled()) return;
           reset([...history, node]);
@@ -175,11 +185,13 @@ export function useOrbisController(initialNodeId?: string) {
         })
         .catch((err) => {
           if (cancelled()) return;
-          setHydrateError(err instanceof Error ? err.message : "Failed to load page");
+          // A deep link that fails is a real error. The demo failing must not dead-end the page:
+          // it falls through to an empty trail, which shows the usable landing (text + gallery).
+          if (initialNodeId) setHydrateError(err instanceof Error ? err.message : "Failed to load page");
           setHydrating(false);
         });
     },
-    [initialNodeId, reset],
+    [bootNodeId, initialNodeId, reset],
   );
 
   const isStreaming = state.status === "streaming";
@@ -207,15 +219,22 @@ export function useOrbisController(initialNodeId?: string) {
       updateNode({ ...current, video_status: "ready" });
     }
   }, [idleLoopVideoUrl, current, updateNode]);
+  // While the read-only demo is on screen the shape picker is NOT locked to it: it is a preference
+  // for the user's FIRST real page. So aspectRatio (what the picker sets, and what the next search
+  // will use) can differ from the shape the demo is actually drawn at. displayRatio is what every
+  // on-screen read uses — the image, its container, the tap markers — so the demo never blanks when
+  // the picker moves. Off the demo the two are identical, and the old locked behavior is unchanged.
+  const displayRatio = isDemo && current ? (firstVariantRatio(current) ?? aspectRatio) : aspectRatio;
   // Inside a scene the shape picker is locked (see OrbisApp), so keep the selected shape aligned with
   // the page on screen. When the current node lacks the selected shape — e.g. after navigating from a
   // scene of a different shape — switch to one the node actually has, otherwise the image lookup
-  // `current.image_variants[aspectRatio]` comes back empty and the page shows blank.
+  // `current.image_variants[aspectRatio]` comes back empty and the page shows blank. Skipped in the
+  // demo, where the picker is a free preference and displayRatio (not aspectRatio) drives the image.
   useEffect(() => {
-    if (!current || current.image_variants[aspectRatio]) return;
+    if (isDemo || !current || current.image_variants[aspectRatio]) return;
     const shape = firstVariantRatio(current);
     if (shape) setAspectRatio(shape);
-  }, [current, aspectRatio]);
+  }, [isDemo, current, aspectRatio]);
   // On-demand path: a page created while Live video was off has no clips and never
   // will automatically (both statuses null), and a prior on-demand attempt may have failed — all
   // retryable by explicit request. The two clips are tracked separately because a page can genuinely
@@ -229,7 +248,7 @@ export function useOrbisController(initialNodeId?: string) {
     !!morphSource && (current?.morph_status === null || current?.morph_status === "failed");
   // Offer the action only when the feature is actually available and the toggle is on, never mid-generation.
   const canGenerateVideo =
-    config.videoAvailable && videoLoopEnabled && !isStreaming && !!current && (missingIdleLoop || missingMorph);
+    config.videoAvailable && videoLoopEnabled && !isStreaming && !isDemo && !!current && (missingIdleLoop || missingMorph);
   // A single non-blocking check per navigation, never gates the page render.
   const { morphUrl, morphPending, clearMorph } = useMorphTransition(current, config.morphAvailable);
   // A transition is under way: its clip is being looked up, or is on screen. The destination image
@@ -240,7 +259,7 @@ export function useOrbisController(initialNodeId?: string) {
   const morphActive = morphPending || morphUrl !== null;
   // Spots on this page already explored, shown as markers so a free tap is visible
   // before it is made.
-  const { taps: cachedTaps, mode: tapDedupMode, loading: tapsLoading } = useCachedTaps(current?.id, aspectRatio);
+  const { taps: cachedTaps, mode: tapDedupMode, loading: tapsLoading } = useCachedTaps(current?.id, displayRatio);
 
   // Every version of the current page, for the branch control. Refetched whenever the current node
   // changes — which includes right after an edit creates a new version, since the trail advances to
@@ -282,7 +301,7 @@ export function useOrbisController(initialNodeId?: string) {
   // uses for its layer-1 lookup, imported from @orbis/shared rather than re-derived here: if the two
   // ever disagreed, a click could be a cache hit server-side while the UI called it new ground.
   const findExploredTapAt = (x: number, y: number): CachedTap | undefined =>
-    cachedTaps.find((tap) => isWithinTapRadius(aspectRatio, tap.x, tap.y, x, y));
+    cachedTaps.find((tap) => isWithinTapRadius(displayRatio, tap.x, tap.y, x, y));
 
   // The panel describes one spot on one page at one aspect ratio. When any of those change the tap
   // it was opened for no longer refers to anything on screen, so it must close rather than keep
@@ -295,8 +314,10 @@ export function useOrbisController(initialNodeId?: string) {
   // link unfurling), and nothing updated it afterwards — so going Home, or opening any other page,
   // left the browser tab still naming the page you had left.
   useEffect(() => {
-    document.title = current ? `${current.page_title} — Orbis Pictus` : "Orbis Pictus";
-  }, [current?.id, current?.page_title]);
+    // The read-only demo is the home page, not a page the user opened, so the tab keeps the app's
+    // name rather than the demo's title.
+    document.title = current && !isDemo ? `${current.page_title} — Orbis Pictus` : "Orbis Pictus";
+  }, [current?.id, current?.page_title, isDemo]);
 
   // Keep the address bar pointed at the current node so a full page reload (a manual refresh, or the
   // Vite/dev server restarting after a code edit) restores the exact page instead of dropping to an
@@ -307,11 +328,14 @@ export function useOrbisController(initialNodeId?: string) {
   // the URL silently, without remounting the app or re-triggering the `/n/:id` hydrate mid-session,
   // and adds no Back-button entry per page (the in-app breadcrumb already handles going back).
   useEffect(() => {
+    // Keep the URL at "/" for the read-only demo, so a refresh reboots the demo root rather than
+    // deep-linking (and reopening) a demo child as an editable page.
+    if (isDemo) return;
     const path = current?.id ? `/n/${current.id}` : "/";
     if (window.location.pathname !== path) {
       window.history.replaceState(window.history.state, "", path);
     }
-  }, [current?.id]);
+  }, [current?.id, isDemo]);
 
   const runRequest = async (request: GenerateRequest) => {
     // Injected in one place rather than at each call site, so no generation path can silently fall
@@ -391,6 +415,23 @@ export function useOrbisController(initialNodeId?: string) {
 
   const handleSearch = (query: string) => {
     if (busy) return;
+    if (isDemo) {
+      // Leaving the demo. Start a brand-new session so the first real page is a fresh root, not a
+      // child or edit of the read-only demo node. reset([]) clears the demo trail; the streaming
+      // page then appends as the new root, and the landing (text + gallery) below hides.
+      const freshSession = newSessionId();
+      setIsDemo(false);
+      setSessionId(freshSession);
+      reset([]);
+      return runRequest({
+        mode: "search",
+        query,
+        aspect_ratio: aspectRatio,
+        web_search: config.webSearch,
+        session_id: freshSession,
+        current_node_id: "",
+      });
+    }
     return runRequest({
       mode: "search",
       query,
@@ -417,6 +458,10 @@ export function useOrbisController(initialNodeId?: string) {
       setVariantPanelTap(explored);
       return;
     }
+
+    // The demo is read-only: a tap on unexplored space would generate a new page, so it does
+    // nothing here. Taps that land on an already-explored spot (handled above) still open.
+    if (isDemo) return;
 
     setRipple({ xRatio, yRatio });
     return runRequest({
@@ -495,7 +540,7 @@ export function useOrbisController(initialNodeId?: string) {
    * that the button could return the identical picture and look broken.
    */
   const handleDrawNewVariant = (tap: CachedTap) => {
-    if (!current || !imgRef.current || busy || morphActive) return;
+    if (!current || !imgRef.current || busy || morphActive || isDemo) return;
     // Re-marked from the stored ratios rather than a click position: the panel is open, so there is
     // no cursor to read, and the VLM still resolves the subject from the drawn marker.
     const markedImage = drawTapMarker(imgRef.current, tap.x, tap.y);
@@ -523,7 +568,9 @@ export function useOrbisController(initialNodeId?: string) {
     });
   };
 
-  const handleAddressSubmit = current ? handleEdit : handleSearch;
+  // In the demo the address bar starts a fresh search (leaving the demo), never an edit of the
+  // read-only demo node — so edit is reachable only on a real page the user owns.
+  const handleAddressSubmit = current && !isDemo ? handleEdit : handleSearch;
 
   const handleRetry = () => {
     if (!lastRequest || busy) return;
@@ -540,7 +587,10 @@ export function useOrbisController(initialNodeId?: string) {
   const handleRatioChange = async (ratio: AspectRatio) => {
     if (preparingClips) return;
     setAspectRatio(ratio);
-    if (!current || current.image_variants[ratio]) return;
+    // In the demo the picker only records the shape for the user's next real page. It must not fetch
+    // a new variant of the read-only demo node — that would spend quota — so it stops at the
+    // preference. The demo image keeps drawing at its own shape via displayRatio.
+    if (isDemo || !current || current.image_variants[ratio]) return;
     setVariantLoading(true);
     setActionError(null);
     try {
@@ -570,7 +620,7 @@ export function useOrbisController(initialNodeId?: string) {
    * waiting on a node re-fetch.
    */
   const handleGenerateVideo = async () => {
-    if (!current || videoRequestPending || preparingClips) return;
+    if (!current || videoRequestPending || preparingClips || isDemo) return;
     setActionError(null);
     setVideoRequestPending(true);
     try {
@@ -599,20 +649,34 @@ export function useOrbisController(initialNodeId?: string) {
     }
   };
 
-  const handleClear = () => {
+  const handleClear = async () => {
     if (preparingClips) return;
     resetGeneration();
-    reset([]);
-    setSessionId(newSessionId());
     setAspectRatio("16:9");
     setLastRequest(null);
     setActionError(null);
     navigate("/");
+    // Home now returns to the read-only demo, not an empty session. A deep-linked instance
+    // (/n/:id) unmounts on navigate("/") and the "/" route boots the demo on its own; the "/"
+    // instance stays mounted, so it re-boots the demo in place.
+    if (initialNodeId) return;
+    setHydrating(true);
+    try {
+      const { node, history } = await fetchNode(DEMO_ROOT_ID);
+      reset([...history, node]);
+      setSessionId(node.session_id);
+      setIsDemo(true);
+    } catch {
+      reset([]);
+      setIsDemo(true);
+    } finally {
+      setHydrating(false);
+    }
   };
 
   // previewImageUrl only wins while a generation is actively in flight; once it's done
   // (or the user has navigated elsewhere via breadcrumbs), the selected node's own image applies.
-  const imageUrl = (isStreaming && state.previewImageUrl) || current?.image_variants[aspectRatio];
+  const imageUrl = (isStreaming && state.previewImageUrl) || current?.image_variants[displayRatio];
   // Landing state: nothing in the trail yet and nothing currently generating. Once the very
   // first search starts streaming, this flips to the normal PageImage loading view.
   const showLanding = trail.length === 0 && !isStreaming;
@@ -647,6 +711,8 @@ export function useOrbisController(initialNodeId?: string) {
     variantLoading,
     showLoadingIndicator,
     showLanding,
+    isDemo,
+    displayRatio,
     imageUrl,
     ripple,
     setRipple,
