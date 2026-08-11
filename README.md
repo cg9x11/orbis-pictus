@@ -6,7 +6,7 @@ You type anything, and the app draws a page in real time. You click anything ins
 the app draws a new page about the thing you clicked. There is no markup and there are no links. The
 app draws every pixel on demand.
 
-[![Demo: the landing page, a generated page, a tap with a page-transition morph, and breadcrumb navigation - click to watch the video](docs/demo-poster.jpg)](docs/demo.mp4)
+[[![Demo: the landing page, a generated page, a tap with a page-transition morph, and breadcrumb navigation - click to watch the video]([docs/demo-poster.jpg](https://github.com/user-attachments/assets/0c500a63-1677-4884-a1bc-297717273218))]](https://github.com/user-attachments/assets/0c500a63-1677-4884-a1bc-297717273218)
 
 This project is an **independent, open-source homage** to [flipbook.page](https://flipbook.page). The
 flipbook.page team did not build it, endorse it, or approve it. It exists because one idea was
