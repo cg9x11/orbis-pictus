@@ -6,7 +6,7 @@ import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import "./storage/db.js"; // eagerly opens the DB connection and runs migrations as an import side effect
-import { resolveProviders, type ProviderResolver } from "./providers/index.js";
+import { describeProviders, resolveProviders, type ProviderResolver } from "./providers/index.js";
 import { buildModelSettings } from "./providers/catalog.js";
 import { generateRoute } from "./routes/generate.js";
 import { nodesRoute } from "./routes/nodes.js";
@@ -29,10 +29,28 @@ import { intConfig, strConfig, watchConfigFile, resolveConfigPath } from "./conf
 import { WEB_DIST, WEB_SRC_INDEX_HTML } from "./paths.js";
 
 // Resolved once here purely to report missing keys at startup and to answer /api/config's
-// `searchAvailable` — search is not UI-selectable, so this instance is the real one. Every request
+// `searchAvailable` - search is not UI-selectable, so this instance is the real one. Every request
 // resolves its own set (see `resolve` below), which is what lets a model change apply without a
 // restart; nothing downstream holds this object.
 const { providers: bootProviders, missingKeys } = resolveProviders();
+
+// What actually resolved, printed every boot. A misconfigured provider does not error at startup -
+// it quietly resolves to a mock, or to a base URL nothing is listening on - so this table is the
+// one place a user can SEE what the server is really going to use before spending anything.
+const providerReport = describeProviders(bootProviders);
+console.log("[orbis] resolved providers:");
+for (const line of providerReport.lines) console.log(`[orbis]   ${line}`);
+
+// Escalated beyond the generic missing-key note below because a mock LLM defeats the entire app -
+// pages render and taps respond, so without this banner it looks like it works.
+if (providerReport.llmIsMock) {
+  console.warn(
+    "[orbis] *** The LLM provider is the MOCK. Every page will be the same canned template and\n" +
+      "[orbis] *** every tap resolves to \"Mock Subject\". Set LLM_API_KEY (Anthropic key, or an\n" +
+      "[orbis] *** Anthropic-compatible proxy via LLM_BASE_URL) or GEMINI_API_KEY in .env.",
+  );
+}
+
 if (missingKeys.length > 0) {
   console.warn(
     `[orbis] Missing API keys: ${missingKeys.join(", ")}. Falling back to mock providers for the affected capability.\n` +
@@ -74,7 +92,7 @@ app.get("/api/config", (c) =>
   }),
 );
 
-// Root must be imagesDir itself, with the "/images" URL prefix stripped explicitly — not
+// Root must be imagesDir itself, with the "/images" URL prefix stripped explicitly - not
 // path.dirname(imagesDir), which only ever worked by coincidence when IMAGES_DIR is named
 // "images". Any other folder name silently 404s here and falls through to the SPA catch-all
 // below, which returns a 200 with index.html instead of a real 404 for a missing image.
@@ -87,9 +105,9 @@ app.use(
 );
 
 const webDistIndexHtml = path.join(WEB_DIST, "index.html");
-// In dev, dist/ doesn't exist yet — fall back to the raw source index.html (WEB_SRC_INDEX_HTML).
+// In dev, dist/ doesn't exist yet - fall back to the raw source index.html (WEB_SRC_INDEX_HTML).
 // This route is not reached by a real browser in dev (Vite serves /n/:id itself via its SPA
-// fallback; it is deliberately NOT proxied here — see vite.config.ts), so the fallback exists only
+// fallback; it is deliberately NOT proxied here - see vite.config.ts), so the fallback exists only
 // for a direct hit on this server, e.g. a link-unfurling bot reading the OG tags below.
 //
 // Resolved and read ONCE at module load: the template is static in production, and dev never reaches
@@ -111,7 +129,7 @@ app.get("/n/:id", (c) => {
   if (node) {
     const origin = new URL(c.req.url).origin;
     const imagePath = node.image_variants["16:9"] ?? Object.values(node.image_variants)[0];
-    const title = escapeHtml(`${node.page_title} — Orbis Pictus`);
+    const title = escapeHtml(`${node.page_title} - Orbis Pictus`);
     const ogTags = [
       `<meta property="og:title" content="${title}" />`,
       imagePath ? `<meta property="og:image" content="${origin}${imagePath}" />` : "",
@@ -121,7 +139,7 @@ app.get("/n/:id", (c) => {
       .filter(Boolean)
       .join("\n    ");
     // Function replacers, not string replacers: a string replacement interprets `$&`, `` $` ``,
-    // `$'`, `$$` as replacement patterns, and page_title is client-controlled — a title containing
+    // `$'`, `$$` as replacement patterns, and page_title is client-controlled - a title containing
     // `$&` would splice matched page HTML into the <title>/head and corrupt the document.
     // escapeHtml doesn't cover `$` (it isn't an HTML metachar), so neutralize it here instead.
     html = html.includes("<title>")

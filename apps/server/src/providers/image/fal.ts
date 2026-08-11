@@ -37,7 +37,7 @@ export class FalImageProvider implements ImageProvider {
       const body = await res.text();
       // The model id IS the request path on fal, so a 404 means "no such application".
       // Verified empirically 2026-08-08: an unknown model answers 404 with
-      // `{"detail": "Application '<id>' not found"}` — note it says "Application", never "model",
+      // `{"detail": "Application '<id>' not found"}` - note it says "Application", never "model",
       // so matching on the word "model" would miss this entirely. The status is the reliable signal.
       if (res.status === 404) {
         throw new UnknownModelError(`fal.ai does not recognise image model "${this.modelId}". ${body}`);

@@ -42,14 +42,14 @@ export function parseJsonLoose(text: string): unknown {
   try {
     return JSON.parse(trimmed);
   } catch {
-    // not bare JSON — fall through
+    // not bare JSON - fall through
   }
   const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(trimmed);
   if (fenced) {
     try {
       return JSON.parse(fenced[1]!.trim());
     } catch {
-      // fenced content wasn't valid JSON either — fall through to brace-slicing
+      // fenced content wasn't valid JSON either - fall through to brace-slicing
     }
   }
   const start = trimmed.indexOf("{");

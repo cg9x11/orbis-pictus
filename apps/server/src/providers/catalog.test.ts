@@ -62,7 +62,7 @@ test("the model in use is always offered, even when this catalog has never heard
   assert.equal(ark.models[0], "seedream-from-the-future", "listed first so the panel shows it selected");
   assert.ok(ark.models.includes("seedream-4-5-251128"), "and the known ids are still offered");
 
-  // It belongs to ark only — it must not be grafted onto a provider it means nothing to.
+  // It belongs to ark only - it must not be grafted onto a provider it means nothing to.
   assert.ok(!byName(image.providers, "fal").models.includes("seedream-from-the-future"));
   reset();
 });

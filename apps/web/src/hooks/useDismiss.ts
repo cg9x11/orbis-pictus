@@ -1,12 +1,12 @@
 import { useEffect, useRef, type RefObject } from "react";
 
 /**
- * Closes a popover on the Escape key, and — when `ref` is given — on a pointer press outside it.
+ * Closes a popover on the Escape key, and - when `ref` is given - on a pointer press outside it.
  * Only active while `open` is true.
  *
  * `onClose` is read through a ref, so a caller never has to memoize it. The effect depends only on
  * `open` (and the stable `ref`), so a parent re-render that hands in a fresh `onClose` does not tear
- * down and re-add the document listeners mid-interaction — which would otherwise pull focus or drop
+ * down and re-add the document listeners mid-interaction - which would otherwise pull focus or drop
  * an in-flight press. This is the same ref-indirection the panels used inline before.
  *
  * Pass `ref` for a self-contained popover that should close when the user clicks away. Omit it for a

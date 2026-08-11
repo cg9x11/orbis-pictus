@@ -10,7 +10,7 @@ interface Recorded {
 }
 
 /**
- * Stubs global.fetch with a queue of canned responses — one per call, in order — recording each
+ * Stubs global.fetch with a queue of canned responses - one per call, in order - recording each
  * call and restoring the original afterwards. A queue (rather than the single canned response the
  * sibling provider tests use) is what lets a two-model fallback be exercised in one run.
  *
@@ -125,7 +125,7 @@ test("ark image: an unrecognised FALLBACK model reports as unknown-model, not as
     async (calls) => {
       // The fallback id is user-settable from the settings panel, so it can name a model that does
       // not exist. Reported as QuotaExhaustedError this was doubly wrong: the message blamed a
-      // budget that was not the cause, and modelFallback.ts — which catches UnknownModelError only —
+      // budget that was not the cause, and modelFallback.ts - which catches UnknownModelError only -
       // let the page fail instead of redrawing on the server's configured model.
       const provider = new ArkImageProvider("k", base, "primary-model", "fallback-typo");
       await assert.rejects(

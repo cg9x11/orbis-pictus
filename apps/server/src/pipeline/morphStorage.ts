@@ -5,7 +5,7 @@ import path from "node:path";
 const REVERSE_FILENAME = "morph-reverse.mp4";
 
 /** Writes a generated transition-morph clip to disk beside the child node's own images and
- *  returns its same-origin URL — same storage/serving pattern as videoStorage.ts. */
+ *  returns its same-origin URL - same storage/serving pattern as videoStorage.ts. */
 export function saveMorph(imagesDir: string, childNodeId: string, bytes: Buffer): string {
   const nodeDir = path.join(imagesDir, childNodeId);
   fs.mkdirSync(nodeDir, { recursive: true });
@@ -16,7 +16,7 @@ export function saveMorph(imagesDir: string, childNodeId: string, bytes: Buffer)
 /**
  * Re-encodes a saved morph backwards, so stepping back from a child to its parent can play the same
  * transition in reverse. A morph is a first-frame/last-frame interpolation from
- * the parent's image to the child's, so its reverse is exactly the parent-ward transition — no
+ * the parent's image to the child's, so its reverse is exactly the parent-ward transition - no
  * second video generation, and no video quota, just a re-encode.
  *
  * Runs ffmpeg from PATH and resolves false if it is missing or fails: the reversed clip is strictly
@@ -54,7 +54,7 @@ export function writeReversedMorph(imagesDir: string, childNodeId: string): Prom
   });
 }
 
-/** The reversed clip's URL if one was successfully written, else null — the path is derivable from
+/** The reversed clip's URL if one was successfully written, else null - the path is derivable from
  *  the node id, so its existence on disk is the single source of truth and needs no DB column. */
 export function getMorphReverseUrl(imagesDir: string, childNodeId: string): string | null {
   return fs.existsSync(path.join(imagesDir, childNodeId, REVERSE_FILENAME))

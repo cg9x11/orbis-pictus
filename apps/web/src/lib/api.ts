@@ -18,6 +18,16 @@ import {
 } from "@orbis/shared";
 import { parseSSEStream } from "./sse";
 
+/**
+ * Builds an Error from a failed response, preferring the JSON `{ error }` message the server sends
+ * for expected failures (e.g. a 403) and falling back to `<fallback> (<status>)` when the body is
+ * missing or not JSON. Shared by every mutation below so they surface server messages the same way.
+ */
+async function errorFromResponse(res: Response, fallback: string): Promise<Error> {
+  const body = await res.json().catch(() => null);
+  return new Error((body as { error?: string } | null)?.error ?? `${fallback} (${res.status})`);
+}
+
 export async function streamGenerate(
   request: GenerateRequest,
   onEvent: (event: GenerateEvent) => void,
@@ -63,7 +73,7 @@ export async function fetchNodeTaps(id: string, ratio: AspectRatio): Promise<Nod
 }
 
 /** Every version of a page (the branch control's list), oldest first. `id` is any member of the
- *  group — the server resolves the group from it. Parsed, not cast, like the other readers. */
+ *  group - the server resolves the group from it. Parsed, not cast, like the other readers. */
 export async function fetchVersions(id: string): Promise<VersionSummary[]> {
   const res = await fetch(`/api/nodes/${id}/versions`);
   if (!res.ok) throw new Error(`Failed to fetch versions for node ${id}`);
@@ -74,11 +84,18 @@ export async function fetchVersions(id: string): Promise<VersionSummary[]> {
  *  caller updates its star state without a second request. */
 export async function setDefaultVersion(id: string): Promise<VersionSummary[]> {
   const res = await fetch(`/api/nodes/${id}/default`, { method: "POST" });
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error((body as { error?: string } | null)?.error ?? `Couldn't set default version (${res.status})`);
-  }
+  if (!res.ok) throw await errorFromResponse(res, "Couldn't set default version");
   return NodesVersionsResponseSchema.parse(await res.json()).versions;
+}
+
+/**
+ * Hard-deletes a gallery card and its whole subtree (every edit-version of it, plus every page
+ * reached by tapping from it, recursively) - no undo. Throws with the server's message on
+ * failure, e.g. the 403 the server returns for the built-in demo page.
+ */
+export async function deleteNode(id: string): Promise<void> {
+  const res = await fetch(`/api/nodes/${id}`, { method: "DELETE" });
+  if (!res.ok) throw await errorFromResponse(res, "Couldn't delete page");
 }
 
 export async function fetchVariant(id: string, ratio: AspectRatio): Promise<Node> {
@@ -98,7 +115,7 @@ export interface GalleryPage {
 }
 
 /**
- * One page of already-generated landing-gallery nodes — zero new generations.
+ * One page of already-generated landing-gallery nodes - zero new generations.
  *
  * `limit` is clamped server-side to MAX_GALLERY_LIMIT (24). Pass `cursor`, which is the `nextCursor`
  * of a previous page, to fetch the batch below it. A null `nextCursor` in the result means the last
@@ -127,7 +144,7 @@ export async function fetchConfig(): Promise<ConfigResponse> {
   return ConfigResponseSchema.parse(await res.json());
 }
 
-/** Idle-loop video: null until the background clip is ready — the caller polls with backoff. */
+/** Idle-loop video: null until the background clip is ready - the caller polls with backoff. */
 export async function fetchNodeVideo(id: string): Promise<string | null> {
   const res = await fetch(`/api/nodes/${id}/video`);
   if (!res.ok) return null;
@@ -152,15 +169,12 @@ export async function requestNodeVideo(
     // as a normal generation. The body is optional server-side; `{}` means "server defaults".
     body: JSON.stringify(overrides),
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error((body as { error?: string } | null)?.error ?? `Couldn't start video generation (${res.status})`);
-  }
+  if (!res.ok) throw await errorFromResponse(res, "Couldn't start video generation");
   return res.json();
 }
 
 /**
- * On-demand morph generation — the counterpart to requestNodeVideo, for a child that was created
+ * On-demand morph generation - the counterpart to requestNodeVideo, for a child that was created
  * while Live video was off (or reopened from a cached tap marker, which never runs the generate
  * pipeline). Returns "pending" once generation is under way, or "ready" if one already existed;
  * throws with the server's message otherwise (disabled, session cap, or a root with no parent).
@@ -174,15 +188,12 @@ export async function requestNodeMorph(
     headers: { "content-type": "application/json" },
     body: JSON.stringify(overrides),
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error((body as { error?: string } | null)?.error ?? `Couldn't start morph generation (${res.status})`);
-  }
+  if (!res.ok) throw await errorFromResponse(res, "Couldn't start morph generation");
   return res.json();
 }
 
 /**
- * Transition morph: a single non-blocking check, never polled — morphs are
+ * Transition morph: a single non-blocking check, never polled - morphs are
  * pre-generated in the background and either exist by the time you navigate here or they don't;
  * null just means "play the instant crossfade instead", not "come back later".
  */
@@ -220,7 +231,7 @@ async function fetchClipState(id: string, kind: ClipKind): Promise<{ status: Cli
 }
 
 /**
- * Blocks until the named clip for `id` is ready (resolving its url), or gives up — returning null —
+ * Blocks until the named clip for `id` is ready (resolving its url), or gives up - returning null -
  * the moment the server reports that generation `failed` or the overall timeout elapses. Used for
  * the first parent -> child step, where the transition is intentionally held so both the morph and
  * the idle loop are in hand before the new page is shown. A clip that was never started leaves its

@@ -42,7 +42,7 @@ function rowToNode(row: NodeRow): Node {
     edit_command: row.edit_command ?? null,
     is_default: row.is_default === 1,
     // Tap origin on the parent (normalized). A null column becomes undefined, so a non-tap page
-    // simply has no tap_x/tap_y — the morph pipeline then falls back to an un-aimed transition.
+    // simply has no tap_x/tap_y - the morph pipeline then falls back to an un-aimed transition.
     tap_x: row.tap_x ?? undefined,
     tap_y: row.tap_y ?? undefined,
   };
@@ -64,7 +64,7 @@ export interface NodeCacheMeta {
 }
 
 /** Binds and runs one INSERT, defaulting the version fields: a brand-new page is its own group and
- *  its own default. Only an edit overrides these — see insertVersionAsDefault. */
+ *  its own default. Only an edit overrides these - see insertVersionAsDefault. */
 function runInsert(node: Node, meta: NodeCacheMeta): void {
   insertStmt.run(
     node.id,
@@ -178,7 +178,7 @@ export function getGroupDefault(groupId: string): Node | null {
 /**
  * Resolves a PRIMARY child (as findChildBySubject returns) to its group's current default, falling
  * back to the child itself for a group with no edits. Tap reuse and the tap markers both open the
- * page the user expects for a subject, which is the group default — not the old primary — so this
+ * page the user expects for a subject, which is the group default - not the old primary - so this
  * keeps a repeat tap consistent with the branch control and the gallery card.
  */
 export function resolveGroupDefault(node: Node): Node {
@@ -234,6 +234,107 @@ export function getHistory(nodeId: string): Node[] {
     cursor = parent;
   }
   return chain.reverse();
+}
+
+// Unfiltered children lookup for deletion - unlike findChildrenBySubjectStmt below, this must
+// return EVERY child row regardless of subject or edited_from_id, because an edit version can have
+// its own tapped-open children too, and a deep delete has to walk all of them.
+const findChildrenOfStmt = db.prepare(`SELECT * FROM nodes WHERE parent_id = ?`);
+
+function findChildrenOf(parentId: string): Node[] {
+  const rows = findChildrenOfStmt.all(parentId) as unknown as NodeRow[];
+  return rows.map(rowToNode);
+}
+
+/**
+ * Every node id in the deletable subtree rooted at `rootId`: every version of the root's own
+ * group, every version of every descendant reached by tapping (parent_id), recursively. Returns
+ * an empty list when `rootId` does not exist.
+ *
+ * Walks by GROUP, not by single node, because a child's edit versions are part of its subtree too
+ * - expanding a node without its siblings would leave orphaned versions behind. `visitedGroups`
+ * guards against re-expanding the same group twice (a group can be reached from more than one
+ * queued node) and against a parent_id cycle spinning the loop forever, the same defensive reason
+ * getHistory keeps a `seen` set.
+ */
+export function collectSubtreeIds(rootId: string): string[] {
+  const root = getNode(rootId);
+  if (!root) return [];
+
+  const ids = new Set<string>();
+  const visitedGroups = new Set<string>();
+  // Queues the full rows, not ids: findChildrenOf (and the root guard above) already returned
+  // every node in hand, so re-reading each one with getNode just to recover groupIdOf would double
+  // the query count for nothing.
+  const queue: Node[] = [root];
+
+  while (queue.length > 0) {
+    const node = queue.shift() as Node;
+    const groupId = groupIdOf(node);
+    if (visitedGroups.has(groupId)) continue;
+    visitedGroups.add(groupId);
+
+    for (const version of listVersions(groupId)) {
+      ids.add(version.id);
+      for (const child of findChildrenOf(version.id)) queue.push(child);
+    }
+  }
+
+  return [...ids];
+}
+
+const deleteNodeByIdStmt = db.prepare(`DELETE FROM nodes WHERE id = ?`);
+const deleteTapCacheByNodeIdStmt = db.prepare(`DELETE FROM tap_cache WHERE node_id = ?`);
+
+/**
+ * Hard-deletes the given ids (see collectSubtreeIds) - every matching row in `nodes` and
+ * `tap_cache`, in one transaction. Returns the same ids for the caller's convenience, or an empty
+ * list when `ids` is empty. No FKs exist on this schema (see db.ts), so both tables are cleared by
+ * hand; a loop of single-row deletes over a prepared statement, rather than a dynamic `IN (...)`
+ * clause, keeps every bound value a real parameter (see db.ts's identifier-vs-value warning).
+ *
+ * Takes the id set rather than a root id so the delete route can compute the subtree ONCE - it
+ * needs the set for its demo guard before deleting - instead of walking the tree twice.
+ *
+ * File removal is the CALLER's job, done after this commits. This module has no `imagesDir`, and
+ * more importantly a DB rollback must never be able to leave deleted files behind - see
+ * pipeline/nodeFiles.ts.
+ */
+export function deleteSubtreeByIds(ids: string[]): string[] {
+  if (ids.length === 0) return [];
+  inTransaction(() => {
+    for (const id of ids) {
+      deleteTapCacheByNodeIdStmt.run(id);
+      deleteNodeByIdStmt.run(id);
+    }
+  });
+  return ids;
+}
+
+const listAllImageVariantsStmt = db.prepare(`SELECT image_variants FROM nodes`);
+
+/**
+ * Every node-id folder (`/images/<nodeId>/...`) that any SURVIVING row's image_variants points
+ * into, collected in one table scan. The prompt-hash image-reuse cache (layer 3, see
+ * pipeline/generate.ts) can make a NEWER node's image_variants point straight at an OLDER node's
+ * folder - so a delete must not remove a folder a surviving page still shows; keeping it is a
+ * small disk leak, breaking a living page is not.
+ *
+ * Called AFTER the delete commits, so only true survivors count. One scan covers a whole deleted
+ * batch - the earlier shape (one `LIKE '%/images/<id>/%'` full scan PER deleted id) made a
+ * subtree delete O(deleted × table).
+ */
+export function referencedImageFolders(): Set<string> {
+  const rows = listAllImageVariantsStmt.all() as unknown as { image_variants: string }[];
+  const folders = new Set<string>();
+  for (const row of rows) {
+    // image_variants is a JSON blob of URL strings shaped by saveImageVariant
+    // ("/images/<nodeId>/<variant>.<ext>"); the folder segment never contains `/` or `"`.
+    for (const match of row.image_variants.matchAll(/\/images\/([^/"]+)\//g)) {
+      folders.add(match[1]!);
+    }
+  }
+  return folders;
 }
 
 // `edited_from_id IS NULL` excludes edit versions. An edit inherits its source's parent_id and
@@ -353,7 +454,7 @@ export function markMorphReady(id: string, url: string): void {
 // The DEFAULT version of each root group (`is_default = 1 AND parent_id IS NULL`). A root is the
 // opening page of an exploration, the kind that a visitor gets from a typed query. Every version of
 // a root group shares `parent_id IS NULL`, so the `is_default = 1` filter collapses the group to its
-// one default version — one card per page, not one per edit. This query still excludes tap children
+// one default version - one card per page, not one per edit. This query still excludes tap children
 // (they have a non-null parent) and non-default edit versions on purpose. Those are mid-exploration
 // pages, and they make no sense as a starting point. "Roadway Deck" is a fine page, but it is a
 // strange thing for the landing gallery to offer.
@@ -446,7 +547,7 @@ export type GalleryPage = {
  * to fetch afterwards, so its `nextCursor` is always null.
  *
  * Pass `cursor` to continue below a previous batch. A cursor the caller cannot parse must never
- * reach this function — decode it first and reject it.
+ * reach this function - decode it first and reject it.
  */
 export function listGalleryPage({
   limit,

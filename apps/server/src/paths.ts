@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 // read from PROMPTS_DIR at import time, the first symptom would be an ENOENT crash at server boot.
 // paths.test.ts pins each export to an independent on-disk marker to catch that instead.
 
-/** `apps/server` — the server package root. */
+/** `apps/server` - the server package root. */
 export const SERVER_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /** The monorepo root, where `config.yml` and `.env` live. */
@@ -22,5 +22,5 @@ export const PROMPTS_DIR = path.join(SERVER_ROOT, "src", "prompts");
 /** The web app's built SPA, served in production. */
 export const WEB_DIST = path.join(REPO_ROOT, "apps", "web", "dist");
 
-/** The web app's source `index.html` — dev fallback before a build exists (see index.ts). */
+/** The web app's source `index.html` - dev fallback before a build exists (see index.ts). */
 export const WEB_SRC_INDEX_HTML = path.join(REPO_ROOT, "apps", "web", "index.html");

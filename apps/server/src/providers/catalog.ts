@@ -18,8 +18,8 @@ import { resolveProviders } from "./index.js";
  * They exist so the common case is one click. Keep them in step with the suggestions in
  * config.example.yml.
  *
- * Distinct from IMAGE_MODEL_RATES in ./image/pricing.ts, which answers a different question — "do
- * we know this model's token price" — and so both omits the per-image-billed providers (ark, fal)
+ * Distinct from IMAGE_MODEL_RATES in ./image/pricing.ts, which answers a different question - "do
+ * we know this model's token price" - and so both omits the per-image-billed providers (ark, fal)
  * and keeps older ids around for costing past generations.
  */
 interface ProviderEntry {
@@ -86,7 +86,7 @@ function toOptions(entries: readonly ProviderEntry[], activeProvider: string, ac
 }
 
 /**
- * Read fresh on every request so an edit to `config.yml` shows up in the panel without a restart —
+ * Read fresh on every request so an edit to `config.yml` shows up in the panel without a restart -
  * the config layer already re-reads the file when its mtime changes.
  */
 export function buildModelSettings(): ModelSettings {

@@ -30,7 +30,7 @@ export function generateRoute(
 
       try {
         // Resolved per request, inside the stream, so this request's own provider/model overrides
-        // apply — and so a config.yml edit lands on the next generation with no restart. The
+        // apply - and so a config.yml edit lands on the next generation with no restart. The
         // resolved object is captured for the whole generation, including the background clips
         // launched below, so a switch made mid-flight never swaps a provider under running work.
         const requested = toProviderOverrides(req);
@@ -45,7 +45,7 @@ export function generateRoute(
             event: "notice",
             data: {
               code: "provider_fallback",
-              message: `Image provider "${requested.imageProvider}" isn't available on this server — using "${resolved.image.providerId}" instead.`,
+              message: `Image provider "${requested.imageProvider}" isn't available on this server - using "${resolved.image.providerId}" instead.`,
               requested: requested.imageProvider,
               used: resolved.image.providerId,
             },
@@ -53,7 +53,7 @@ export function generateRoute(
         }
 
         // Video needs the same notice, and needs it more. A rejected video provider resolves to
-        // MockVideoProvider, which succeeds — so the page gets a placeholder clip stored and marked
+        // MockVideoProvider, which succeeds - so the page gets a placeholder clip stored and marked
         // `ready`, and nothing ever fails to hint that the pick did not take. The dropdown disables
         // unavailable providers, but a value already in localStorage never passes through it.
         if (requested.videoProvider && resolved.video.providerId !== requested.videoProvider) {
@@ -61,7 +61,7 @@ export function generateRoute(
             event: "notice",
             data: {
               code: "provider_fallback",
-              message: `Video provider "${requested.videoProvider}" isn't available on this server — using "${resolved.video.providerId}" instead.`,
+              message: `Video provider "${requested.videoProvider}" isn't available on this server - using "${resolved.video.providerId}" instead.`,
               requested: requested.videoProvider,
               used: resolved.video.providerId,
             },
@@ -72,18 +72,18 @@ export function generateRoute(
           ...resolved,
           // Wrapped only when a model was actually named: with no override the provider is already
           // the configured default, so there is nothing to fall back FROM. (The variant route in
-          // /api/nodes applies the same rule to the model stored on the node — see the comment there.)
+          // /api/nodes applies the same rule to the model stored on the node - see the comment there.)
           image: requested.imageModel
             ? withModelFallback(
                 resolved.image,
-                // Same request, minus the model — i.e. this provider on its configured model.
+                // Same request, minus the model - i.e. this provider on its configured model.
                 () => resolveProviders({ ...requested, imageModel: undefined }).image,
                 (notice) =>
                   emit({
                     event: "notice",
                     data: {
                       code: "model_fallback",
-                      message: `Image model "${notice.requested}" was rejected — drew with "${notice.used}" instead.`,
+                      message: `Image model "${notice.requested}" was rejected - drew with "${notice.used}" instead.`,
                       requested: notice.requested,
                       used: notice.used,
                     },

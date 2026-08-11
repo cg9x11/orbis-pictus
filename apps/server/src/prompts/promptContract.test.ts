@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Reads the actual prompt markdown files sent to the LLM — pure text assertions, no API call.
+// Reads the actual prompt markdown files sent to the LLM - pure text assertions, no API call.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PAGE_AUTHOR = fs.readFileSync(path.join(__dirname, "page-author.md"), "utf-8");
 const EDIT_AUTHOR = fs.readFileSync(path.join(__dirname, "edit-author.md"), "utf-8");
@@ -16,7 +16,7 @@ test("page-author.md preserves ordering for sequential topics via a connecting a
 
 // Policy change: a subtitle/tagline the renderer adds beside the title or caption used to be banned
 // outright, because on Seedream 4.x any text the model wrote itself came out garbled. Modern models
-// render it cleanly and it reads well, so only the supplied strings stay fixed — the decoration is
+// render it cleanly and it reads well, so only the supplied strings stay fixed - the decoration is
 // welcome. These two tests now pin the new policy so it can't be re-tightened by accident.
 test("art-style.md lets the renderer add its own supporting line near the title or caption", () => {
   assert.match(ART_STYLE, /supporting line of your own/i);
@@ -34,7 +34,7 @@ test("page-author.md keeps image_prompt content-only: no style, palette, materia
 
 // 2026-08-06 post-launch fix: page-author.md previously told the author LLM to
 // "Include 4 to 8" sub-topics while art-style.md capped the scene at "five or six labelled
-// elements" — the contradiction let a 7-callout page ship where labels drifted onto the wrong
+// elements" - the contradiction let a 7-callout page ship where labels drifted onto the wrong
 // descriptions. Both files must now agree on a 6-callout ceiling.
 test("page-author.md and edit-author.md cap callouts at 6, matching art-style.md's scene-density limit", () => {
   assert.doesNotMatch(PAGE_AUTHOR, /4 to 8|4–8|4-8/);
@@ -54,7 +54,7 @@ test("page-author.md and edit-author.md fix the supplied title string without ba
 });
 
 // Seedream 4.x garbles combined Vietnamese tone-and-vowel marks, so proper nouns must be authored in
-// plain ASCII ("Bui Vien", not "Bùi Viện") — verified against a real HCMC page where diacritics
+// plain ASCII ("Bui Vien", not "Bùi Viện") - verified against a real HCMC page where diacritics
 // rendered as gibberish. Both authoring prompts must carry the rule.
 test("page-author.md and edit-author.md require proper nouns in plain ASCII with diacritics removed", () => {
   assert.match(PAGE_AUTHOR, /diacritics removed/i);
@@ -68,7 +68,7 @@ test("page-author.md and edit-author.md forbid invented prices/numbers and deman
   assert.match(EDIT_AUTHOR, /prices, phone numbers/i);
 });
 
-// The author LLM must ground page facts in the web search summary, not embellish beyond it — the
+// The author LLM must ground page facts in the web search summary, not embellish beyond it - the
 // summary is only one context line, so without this rule it freely invents plausible-looking names.
 test("page-author.md constrains content to the web search summary's facts", () => {
   assert.match(PAGE_AUTHOR, /use ONLY the facts it contains|must come from that summary/i);

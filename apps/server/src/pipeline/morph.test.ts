@@ -130,7 +130,7 @@ function makeEditVersion(prefix: string, sessionId: string, imagesDir: string): 
     version_group_id: `${prefix}-day`,
   };
   // The real edit path: night joins day's group and becomes its default, so the old default (day) is
-  // cleared in the same transaction — a plain insert would trip the one-default-per-group index.
+  // cleared in the same transaction - a plain insert would trip the one-default-per-group index.
   insertVersionAsDefault(night, { normalizedSubject: "n" });
   return { day, night };
 }
@@ -158,7 +158,7 @@ test("an edit version morphs from the version it was edited from, even when its 
   assert.equal(getMorphInfo(night.id)?.status, "ready");
 });
 
-test("an edit version does NOT morph by default — MORPH_EDIT_ENABLED is off", async () => {
+test("an edit version does NOT morph by default - MORPH_EDIT_ENABLED is off", async () => {
   const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
   const pipeline = createMorphPipeline();
   const video = new SpyVideoProvider();
@@ -195,7 +195,7 @@ test("a tap morph marks the first frame for the VLM but sends the CLEAN frame to
   pipeline.maybeStartMorph(child, { ...makeProviders(video), llm }, imagesDir);
   await waitFor(() => video.calls.length > 0);
 
-  // The VLM saw a MARKED copy — the ring is drawn and the frame re-encoded, so it differs from clean.
+  // The VLM saw a MARKED copy - the ring is drawn and the frame re-encoded, so it differs from clean.
   assert.ok(llm.morphFirstFrame);
   assert.notEqual(llm.morphFirstFrame, cleanParent);
   // The video model received the CLEAN frame, unchanged: the mark never leaks into the finished clip.
@@ -236,14 +236,14 @@ test("the morph prompt is tailored to the two frames by the VLM, not the static 
 });
 
 // The automatic path only fires the instant a child is created, and only while Live video is on, so
-// a child made with it off — or reopened from a cached tap marker, which never runs the generate
-// pipeline at all — could previously never get a morph by any route. startMorphNow is that route.
+// a child made with it off - or reopened from a cached tap marker, which never runs the generate
+// pipeline at all - could previously never get a morph by any route. startMorphNow is that route.
 test("startMorphNow: generates for a child the automatic path never attempted", async () => {
   const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
   const video = new SpyVideoProvider();
   const { child } = makeParentChild("on-demand", "s-on-demand", imagesDir);
 
-  // No maybeStartMorph ever ran for this child — exactly a page created with Live video off.
+  // No maybeStartMorph ever ran for this child - exactly a page created with Live video off.
   assert.equal(getMorphInfo(child.id)?.status, null);
 
   const result = createMorphPipeline().startMorphNow(child, makeProviders(video), imagesDir);
@@ -353,7 +353,7 @@ test("MORPH_MAX_PER_SESSION caps generations per session_id, across distinct chi
   const sessionId = "s-capped";
   const children = ["cap-a", "cap-b", "cap-c"].map((prefix) => makeParentChild(prefix, sessionId, imagesDir).child);
 
-  // MORPH_MAX_PER_SESSION=2 (set at the top of this file) — the third child in the same session must be skipped.
+  // MORPH_MAX_PER_SESSION=2 (set at the top of this file) - the third child in the same session must be skipped.
   for (const child of children) pipeline.maybeStartMorph(child, makeProviders(video), imagesDir);
   await flush();
 
@@ -384,7 +384,7 @@ test("no morph yet -> the endpoint's underlying state is the null/never-attempte
   const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-morph-images-"));
   const { child } = makeParentChild("never-attempted", "s-never", imagesDir);
 
-  // No maybeStartMorph call at all — mirrors a page nobody has revisited yet.
+  // No maybeStartMorph call at all - mirrors a page nobody has revisited yet.
   const info = getMorphInfo(child.id);
   assert.equal(info?.status, null);
   assert.equal(info?.url, null);

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  DEMO_ROOT_ID,
   isWithinTapRadius,
   predecessorId,
   type AspectRatio,
@@ -43,9 +44,10 @@ function newSessionId(): string {
 // pre-built exploration tree: the user can dive into spots already explored (the markers) and step
 // back (breadcrumbs), but cannot generate anything new or type into the address bar to edit it.
 // Typing a fresh query, or opening a gallery card, leaves the demo and starts a real session.
-const DEMO_ROOT_ID = "ed2e2fd90cc040bc8b11ddf969a8a731";
+// DEMO_ROOT_ID itself now lives in @orbis/shared: the server's delete route refuses to remove this
+// node (or a descendant of it), so it needs the same id the web app boots from.
 
-// Fetched (and, for webSearch/artStyle, later user-adjusted) as one unit — grouped into a single
+// Fetched (and, for webSearch/artStyle, later user-adjusted) as one unit - grouped into a single
 // state object rather than one useState per field, matching useGenerationStream's GenerationState
 // and useSessionTrail's TrailState.
 interface AppConfig {
@@ -61,7 +63,7 @@ interface AppConfig {
   autoView: Record<string, string>;
   /** Styles whose View is fixed by the style itself (e.g. tilt-shift); the picker shows "built-in". */
   viewLockedStyles: string[];
-  /** What the settings panel can offer, and what the server is using — see ModelSettingsSchema. */
+  /** What the settings panel can offer, and what the server is using - see ModelSettingsSchema. */
   modelSettings: ModelSettings;
 }
 
@@ -108,8 +110,8 @@ function firstVariantRatio(node: Node): AspectRatio | undefined {
 }
 
 /**
- * All of OrbisApp's non-rendering state and behavior — session/trail, config, generation
- * requests, video/morph/tap-cache side state, and every handler — leaving the component itself as
+ * All of OrbisApp's non-rendering state and behavior - session/trail, config, generation
+ * requests, video/morph/tap-cache side state, and every handler - leaving the component itself as
  * render/composition only. Named per the app it drives; not meant to be reused elsewhere.
  */
 export function useOrbisController(initialNodeId?: string) {
@@ -202,12 +204,12 @@ export function useOrbisController(initialNodeId?: string) {
   const busy = isStreaming || preparingClips;
   // Real generations and cache-hit instant navigations both count as a "page".
   const showLoadingIndicator = useDelayedFlag(isStreaming || variantLoading, 150);
-  // Purely additive — polls for a background idle-loop clip once the page is
+  // Purely additive - polls for a background idle-loop clip once the page is
   // settled (never while still streaming in a new one) and the experimental toggle is on.
   const idleLoopVideoUrl = useIdleLoopVideo(current?.id, videoLoopEnabled && !isStreaming, current?.video_status);
   // The parent page is already shown, but its idle-loop clip is still rendering in
   // the background (video_status "pending", not yet fetched). Mirror the toggle's own "generating"
-  // state onto the image so the wait is visible there too — this stops right when the clip either
+  // state onto the image so the wait is visible there too - this stops right when the clip either
   // arrives (idleLoopVideoUrl set) or the page is left. It never blocks tapping; see PageImage.
   const videoGenerating = videoLoopEnabled && !isStreaming && !idleLoopVideoUrl && current?.video_status === "pending";
   // Once a page's background idle-loop clip has actually been fetched, record "ready" on its trail
@@ -222,12 +224,12 @@ export function useOrbisController(initialNodeId?: string) {
   // While the read-only demo is on screen the shape picker is NOT locked to it: it is a preference
   // for the user's FIRST real page. So aspectRatio (what the picker sets, and what the next search
   // will use) can differ from the shape the demo is actually drawn at. displayRatio is what every
-  // on-screen read uses — the image, its container, the tap markers — so the demo never blanks when
+  // on-screen read uses - the image, its container, the tap markers - so the demo never blanks when
   // the picker moves. Off the demo the two are identical, and the old locked behavior is unchanged.
   const displayRatio = isDemo && current ? (firstVariantRatio(current) ?? aspectRatio) : aspectRatio;
   // Inside a scene the shape picker is locked (see OrbisApp), so keep the selected shape aligned with
-  // the page on screen. When the current node lacks the selected shape — e.g. after navigating from a
-  // scene of a different shape — switch to one the node actually has, otherwise the image lookup
+  // the page on screen. When the current node lacks the selected shape - e.g. after navigating from a
+  // scene of a different shape - switch to one the node actually has, otherwise the image lookup
   // `current.image_variants[aspectRatio]` comes back empty and the page shows blank. Skipped in the
   // demo, where the picker is a free preference and displayRatio (not aspectRatio) drives the image.
   useEffect(() => {
@@ -236,12 +238,12 @@ export function useOrbisController(initialNodeId?: string) {
     if (shape) setAspectRatio(shape);
   }, [isDemo, current, aspectRatio]);
   // On-demand path: a page created while Live video was off has no clips and never
-  // will automatically (both statuses null), and a prior on-demand attempt may have failed — all
+  // will automatically (both statuses null), and a prior on-demand attempt may have failed - all
   // retryable by explicit request. The two clips are tracked separately because a page can genuinely
   // be missing just one of them, so the action stays on offer while EITHER is absent. A morph needs
   // a parent to morph from, so a root page can only ever want the idle loop.
   const missingIdleLoop = !idleLoopVideoUrl && (current?.video_status === null || current?.video_status === "failed");
-  // A morph needs a source page — the current page's predecessor (its edit source, else its parent).
+  // A morph needs a source page - the current page's predecessor (its edit source, else its parent).
   // A root that is not an edit has none, so it can only ever want the idle loop.
   const morphSource = current ? predecessorId(current) : null;
   const missingMorph =
@@ -252,7 +254,7 @@ export function useOrbisController(initialNodeId?: string) {
   // A single non-blocking check per navigation, never gates the page render.
   const { morphUrl, morphPending, clearMorph } = useMorphTransition(current, config.morphAvailable);
   // A transition is under way: its clip is being looked up, or is on screen. The destination image
-  // stays covered and its tap markers stay hidden for this whole window — during a morph the pixels
+  // stays covered and its tap markers stay hidden for this whole window - during a morph the pixels
   // on screen are the clip, not the page underneath, so a tap would land on coordinates of a page
   // the user cannot currently see. Deliberately NOT folded into `busy`: the toolbar and breadcrumbs
   // stay live, this only governs what the picture itself accepts and shows.
@@ -262,7 +264,7 @@ export function useOrbisController(initialNodeId?: string) {
   const { taps: cachedTaps, mode: tapDedupMode, loading: tapsLoading } = useCachedTaps(current?.id, displayRatio);
 
   // Every version of the current page, for the branch control. Refetched whenever the current node
-  // changes — which includes right after an edit creates a new version, since the trail advances to
+  // changes - which includes right after an edit creates a new version, since the trail advances to
   // it. An empty list (or a length of one) means there is nothing to branch, and the control hides.
   const [versions, setVersions] = useState<VersionSummary[]>([]);
   useCancellableEffect(
@@ -281,7 +283,7 @@ export function useOrbisController(initialNodeId?: string) {
   );
 
   // The star action. The endpoint returns the fresh list, so the star state updates from this one
-  // call — no refetch, and no stale "two stars" (see PLAN-versions.md, finding 10).
+  // call - no refetch, and no stale "two stars" (see PLAN-versions.md, finding 10).
   const handleSetDefaultVersion = async (versionId: string) => {
     setActionError(null);
     try {
@@ -311,18 +313,18 @@ export function useOrbisController(initialNodeId?: string) {
   }, [current?.id, aspectRatio]);
 
   // A deep-linked page arrives with its title already rendered into the HTML by the server (for
-  // link unfurling), and nothing updated it afterwards — so going Home, or opening any other page,
+  // link unfurling), and nothing updated it afterwards - so going Home, or opening any other page,
   // left the browser tab still naming the page you had left.
   useEffect(() => {
     // The read-only demo is the home page, not a page the user opened, so the tab keeps the app's
     // name rather than the demo's title.
-    document.title = current && !isDemo ? `${current.page_title} — Orbis Pictus` : "Orbis Pictus";
+    document.title = current && !isDemo ? `${current.page_title} - Orbis Pictus` : "Orbis Pictus";
   }, [current?.id, current?.page_title, isDemo]);
 
   // Keep the address bar pointed at the current node so a full page reload (a manual refresh, or the
   // Vite/dev server restarting after a code edit) restores the exact page instead of dropping to an
-  // empty session. The node is always already persisted server-side — pipeline/generate.ts inserts
-  // it before the `complete` event — so only the in-memory trail is at risk; on reload the browser
+  // empty session. The node is always already persisted server-side - pipeline/generate.ts inserts
+  // it before the `complete` event - so only the in-memory trail is at risk; on reload the browser
   // loads this `/n/:id` URL and the existing hydrate path rebuilds the trail from the node's stored
   // ancestry. We use history.replaceState rather than react-router navigation on purpose: it updates
   // the URL silently, without remounting the app or re-triggering the `/n/:id` hydrate mid-session,
@@ -363,7 +365,7 @@ export function useOrbisController(initialNodeId?: string) {
       // waited for and navigation stays instant exactly as before.
       //
       // Both clips are waited on together, not one after the other: the server fires them in parallel,
-      // and waiting only for the morph — as this first did — meant the page arrived mid-render of its
+      // and waiting only for the morph - as this first did - meant the page arrived mid-render of its
       // idle loop and sat under a "Generating video…" badge right after the transition, which is the
       // gap the wait exists to remove. The wait is bounded (timeout + failure bail inside each waiter)
       // so a stalled generation can never hang the transition.
@@ -378,7 +380,7 @@ export function useOrbisController(initialNodeId?: string) {
             needsVideo ? waitForVideoReady(node.id) : Promise.resolve(null),
           ]);
           // Record what actually landed. Without this the node still says "pending" on arrival, and
-          // useIdleLoopVideo holds its first request back by a full backoff step — so a clip we just
+          // useIdleLoopVideo holds its first request back by a full backoff step - so a clip we just
           // finished waiting for would sit unused for another few seconds after the morph played.
           ready = {
             ...node,
@@ -397,7 +399,7 @@ export function useOrbisController(initialNodeId?: string) {
       recordPage();
     } catch (err) {
       // useGenerationStream already set state.error/status before rejecting, so the error banner
-      // is already showing — this only stops the rejection from reaching handleTap/handleEdit/
+      // is already showing - this only stops the rejection from reaching handleTap/handleEdit/
       // handleSearch's callers (PageImage's onClick, AddressBar's onSubmit, a suggestion chip's
       // onClick) as an unhandled promise rejection.
       console.error(err);
@@ -442,14 +444,14 @@ export function useOrbisController(initialNodeId?: string) {
   const handleTap = (imageEl: HTMLImageElement, clientX: number, clientY: number) => {
     // `tapsLoading` guards money, not correctness of display. Until /taps answers, this page's
     // explored spots are UNKNOWN, and generating on an unknown is the one mistake that cannot be
-    // undone — it spends. Waiting costs a few tens of milliseconds against a local database, and
+    // undone - it spends. Waiting costs a few tens of milliseconds against a local database, and
     // the fetch always settles (the failure path clears the flag too), so a tap is never dead.
     if (!current || busy || morphActive || tapsLoading) return;
     const { dataUrl, xRatio, yRatio } = captureTap(imageEl, clientX, clientY);
 
     // Decide BEFORE spending. The marker dot is ~9px wide but the cache treats anything within
     // 8.5% of the image's shorter side as the same tap, so gating on "did you hit the dot" would
-    // make a precise click free and a click 30px away cost an image — the same intent billed two
+    // make a precise click free and a click 30px away cost an image - the same intent billed two
     // different ways. Gating on the real radius instead means every click the server would call a
     // repeat is routed identically, wherever inside the circle it lands.
     const explored = tapDedupMode === "variant" ? findExploredTapAt(xRatio, yRatio) : undefined;
@@ -515,7 +517,7 @@ export function useOrbisController(initialNodeId?: string) {
   /** `reuse` mode only: the green marker is a shortcut to the single child behind it. */
   const handleOpenCachedTap = (tap: CachedTap) => {
     // The schema promises min(1) and fetchNodeTaps now parses rather than casts, so this is
-    // belt-and-braces — but the cost of being wrong is an uncaught TypeError in a click handler
+    // belt-and-braces - but the cost of being wrong is an uncaught TypeError in a click handler
     // with no error boundary above it, which blanks the page.
     const first = tap.children[0];
     if (!first) return;
@@ -536,7 +538,7 @@ export function useOrbisController(initialNodeId?: string) {
 
   /**
    * The panel's "Draw a new version": a deliberate, explicitly-paid generation at an already-known
-   * spot. `force_new_image` stops layer 3 from answering it with the earlier node's pixels — without
+   * spot. `force_new_image` stops layer 3 from answering it with the earlier node's pixels - without
    * that the button could return the identical picture and look broken.
    */
   const handleDrawNewVariant = (tap: CachedTap) => {
@@ -569,7 +571,7 @@ export function useOrbisController(initialNodeId?: string) {
   };
 
   // In the demo the address bar starts a fresh search (leaving the demo), never an edit of the
-  // read-only demo node — so edit is reachable only on a real page the user owns.
+  // read-only demo node - so edit is reachable only on a real page the user owns.
   const handleAddressSubmit = current && !isDemo ? handleEdit : handleSearch;
 
   const handleRetry = () => {
@@ -588,7 +590,7 @@ export function useOrbisController(initialNodeId?: string) {
     if (preparingClips) return;
     setAspectRatio(ratio);
     // In the demo the picker only records the shape for the user's next real page. It must not fetch
-    // a new variant of the read-only demo node — that would spend quota — so it stops at the
+    // a new variant of the read-only demo node - that would spend quota - so it stops at the
     // preference. The demo image keeps drawing at its own shape via displayRatio.
     if (isDemo || !current || current.image_variants[ratio]) return;
     setVariantLoading(true);
@@ -616,7 +618,7 @@ export function useOrbisController(initialNodeId?: string) {
    * page is made with Live video on: one `video_loop` flag there starts both the idle loop and the
    * morph, so one action here does the same. Each status is optimistically flipped to "pending" (or
    * "ready" if the server says one already existed) so useIdleLoopVideo starts polling and the
-   * "generating" indicator shows — exactly the state the automatic path leaves a node in — without
+   * "generating" indicator shows - exactly the state the automatic path leaves a node in - without
    * waiting on a node re-fetch.
    */
   const handleGenerateVideo = async () => {
@@ -632,7 +634,7 @@ export function useOrbisController(initialNodeId?: string) {
       if (missingMorph) {
         // Non-fatal on its own: the morph only pays off on a later visit to this page, so a failure
         // here (session cap, say) must not surface as an error that buries the idle loop we just
-        // successfully started — nor abort the status write-back below.
+        // successfully started - nor abort the status write-back below.
         try {
           const { status } = await requestNodeMorph(current.id, pruneEmptyPrefs(modelPrefs));
           next = { ...next, morph_status: status === "ready" ? "ready" : "pending" };

@@ -14,7 +14,7 @@ const SIZE_BY_ASPECT: Record<AspectRatio, string> = {
 /**
  * OpenAI image generation (gpt-image-1.5 / gpt-image-2 / mini) via POST /v1/images/generations.
  * gpt-image always returns base64 in `data[].b64_json`. Reference/edit input is intentionally NOT
- * used here — gpt-image support on the /images/edits endpoint is inconsistent, so `referenceImageDataUrl`
+ * used here - gpt-image support on the /images/edits endpoint is inconsistent, so `referenceImageDataUrl`
  * is ignored (edit mode still re-renders from the authored prompt; it just loses pixel continuity).
  */
 export class OpenAiImageProvider implements ImageProvider {
@@ -49,13 +49,13 @@ export class OpenAiImageProvider implements ImageProvider {
       if (res.status === 429) {
         throw new QuotaExhaustedError(`Image quota exhausted: OpenAI "${this.modelId}" was rate-limited (429). ${body}`);
       }
-      // NOT verified live — unlike the ark, gemini and fal branches, this one is written from
+      // NOT verified live - unlike the ark, gemini and fal branches, this one is written from
       // OpenAI's published error contract, because OPENAI_API_KEY is empty in this deployment and
       // the request could not be made. Re-check it against a real 404 before relying on it.
       //
       // Narrower than the gemini/fal checks on purpose: those two carry the model id in the URL, so
       // any 404 is about the model. OpenAI sends the model in the BODY, so a bare 404 more likely
-      // means a wrong base URL — which a different model would not fix. Hence the extra keyword.
+      // means a wrong base URL - which a different model would not fix. Hence the extra keyword.
       if (res.status === 404 && /model/i.test(body)) {
         throw new UnknownModelError(`OpenAI does not recognise image model "${this.modelId}". ${body}`);
       }
@@ -83,7 +83,7 @@ export class OpenAiImageProvider implements ImageProvider {
 export const OPENAI_IMAGE_QUALITIES = ["low", "medium", "high"] as const;
 
 /** An unrecognised *override* falls through to the configured value rather than reaching the API.
- *  Only the override is checked — see the matching note in ./gemini.ts for why the configured value
+ *  Only the override is checked - see the matching note in ./gemini.ts for why the configured value
  *  is deliberately left as-is. */
 function validQuality(raw: string | undefined): string | undefined {
   return raw !== undefined && (OPENAI_IMAGE_QUALITIES as readonly string[]).includes(raw) ? raw : undefined;

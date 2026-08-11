@@ -44,7 +44,7 @@ const input: VideoGenInput = {
 };
 
 test("generate(): full create -> poll -> download flow, using fixtures captured from a real Ark call", async () => {
-  // Only one poll iteration (straight to "succeeded") to keep this test fast — the multi-iteration
+  // Only one poll iteration (straight to "succeeded") to keep this test fast - the multi-iteration
   // backoff/timing behavior itself is covered in isolation by lib/poll.test.ts with an injected
   // fast sleep; this test's job is verifying request/response *shape* fidelity against real fixtures.
   await withFetchSequence(
@@ -86,7 +86,7 @@ test("generate(): full create -> poll -> download flow, using fixtures captured 
 });
 
 // A morph runs on a different (flf2v-capable) model than the idle loop via input.modelOverride,
-// without constructing a second provider — the create body must carry the override, not the
+// without constructing a second provider - the create body must carry the override, not the
 // provider's own configured model.
 test("generate(): input.modelOverride wins over the provider's configured model in the create body", async () => {
   await withFetchSequence(
@@ -143,9 +143,9 @@ test("generate(): a non-quota request error (e.g. ModelNotOpen) is surfaced with
 });
 
 // A single transient HTTP error on a *status poll* (not task creation) must not abort a task that
-// is still succeeding server-side — the whole clip used to fail on one momentary 5xx/429. Here the
+// is still succeeding server-side - the whole clip used to fail on one momentary 5xx/429. Here the
 // second poll 503s, then the third succeeds; generate() should ride through it. (Incurs one real
-// backoff sleep — the poll timing itself is covered fast in lib/poll.test.ts.)
+// backoff sleep - the poll timing itself is covered fast in lib/poll.test.ts.)
 test("generate(): a transient 503 during status polling is retried, not treated as failure", async () => {
   await withFetchSequence(
     [

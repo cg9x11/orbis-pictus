@@ -5,7 +5,7 @@ interface CompositionPickerProps {
   value: string;
   onChange: (composition: string) => void;
   disabled: boolean;
-  /** The currently-selected art style — drives what "Auto" resolves to, and whether the View is
+  /** The currently-selected art style - drives what "Auto" resolves to, and whether the View is
    *  locked by the style. */
   artStyle: string;
   /** Style -> paired concrete view name, from the server. */
@@ -15,13 +15,13 @@ interface CompositionPickerProps {
 }
 
 /**
- * Picks which composition (View) gets wrapped into the image prompt — an axis orthogonal to the art
+ * Picks which composition (View) gets wrapped into the image prompt - an axis orthogonal to the art
  * style. The list, labels, and the leading "Auto" option all come from the server (parsed out of
  * art-style.md), so adding a composition there makes it appear here with no client change.
  *
  * "Auto" is the default: it defers to the style's paired view, resolved server-side. The dropdown
- * shows what that will be for the current style (e.g. "Auto (Diorama)"). A view-locked style — one
- * that owns its own camera, like tilt-shift — shows a disabled "built-in" instead, because its View
+ * shows what that will be for the current style (e.g. "Auto (Diorama)"). A view-locked style - one
+ * that owns its own camera, like tilt-shift - shows a disabled "built-in" instead, because its View
  * cannot be chosen.
  *
  * Only affects pages generated from now on; existing pages keep the composition they were drawn in.

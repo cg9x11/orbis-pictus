@@ -1,7 +1,7 @@
 const QUOTA_ERROR_PATTERN = /quota|rate.?limit|too many requests|exceeded|insufficient|overdue|throttl/i;
 
 /**
- * "Ark doesn't recognise / can't serve this model id" — matched on the error code and message, and
+ * "Ark doesn't recognise / can't serve this model id" - matched on the error code and message, and
  * deliberately NOT on the HTTP status.
  *
  * 404 alone is not sufficient: Ark also answers 404 with `TaskNotFound` when a *video task* id is
@@ -9,7 +9,7 @@ const QUOTA_ERROR_PATTERN = /quota|rate.?limit|too many requests|exceeded|insuff
  * do with the model. Treating every 404 as an unknown model would silently reroute that into a
  * model fallback. Both alternatives below therefore require the word "model" to be present.
  *
- * Verified empirically against the live BytePlus Ark image API, 2026-08-08 — an unknown model id
+ * Verified empirically against the live BytePlus Ark image API, 2026-08-08 - an unknown model id
  * returns status 404 with:
  *
  *   { error: { code: "InvalidEndpointOrModel.NotFound",
@@ -27,7 +27,7 @@ interface ArkErrorBody {
   error?: { code?: string; message?: string; type?: string };
 }
 
-/** Shared between the image and video Ark providers — same API, same `{error:{code,message}}` shape. */
+/** Shared between the image and video Ark providers - same API, same `{error:{code,message}}` shape. */
 export class ArkRequestError extends Error {
   readonly status: number;
   readonly code?: string;
@@ -43,7 +43,7 @@ export class ArkRequestError extends Error {
     return QUOTA_ERROR_PATTERN.test(`${this.code ?? ""} ${this.message}`);
   }
 
-  /** Whether this rejection is about the model id itself rather than the account's budget — see
+  /** Whether this rejection is about the model id itself rather than the account's budget - see
    *  UNKNOWN_MODEL_PATTERN above for why the HTTP status is deliberately not consulted. */
   get isUnknownModelError(): boolean {
     return UNKNOWN_MODEL_PATTERN.test(`${this.code ?? ""} ${this.message}`);

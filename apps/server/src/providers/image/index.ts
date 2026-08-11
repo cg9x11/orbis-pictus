@@ -8,7 +8,7 @@ import { openaiImageFactory } from "./openai.js";
 import type { ImageOverrides, ImageProviderFactory } from "./registry.js";
 
 /**
- * The image-provider registry. This array is the single place to add an image provider — drop the
+ * The image-provider registry. This array is the single place to add an image provider - drop the
  * new provider's `ImageProviderFactory` in here (see ./registry.ts) and it's selectable by name via
  * config.yml `image.provider` / env `IMAGE_PROVIDER`. No control-flow changes anywhere else.
  */
@@ -41,11 +41,11 @@ function buildByName(name: string, overrides: ImageOverrides, missingKeys: strin
  * The two paths fail differently, on purpose:
  *
  *  - **Configured path** (no override, or an override naming the already-configured provider):
- *    unchanged from before overrides existed — an unknown name or a missing key degrades to the
+ *    unchanged from before overrides existed - an unknown name or a missing key degrades to the
  *    mock and says so in `missingKeys`. Boot behaviour for a bad `config.yml` is deliberately not
  *    changed here; that is a separate decision.
  *  - **Override path**: falls back to the *configured provider*, never the mock. A mock silently
- *    returns placeholder art, which reads as a broken generation rather than a misconfiguration —
+ *    returns placeholder art, which reads as a broken generation rather than a misconfiguration -
  *    much worse than quietly drawing with the provider the server is actually set up for. This
  *    matters because the catalog's `available` flag only protects the dropdown: a hand-typed
  *    Custom value or a stale client can still name a provider with no API key.
@@ -70,8 +70,8 @@ export function buildImageProvider(missingKeys: string[], overrides: ImageOverri
   // user sees why their pick didn't take, instead of only the server operator seeing it.
   console.warn(
     attempt.reason === "unknown"
-      ? `[orbis] Requested image provider "${requested}" is not a known provider — using "${configured}" instead.`
-      : `[orbis] Requested image provider "${requested}" has no API key configured — using "${configured}" instead.`,
+      ? `[orbis] Requested image provider "${requested}" is not a known provider - using "${configured}" instead.`
+      : `[orbis] Requested image provider "${requested}" has no API key configured - using "${configured}" instead.`,
   );
 
   // Rebuilt WITHOUT the request's model override: that model id was picked for the provider that

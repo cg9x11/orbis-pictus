@@ -6,7 +6,7 @@ import { z } from "zod";
  * a built-in default (see resolution helpers in ./index.ts). This schema validates only the file's
  * *structure/types* so a typo (e.g. `video.enabled: "yes"`) fails fast at startup with a clear
  * message; it deliberately does NOT enforce enum membership for things like provider names or
- * resolutions — those are validated where they are consumed, exactly as they are for env values,
+ * resolutions - those are validated where they are consumed, exactly as they are for env values,
  * so the file and env paths behave identically.
  *
  * Secrets (API keys) are intentionally absent: they are read from the environment only and must

@@ -12,7 +12,7 @@ interface ArtStylePickerProps {
  * The list and the labels both come from the server, which parses them out of art-style.md
  * itself, so adding a style there makes it appear here with no client change.
  *
- * Only affects pages generated from now on. Existing pages keep the style they were drawn in —
+ * Only affects pages generated from now on. Existing pages keep the style they were drawn in -
  * there is no re-render, because that would mean paying for every page again.
  */
 export function ArtStylePicker({ styles, value, onChange, disabled }: ArtStylePickerProps) {

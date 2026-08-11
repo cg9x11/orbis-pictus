@@ -18,7 +18,7 @@ const { recordTapCache } = await import("../storage/tapCache.js");
 const { normalizeSubject } = await import("../pipeline/normalize.js");
 const { nodesRoute } = await import("./nodes.js");
 
-/** The taps route reads storage only — it never resolves a provider or touches either pipeline. */
+/** The taps route reads storage only - it never resolves a provider or touches either pipeline. */
 const resolveProviders = (() => ({}) as unknown as Providers) as never;
 const noPipelines = {
   video: {} as unknown as VideoPipeline,

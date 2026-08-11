@@ -81,7 +81,7 @@ test("variant: a stored model the provider has since retired falls back instead 
   const app = nodesRoute(resolveProviders, imagesDir, noPipelines.video, noPipelines.morph);
   const res = await app.request(`/${node.id}/variant?ratio=1:1`);
 
-  // The regression: unwrapped, UnknownModelError escaped a plain GET and the page 500'd — a page
+  // The regression: unwrapped, UnknownModelError escaped a plain GET and the page 500'd - a page
   // that had rendered fine before provenance was ever recorded.
   assert.equal(res.status, 200);
   const body = (await res.json()) as { node: Node };

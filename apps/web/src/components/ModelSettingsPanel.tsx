@@ -14,7 +14,7 @@ interface ModelSettingsPanelProps {
 /** Sentinel for the "type your own model id" option. Not a model id, and never sent anywhere. */
 const CUSTOM = "__custom__";
 
-/** Must match `.model-settings-panel`'s width in styles.css — used to keep the panel on-screen. */
+/** Must match `.model-settings-panel`'s width in styles.css - used to keep the panel on-screen. */
 const PANEL_WIDTH = 320;
 
 /** Shown as the empty choice everywhere: leaving a control alone means the server decides. */
@@ -55,7 +55,7 @@ function ProviderField({
           // say so, which works, but stopping it here saves a pointless round trip.
           <option key={option.name} value={option.name} disabled={!option.available}>
             {option.label}
-            {option.available ? "" : " — no API key"}
+            {option.available ? "" : " - no API key"}
           </option>
         ))}
       </select>
@@ -66,7 +66,7 @@ function ProviderField({
 /**
  * A model chooser: known ids in a dropdown, plus a free-text escape hatch.
  *
- * The escape hatch is the point, not a nicety — provider model ids change faster than the server's
+ * The escape hatch is the point, not a nicety - provider model ids change faster than the server's
  * catalog can track. A typed id that the provider rejects is not fatal: the server retries on its
  * configured default and reports it back as a notice.
  */
@@ -172,7 +172,7 @@ function ChoiceField({
  * The choices are remembered in this browser and ride along with every generate request, so the
  * server itself stays stateless and two tabs can use different models.
  *
- * Only affects pages generated from now on. Pages already drawn keep the model that drew them —
+ * Only affects pages generated from now on. Pages already drawn keep the model that drew them -
  * re-rendering would mean paying for every page again.
  */
 export function ModelSettingsPanel({ settings, prefs, onChange, disabled }: ModelSettingsPanelProps) {
@@ -185,7 +185,7 @@ export function ModelSettingsPanel({ settings, prefs, onChange, disabled }: Mode
    * The panel is positioned `fixed`, not `absolute`, and so needs explicit coordinates.
    *
    * `.browser-frame` sets `overflow: hidden` to keep its rounded corners clean, which clipped an
-   * absolutely-positioned panel at the frame's bottom edge — the last controls were unreachable.
+   * absolutely-positioned panel at the frame's bottom edge - the last controls were unreachable.
    * A fixed element is not clipped by a plain `overflow: hidden` ancestor, so it can hang below the
    * frame. Kept on-screen by clamping against the viewport's right edge.
    */
@@ -212,7 +212,7 @@ export function ModelSettingsPanel({ settings, prefs, onChange, disabled }: Mode
     };
   }, [open]);
 
-  // Nothing to offer until /api/config has answered — the same self-hiding rule ArtStylePicker uses
+  // Nothing to offer until /api/config has answered - the same self-hiding rule ArtStylePicker uses
   // rather than rendering an empty control.
   if (settings.image.providers.length === 0) return null;
 
@@ -221,7 +221,7 @@ export function ModelSettingsPanel({ settings, prefs, onChange, disabled }: Mode
   /**
    * A model id belongs to exactly one provider, so it cannot survive the provider changing under it.
    * Left alone, picking OpenAI + `gpt-image-2` and then switching to fal sent `gpt-image-2` to fal
-   * on every request: a rejection, a fallback retry, and a notice, once per page, forever — while
+   * on every request: a rejection, a fallback retry, and a notice, once per page, forever - while
    * the panel still displayed the dead id in its Custom box as though it were in use.
    *
    * Only the model is cleared. The per-provider extras (image size, quality, Ark fallback) are read
@@ -239,7 +239,7 @@ export function ModelSettingsPanel({ settings, prefs, onChange, disabled }: Mode
   /**
    * The "Server default (…)" hint names a real model id, and that id belongs to the provider the
    * SERVER is configured with. Once a different provider is picked, that id is not what leaving the
-   * model alone would use — the server would use the newly-picked provider's own configured model.
+   * model alone would use - the server would use the newly-picked provider's own configured model.
    * So the hint is shown only while the picked provider still matches the server's.
    */
   const defaultModelFor = (picked: string, serverProvider: string, serverModel: string): string =>

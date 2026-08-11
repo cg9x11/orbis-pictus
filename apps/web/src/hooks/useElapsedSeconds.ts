@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 /** Whole seconds elapsed since `startedAt` (epoch ms), ticking every second. Returns null while
- *  `startedAt` is undefined — a variant re-render has no stream and nothing to count from. */
+ *  `startedAt` is undefined - a variant re-render has no stream and nothing to count from. */
 export function useElapsedSeconds(startedAt: number | undefined): number | null {
   const [now, setNow] = useState(() => Date.now());
 

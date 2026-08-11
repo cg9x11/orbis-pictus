@@ -5,7 +5,7 @@ import { buildImageProvider } from "./index.js";
 import { QuotaExhaustedError, UnknownModelError, type ImageGenInput } from "../types.js";
 
 /** Sets env vars for the duration of `run`, restoring exactly what was there before (including
- *  "was not set at all") — mirrors the helper in ./gemini.test.ts. */
+ *  "was not set at all") - mirrors the helper in ./gemini.test.ts. */
 function withEnv(vars: Record<string, string | undefined>, run: () => Promise<void>): Promise<void> {
   const previous = new Map<string, string | undefined>(Object.keys(vars).map((k) => [k, process.env[k]]));
   for (const [key, value] of Object.entries(vars)) {
@@ -75,7 +75,7 @@ test("openai: a 429 surfaces as QuotaExhaustedError", async () => {
 });
 
 test("openai: a model-shaped 404 surfaces as UnknownModelError", async () => {
-  // Shape taken from OpenAI's published error contract, NOT captured live — the key is empty here.
+  // Shape taken from OpenAI's published error contract, NOT captured live - the key is empty here.
   const body = { error: { code: "model_not_found", message: "The model 'gpt-image-9' does not exist", type: "invalid_request_error" } };
   await withFetch({ status: 404, body }, async () => {
     const provider = new OpenAiImageProvider("k", base, "gpt-image-9", "medium");
@@ -84,7 +84,7 @@ test("openai: a model-shaped 404 surfaces as UnknownModelError", async () => {
 });
 
 test("openai: a 404 that says nothing about a model stays a plain error", async () => {
-  // A wrong base URL looks like this, and a different model would not fix it — so it must not be
+  // A wrong base URL looks like this, and a different model would not fix it - so it must not be
   // rerouted into a model fallback that spends a second request to fail the same way.
   await withFetch({ status: 404, body: { error: { message: "Unknown request URL" } } }, async () => {
     const provider = new OpenAiImageProvider("k", base, "gpt-image-1.5", "medium");

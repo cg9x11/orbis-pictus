@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { GenerateRequestSchema } from "./schema.js";
 
 // L1: a `mode`-less request must default to "search". The default has to be applied before the
-// discriminatedUnion resolves its branch — a `.default` on the branch's own literal never fires.
+// discriminatedUnion resolves its branch - a `.default` on the branch's own literal never fires.
 test("GenerateRequestSchema defaults a mode-less body to search", () => {
   const parsed = GenerateRequestSchema.safeParse({ query: "volcanoes", session_id: "s1" });
   assert.equal(parsed.success, true);

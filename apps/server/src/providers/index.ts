@@ -31,7 +31,7 @@ export interface Providers {
  * exactly the behaviour of reading `config.yml`/env alone.
  *
  * Only image and video are overridable: they are the two the picker exposes, and both are thin
- * `fetch` wrappers that cost nothing to rebuild. LLM and search are deliberately absent — see
+ * `fetch` wrappers that cost nothing to rebuild. LLM and search are deliberately absent - see
  * `baseProviders` below for why.
  */
 export interface ProviderOverrides {
@@ -70,7 +70,7 @@ export function toProviderOverrides(req: ModelOverrides): ProviderOverrides {
  *
  * Done once, here at the entry point, so nothing downstream has to repeat the check: the video
  * factories below and every image factory in ./image/* can simply write
- * `overrides.x ?? strConfig(...)`. Mirrors how `strConfig` already treats an empty env var —
+ * `overrides.x ?? strConfig(...)`. Mirrors how `strConfig` already treats an empty env var -
  * blank means "unset", never "blank out the configured default".
  */
 function normalizeOverrides(raw: ProviderOverrides): ProviderOverrides {
@@ -82,7 +82,7 @@ function normalizeOverrides(raw: ProviderOverrides): ProviderOverrides {
   return clean;
 }
 
-/** Looks up `name` in `builders` and runs it, or runs `fallback` if `name` isn't registered —
+/** Looks up `name` in `builders` and runs it, or runs `fallback` if `name` isn't registered -
  *  adding a provider is a new registry entry here, not a new branch in an if/else chain. Each
  *  builder is responsible for validating its own config and pushing to `missingKeys` (falling
  *  back to a mock/none provider itself) when that config is missing/invalid; `fallback` only
@@ -96,16 +96,34 @@ function pushMissingConfig(missingKeys: string[], label: string, issues: z.ZodIs
   missingKeys.push(`${label} (${issues.map((i) => i.path.join(".")).join(", ")})`);
 }
 
+// The anthropic-provider defaults point at Anthropic's real API, so a user who sets only
+// LLM_API_KEY gets a working setup. A proxy (e.g. a local claude-code router on
+// http://localhost:20128, whose model ids look like cc/claude-sonnet-5) is fully supported but
+// must be configured explicitly - shipped defaults must never assume a service that only exists
+// on one developer's machine.
+const ANTHROPIC_API_BASE_URL = "https://api.anthropic.com";
+const DEFAULT_PROMPT_AUTHOR_MODEL = "claude-sonnet-5";
+const DEFAULT_TAP_VLM_MODEL = "claude-haiku-4-5";
+const DEFAULT_SEARCH_MODEL = "claude-sonnet-5";
+
+// Read through these helpers everywhere (builders AND the startup report below), so the report
+// can never drift from the values the providers actually resolved with.
+function llmBaseUrl(): string {
+  return strConfig("LLM_BASE_URL", (c) => c.llm?.baseUrl, ANTHROPIC_API_BASE_URL);
+}
+
+function tapVlmModel(): string {
+  return strConfig("TAP_VLM_MODEL", (c) => c.llm?.tapVlmModel, DEFAULT_TAP_VLM_MODEL);
+}
+
 function buildAnthropicLlm(missingKeys: string[]): LlmProvider {
   const apiKey = process.env.LLM_API_KEY;
   if (!apiKey) {
     missingKeys.push("LLM_API_KEY");
     return new MockLlmProvider();
   }
-  const baseURL = strConfig("LLM_BASE_URL", (c) => c.llm?.baseUrl, "http://localhost:20128");
-  const promptAuthorModel = strConfig("PROMPT_AUTHOR_MODEL", (c) => c.llm?.promptAuthorModel, "cc/claude-sonnet-5");
-  const tapVlmModel = strConfig("TAP_VLM_MODEL", (c) => c.llm?.tapVlmModel, "cc/claude-haiku-4-5");
-  return new AnthropicLlmProvider(apiKey, baseURL, promptAuthorModel, tapVlmModel);
+  const promptAuthorModel = strConfig("PROMPT_AUTHOR_MODEL", (c) => c.llm?.promptAuthorModel, DEFAULT_PROMPT_AUTHOR_MODEL);
+  return new AnthropicLlmProvider(apiKey, llmBaseUrl(), promptAuthorModel, tapVlmModel());
 }
 
 function buildGeminiLlm(missingKeys: string[]): LlmProvider {
@@ -150,7 +168,7 @@ function buildArkVideo(missingKeys: string[], overrides: ProviderOverrides): Vid
 
 function buildVideoProvider(missingKeys: string[], overrides: ProviderOverrides): VideoProvider {
   // Defaults to "mock" even when ARK_API_KEY is already set (unlike LLM/image), because video is
-  // an opt-in experimental feature gated separately by VIDEO_ENABLED — a user
+  // an opt-in experimental feature gated separately by VIDEO_ENABLED - a user
   // shouldn't start burning real video quota just because they already configured Ark for images.
   return selectProvider(
     overrides.videoProvider ?? strConfig("VIDEO_PROVIDER", (c) => c.video?.provider, "mock"),
@@ -165,10 +183,9 @@ function buildLlmSearch(missingKeys: string[]): SearchProvider {
     missingKeys.push("LLM_API_KEY (for SEARCH_PROVIDER=llm)");
     return new NoneSearchProvider();
   }
-  const baseURL = strConfig("LLM_BASE_URL", (c) => c.llm?.baseUrl, "http://localhost:20128");
-  const searchModel = strConfig("SEARCH_MODEL", (c) => c.search?.model, "cc/claude-sonnet-5");
+  const searchModel = strConfig("SEARCH_MODEL", (c) => c.search?.model, DEFAULT_SEARCH_MODEL);
   const timeoutMs = intConfig("SEARCH_TIMEOUT_MS", (c) => c.search?.timeoutMs, 45000);
-  return new LlmSearchProvider(apiKey, baseURL, searchModel, timeoutMs);
+  return new LlmSearchProvider(apiKey, llmBaseUrl(), searchModel, timeoutMs);
 }
 
 function buildSearchProvider(missingKeys: string[]): SearchProvider {
@@ -182,7 +199,7 @@ function buildSearchProvider(missingKeys: string[]): SearchProvider {
     () => new NoneSearchProvider(),
   );
   // Opt-in in-memory reuse of search summaries across repeated queries (SEARCH_CACHE_ENABLED /
-  // search.cacheEnabled), wrapping whichever provider was selected — harmless around the `none` stub.
+  // search.cacheEnabled), wrapping whichever provider was selected - harmless around the `none` stub.
   return boolConfig("SEARCH_CACHE_ENABLED", (c) => c.search?.cacheEnabled, false) ? new CachingSearchProvider(provider) : provider;
 }
 
@@ -194,7 +211,7 @@ interface BaseProviders {
 
 // Built once per process rather than per request. Neither is UI-selectable, both construct heavier
 // clients than the image/video wrappers, and CachingSearchProvider holds an in-memory summary cache
-// that only pays off if the instance outlives a single request — rebuilding it per request would
+// that only pays off if the instance outlives a single request - rebuilding it per request would
 // silently disable the very cache it exists to provide.
 let base: BaseProviders | undefined;
 
@@ -209,8 +226,8 @@ function baseProviders(): BaseProviders {
 /**
  * Builds the provider set for one request.
  *
- * Image and video are constructed fresh on every call, so a provider/model chosen in the UI — or
- * edited in `config.yml`, which `fileConfig` already re-reads on mtime change — takes effect on the
+ * Image and video are constructed fresh on every call, so a provider/model chosen in the UI - or
+ * edited in `config.yml`, which `fileConfig` already re-reads on mtime change - takes effect on the
  * next request with no restart. Both are thin `fetch` wrappers holding an API key and a couple of
  * strings, so building them per request is cheap. LLM and search come from the memoized base above.
  *
@@ -230,4 +247,39 @@ export function resolveProviders(raw: ProviderOverrides = {}): { providers: Prov
     video: buildVideoProvider(missingKeys, overrides),
   };
   return { providers, missingKeys };
+}
+
+/** The startup report's view of what resolved, plus the one flag boot escalates on. */
+export interface ProviderReport {
+  /** One human-readable line per capability. */
+  lines: string[];
+  /** True when the app's core loop is running on canned mock content - worth shouting about. */
+  llmIsMock: boolean;
+}
+
+/**
+ * Describes the resolved provider set for the startup log. Lives here rather than in index.ts
+ * because this module owns the defaults being reported - the lines read the exact same config
+ * helpers the builders read, so the report cannot drift from what actually resolved. The base URL
+ * is included for anthropic specifically because a wrong/unreachable proxy URL is the most common
+ * silent misconfiguration: the server boots fine and only the first generation fails.
+ */
+export function describeProviders(p: Providers): ProviderReport {
+  const llmIsMock = p.llm instanceof MockLlmProvider;
+  let llm: string;
+  if (p.llm instanceof AnthropicLlmProvider) {
+    llm = `llm:    anthropic - author ${p.llm.modelId}, tap VLM ${tapVlmModel()}, base URL ${llmBaseUrl()}`;
+  } else if (p.llm instanceof GeminiLlmProvider) {
+    llm = `llm:    gemini - model ${p.llm.modelId}`;
+  } else {
+    llm = `llm:    MOCK - canned placeholder pages, every tap resolves to "Mock Subject"`;
+  }
+  const image = `image:  ${p.image.providerId} - model ${p.image.modelId}`;
+  const video = p.video instanceof ArkVideoProvider
+    ? "video:  ark (Seedance)"
+    : "video:  mock - no real clips";
+  const search = p.search.available
+    ? "search: llm - web-search grounding available"
+    : "search: none - pages written from model knowledge only";
+  return { lines: [llm, image, video, search], llmIsMock };
 }

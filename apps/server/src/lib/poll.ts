@@ -16,7 +16,7 @@ export interface PollOptions {
   sleep?: (ms: number) => Promise<void>;
 }
 
-/** Polls `check` with backoff until it reports done/failed, or throws once `maxAttempts` is exhausted — never hangs. */
+/** Polls `check` with backoff until it reports done/failed, or throws once `maxAttempts` is exhausted - never hangs. */
 export async function pollUntilDone<T>(check: () => Promise<PollOutcome<T>>, opts: PollOptions = {}): Promise<T> {
   const intervals = opts.intervalsMs ?? DEFAULT_INTERVALS_MS;
   const maxAttempts = opts.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;

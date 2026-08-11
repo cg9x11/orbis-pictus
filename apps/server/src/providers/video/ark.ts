@@ -16,7 +16,7 @@ interface ArkTaskStatusResponse {
 
 /**
  * Generation parameters are dash-flags embedded in the text prompt (Midjourney-style), not
- * separate JSON fields — verified empirically 2026-08-06.
+ * separate JSON fields - verified empirically 2026-08-06.
  */
 function buildDashParamPrompt(input: VideoGenInput): string {
   const flags = [
@@ -52,7 +52,7 @@ export class ArkVideoProvider implements VideoProvider {
     const content: Record<string, unknown>[] = [{ type: "text", text: buildDashParamPrompt(input) }];
     if (input.lastFrameDataUrl) {
       // Ark rejects multi-image content without a role distinguishing which frame is which
-      // ("role must be specified for image contents", found live 2026-08-06) — but the
+      // ("role must be specified for image contents", found live 2026-08-06) - but the
       // single-image idle-loop path was already verified working without a
       // role, so only add it once there are two images.
       content.push(
@@ -93,7 +93,7 @@ export class ArkVideoProvider implements VideoProvider {
     if (!res.ok) {
       const err = await this.toRequestError(res);
       // 429 counts as transient here even though isTransientStatus doesn't include it: a status
-      // poll is a lightweight read, safe to retry on rate-limiting — unlike task creation
+      // poll is a lightweight read, safe to retry on rate-limiting - unlike task creation
       // (createTask, below), where a 429 must surface immediately as a quota/rate-limit error
       // rather than disappear into fetchWithRetry's blind retry.
       if (isTransientStatus(res.status) || res.status === 429) {
@@ -112,7 +112,7 @@ export class ArkVideoProvider implements VideoProvider {
     if (json.status === "queued" || json.status === "running") {
       return { done: false };
     }
-    // Any other status (failed/cancelled/unrecognized) is treated as terminal failure — never hangs.
+    // Any other status (failed/cancelled/unrecognized) is treated as terminal failure - never hangs.
     return { done: true, failed: true, errorMessage: json.error?.message ?? `Ark video task ended with status "${json.status}"` };
   }
 

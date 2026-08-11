@@ -7,7 +7,7 @@ const DIMENSIONS: Record<ImageGenInput["aspectRatio"], [number, number]> = {
   "1:1": [640, 640],
 };
 
-/** Deterministic solid-color placeholder — no network calls. Used when FAL_KEY is absent. */
+/** Deterministic solid-color placeholder - no network calls. Used when FAL_KEY is absent. */
 export class MockImageProvider implements ImageProvider {
   readonly modelId = "mock-image";
   readonly providerId = "mock";

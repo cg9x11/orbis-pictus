@@ -5,7 +5,7 @@ import { ArkRequestError } from "./errors.js";
 const err = (status: number, code: string | undefined, message: string) => new ArkRequestError(status, code, message);
 
 test("isUnknownModelError: recognises the observed ModelNotOpen rejection", () => {
-  // Captured from a real Ark response — see providers/video/ark.test.ts.
+  // Captured from a real Ark response - see providers/video/ark.test.ts.
   assert.equal(err(404, "ModelNotOpen", "has not activated the model").isUnknownModelError, true);
 });
 

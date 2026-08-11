@@ -15,7 +15,7 @@ interface VideoLoopToggleProps {
 
 /** Reports what the current page can actually offer, so switching the toggle on never leaves the
  *  user watching a static image with no explanation. Clips are only ever generated for a page at
- *  the moment it is created, and only while the server has video enabled — so most pages, all the
+ *  the moment it is created, and only while the server has video enabled - so most pages, all the
  *  older ones included, will honestly answer "none here". */
 function describe(enabled: boolean, status: VideoStatus | null | undefined): { label: string; title: string } {
   if (!enabled) {
@@ -25,7 +25,7 @@ function describe(enabled: boolean, status: VideoStatus | null | undefined): { l
     };
   }
   // On the landing page there is no page to report on, so the toggle is just a preference for the
-  // pages opened from here — saying "none on this page" there reads as a fault when nothing is wrong.
+  // pages opened from here - saying "none on this page" there reads as a fault when nothing is wrong.
   if (status === undefined) {
     return {
       label: "Live motion: on",
@@ -36,7 +36,7 @@ function describe(enabled: boolean, status: VideoStatus | null | undefined): { l
     case "ready":
       return { label: "Live motion: on", title: "Playing this page's looping motion clip" };
     case "pending":
-      return { label: "Live motion: generating…", title: "This page's clip is still being generated — it will start playing on its own" };
+      return { label: "Live motion: generating…", title: "This page's clip is still being generated - it will start playing on its own" };
     default:
       return {
         label: "Live motion: on (none on this page)",
@@ -46,7 +46,7 @@ function describe(enabled: boolean, status: VideoStatus | null | undefined): { l
   }
 }
 
-/** Experimental, off by default. Plays a page's pre-generated looping motion clip — the original
+/** Experimental, off by default. Plays a page's pre-generated looping motion clip - the original
  *  flipbook.page calls this "live video stream"; we label it "Live motion" since it loops a clip
  *  rather than streaming anything. */
 export function VideoLoopToggle({ enabled, onChange, disabled, status }: VideoLoopToggleProps) {

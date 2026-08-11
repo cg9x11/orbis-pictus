@@ -18,7 +18,7 @@ body {
 
 /* The page now stacks the browser frame and, in the demo, the landing below it. #root is the flex
    column that centers this stack horizontally; .app-shell uses auto top/bottom margins so a short
-   stack sits centered vertically while a tall one grows and lets the window scroll — the clip you
+   stack sits centered vertically while a tall one grows and lets the window scroll - the clip you
    get from justify-content: center on an overflowing flex item. */
 #root {
   min-height: 100%;
@@ -346,7 +346,7 @@ body {
 }
 
 /* Page-to-page crossfade: the page being left stays painted over the new one and fades away. This
-   covers every move an AI morph clip cannot — a jump of more than one step along the trail spans
+   covers every move an AI morph clip cannot - a jump of more than one step along the trail spans
    several parent/child pairs, so no single clip could represent it. Duration must match
    PAGE_CROSSFADE_MS in PageImage.tsx, which unmounts this layer. */
 .page-image-outgoing {
@@ -389,7 +389,7 @@ body {
   }
 }
 
-/* A light sweep across the page while it generates — the one element that keeps moving during the
+/* A light sweep across the page while it generates - the one element that keeps moving during the
    long stretch when the image model is drawing and there is nothing else to report. */
 .page-loading-sheen {
   position: absolute;
@@ -501,7 +501,7 @@ body {
   padding-right: 6px;
 }
 
-/* Variant mode: amber rather than green, and a dashed edge — this spot is known, but drawing it
+/* Variant mode: amber rather than green, and a dashed edge - this spot is known, but drawing it
    again is not free. It stays a normal interactive button (it must be hoverable and focusable, or
    the label and tooltip never appear); clicking it opens the versions panel, exactly as clicking
    anywhere else inside the tap radius does. */
@@ -992,6 +992,106 @@ body {
   width: 13px;
   height: 13px;
   display: block;
+}
+
+/* Delete control on a gallery card. Opposite corner from .card-branch-badge so the two never
+   collide on a card that has both. */
+.card-delete-button {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 2px solid #2b2620;
+  border-radius: 999px;
+  background: rgba(255, 253, 246, 0.92);
+  color: #2b2620;
+  cursor: pointer;
+  transition: transform 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.card-delete-button:hover {
+  transform: translateY(-1px);
+  background: #b3261e;
+  border-color: #b3261e;
+  color: #fffdf6;
+}
+
+.card-delete-button svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+
+/* Inline confirm/deleting/error state, covering the whole card so a stray tap while it's open
+   never falls through to the card's own <Link>. */
+.card-delete-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px;
+  text-align: center;
+  background: rgba(43, 38, 32, 0.92);
+  color: #fffdf6;
+}
+
+.card-delete-message {
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+/* Row, not column: a stacked overlay overflows the shortest gallery card and gets clipped by its
+   overflow:hidden. Buttons keep flexbox's default sizing (their natural content width) so they
+   don't shrink below their non-wrapping text. */
+.card-delete-actions {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.card-delete-confirm,
+.card-delete-cancel,
+.card-delete-dismiss {
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 6px 10px;
+  border: 2px solid #fffdf6;
+  border-radius: 999px;
+  background: transparent;
+  color: #fffdf6;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.card-delete-confirm {
+  background: #b3261e;
+  border-color: #b3261e;
+}
+
+.card-delete-confirm:hover:not(:disabled),
+.card-delete-dismiss:hover {
+  background: #fffdf6;
+  color: #2b2620;
+}
+
+.card-delete-cancel:hover:not(:disabled) {
+  background: rgba(255, 253, 246, 0.16);
+}
+
+.card-delete-confirm:disabled,
+.card-delete-cancel:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 /* Block with auto side margins, so it centers under the grid regardless of the parent's text-align.

@@ -12,7 +12,7 @@ export const VARIANT_NAME: Record<AspectRatio, string> = {
 /**
  * Storage-tier dimensions (the original draft sizes). The image provider is forced to
  * render at BytePlus Ark's ~3.69 MP floor (see providers/image/ark.ts), but we don't need to keep
- * that on disk: every downstream consumer is fine at these smaller sizes — the page view, the
+ * that on disk: every downstream consumer is fine at these smaller sizes - the page view, the
  * image-to-video reference frame (video is generated at 480p by default, ≤1080p, so a 1280x720
  * frame meets or exceeds the output), and the image-to-image tap/edit reference (which only
  * conditions composition, and is regenerated at the floor regardless). Storing these instead cuts
@@ -61,7 +61,7 @@ export function saveImageVariant(
  * shape); `withoutEnlargement` means a smaller-than-target input is left as-is rather than blown up.
  *
  * Best-effort by design: anything sharp can't decode (e.g. test fixtures that pass non-image bytes,
- * or an unexpected provider payload) is written through unchanged rather than throwing — a resize
+ * or an unexpected provider payload) is written through unchanged rather than throwing - a resize
  * must never be able to fail a generation that has already cost an API call.
  */
 export async function downscaleForStorage(
@@ -112,7 +112,7 @@ export function loadImageAsDataUrl(imagesDir: string, imageUrl: string): string 
 
 /**
  * A node's image for the requested aspect ratio, falling back to whichever variant it does have
- * (e.g. a tap on a page whose only stored variant is a different ratio) — used for tap-mode scene
+ * (e.g. a tap on a page whose only stored variant is a different ratio) - used for tap-mode scene
  * continuity (pass the parent page image as ImageGenInput.referenceImageDataUrl).
  */
 export function loadReferenceImageDataUrl(imagesDir: string, node: Node, aspectRatio: AspectRatio): string | undefined {

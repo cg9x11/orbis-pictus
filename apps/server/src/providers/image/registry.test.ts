@@ -79,7 +79,7 @@ test("an override naming the already-configured provider keeps the configured pa
   reset();
   process.env.IMAGE_PROVIDER = "openai"; // no OPENAI_API_KEY
   const missing: string[] = [];
-  // Still mock, still reported — an override that changes nothing must change nothing.
+  // Still mock, still reported - an override that changes nothing must change nothing.
   assert.equal(buildImageProvider(missing, { imageProvider: "openai" }).providerId, "mock");
   assert.ok(missing.some((m) => m.includes("OPENAI_API_KEY")));
   reset();

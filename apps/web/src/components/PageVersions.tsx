@@ -5,14 +5,14 @@ import { useDismiss } from "../hooks/useDismiss";
 interface PageVersionsProps {
   /** Every version of the current page, oldest first. The control hides when there are fewer than two. */
   versions: VersionSummary[];
-  /** The version currently on screen — highlighted, and never re-opened on click. */
+  /** The version currently on screen - highlighted, and never re-opened on click. */
   currentId: string | undefined;
   /** Open an existing version. Swaps it into the current trail slot (a version is a lateral move, so
    *  the breadcrumb does not grow); a one-step move plays the transition morph. */
   onOpen: (id: string) => void;
   /** The star action: make this version the one the page opens by default. */
   onSetDefault: (id: string) => void;
-  /** Hidden mid-generation / mid-transition — same rationale as CachedTapMarkers. */
+  /** Hidden mid-generation / mid-transition - same rationale as CachedTapMarkers. */
   hidden: boolean;
 }
 

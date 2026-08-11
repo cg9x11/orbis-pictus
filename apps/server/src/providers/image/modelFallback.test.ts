@@ -103,7 +103,7 @@ test("rethrows when the configured default is the very model that was rejected",
   assert.equal(notified, false, "nothing was substituted, so there is nothing to report");
 });
 
-test("only UnknownModelError is caught — quota and generic failures propagate untouched", async () => {
+test("only UnknownModelError is caught - quota and generic failures propagate untouched", async () => {
   for (const thrown of [new QuotaExhaustedError("out of budget"), new Error("socket hang up")]) {
     const fallbackProvider = fake("ark", "configured", async () => ok("must not run"));
     const wrapped = withModelFallback(

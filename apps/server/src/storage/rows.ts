@@ -2,9 +2,9 @@ import type { Node } from "@orbis/shared";
 
 /** Row shape of the `nodes` table (see db.ts for DDL). Derived from the public Node type so a
  *  field rename/add there is caught here at compile time. Only image_variants, video_status, and
- *  morph_status differ in shape — SQLite has no object or enum column type, so all three are
+ *  morph_status differ in shape - SQLite has no object or enum column type, so all three are
  *  stored as raw TEXT and only take their Node-facing shape once parsed/validated in nodes.ts
- *  (ImageVariantsSchema.parse, toVideoStatus(), toMorphStatus()) — plus video_url/morph_url, never
+ *  (ImageVariantsSchema.parse, toVideoStatus(), toMorphStatus()) - plus video_url/morph_url, never
  *  exposed via NodeSchema at all. */
 export interface NodeRow
   extends Omit<
@@ -31,7 +31,7 @@ export interface NodeRow
   // rows; rowToNode maps null to undefined. REAL columns, so they come back as numbers.
   tap_x: number | null;
   tap_y: number | null;
-  // Internal cache-layer metadata — never exposed via the public Node zod schema.
+  // Internal cache-layer metadata - never exposed via the public Node zod schema.
   normalized_subject: string;
   prompt_hash: string | null;
   // Idle-loop video state. `video_status` IS surfaced on the public Node schema
@@ -46,7 +46,7 @@ export interface NodeRow
   morph_url: string | null;
 }
 
-/** Row shape of the `tap_cache` table (see db.ts for DDL) — layer 1 of the cache. */
+/** Row shape of the `tap_cache` table (see db.ts for DDL) - layer 1 of the cache. */
 export interface TapCacheRow {
   id: number;
   node_id: string;

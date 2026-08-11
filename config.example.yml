@@ -1,8 +1,8 @@
-# Orbis Pictus configuration (non-secret) — copy to `config.yml` and edit.
+# Orbis Pictus configuration (non-secret) - copy to `config.yml` and edit.
 #
 #   cp config.example.yml config.yml
 #
-# `config.yml` is gitignored. Secrets (API keys) do NOT go here — keep them in `.env`
+# `config.yml` is gitignored. Secrets (API keys) do NOT go here - keep them in `.env`
 # (see .env.example). Precedence for every setting is:
 #
 #     environment variable   >   this file   >   built-in default
@@ -23,12 +23,22 @@ server:
   databaseUrl: ./data/orbis.db
   imagesDir: ./data/images
 
-# --- Prompt author + tap VLM (needs LLM_API_KEY in .env for the anthropic provider) ---
-llm:
-  provider: anthropic          # anthropic | gemini | mock
-  baseUrl: http://localhost:20128   # anthropic proxy base URL (no /v1 suffix)
-  promptAuthorModel: cc/claude-sonnet-5
-  tapVlmModel: cc/claude-haiku-4-5
+# --- Prompt author + tap VLM ---
+# This whole block is commented out ON PURPOSE. With nothing set, the server picks the LLM
+# provider from the keys present in .env: LLM_API_KEY -> anthropic (a real Anthropic key, or an
+# Anthropic-compatible proxy), else GEMINI_API_KEY -> gemini, else the mock. Pinning `provider`
+# here overrides that pick - e.g. `anthropic` pinned while only GEMINI_API_KEY is set lands on the
+# mock, silently. The server prints the provider it resolved at every startup; check that line.
+#
+# Defaults when unset: baseUrl https://api.anthropic.com (the real Anthropic API - no /v1 suffix),
+# promptAuthorModel claude-sonnet-5, tapVlmModel claude-haiku-4-5. A proxy setup overrides all
+# three together, because proxy model ids are proxy-specific, e.g. for a local claude-code 9router:
+#   baseUrl http://localhost:20128, models cc/claude-sonnet-5 and cc/claude-haiku-4-5.
+# llm:
+#   provider: anthropic        # anthropic | gemini | mock
+#   baseUrl: https://api.anthropic.com
+#   promptAuthorModel: claude-sonnet-5
+#   tapVlmModel: claude-haiku-4-5
 
 # --- Image provider (secret goes in .env: FAL_KEY / ARK_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY) ---
 image:
@@ -54,7 +64,7 @@ video:
   enabled: false
   provider: mock               # ark | mock (defaults to mock even when ARK_API_KEY is set)
   model: seedance-1-0-pro-250528
-  resolution: 480p             # 480p | 720p | 1080p — never 1080p outside a deliberate test
+  resolution: 480p             # 480p | 720p | 1080p - never 1080p outside a deliberate test
   durationSeconds: 3
   maxPerSession: 5             # hard cap on idle-loop generations per browser session
   morph:
@@ -68,21 +78,24 @@ video:
     # (some fast models do i2v but not flf2v). Leave empty to reuse video.model.
     model:
     # Re-encode each finished morph backwards (ffmpeg on PATH) so stepping back up to the parent
-    # replays the same transition in reverse. Costs no video quota — it is a local re-encode of a
+    # replays the same transition in reverse. Costs no video quota - it is a local re-encode of a
     # clip that already exists. Turn off on a host without ffmpeg: back-navigation then crossfades.
     reverse: true
 
 # --- Web search (uses LLM_API_KEY from .env for the llm provider) ---
+# `provider` is commented out for the same reason as llm.provider above: unset, it resolves to
+# `llm` when LLM_API_KEY is present and `none` otherwise. The default model is claude-sonnet-5
+# (a proxy setup uses its own id, e.g. cc/claude-sonnet-5).
 search:
-  provider: llm                # llm | none
-  model: cc/claude-sonnet-5
+  # provider: llm              # llm | none
+  # model: claude-sonnet-5
   timeoutMs: 180000             # wall-clock budget for one search before degrading gracefully
   cacheEnabled: false          # in-memory reuse of summaries across repeated queries
 
 # --- Visual identity ---
 artStyle: editorial                 # felt | papercut | riso | pixel | editorial | tiltshift
 composition: auto              # auto (default; each style picks its best view) | flat | isometric | diorama
-                                    # tiltshift ignores this — it fixes its own view
+                                    # tiltshift ignores this - it fixes its own view
 
 # --- Photo upload ---
 upload:

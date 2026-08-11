@@ -7,7 +7,7 @@ export class QuotaExhaustedError extends Error {}
 
 /**
  * Thrown when a provider rejects a request specifically because it does not recognise the model id
- * — a hand-typed or stale name from the settings picker's `Custom…` field, as opposed to a working
+ * - a hand-typed or stale name from the settings picker's `Custom…` field, as opposed to a working
  * model that is merely out of budget (QuotaExhaustedError).
  *
  * Separate from QuotaExhaustedError because the remedies differ: a quota failure has nowhere to go,
@@ -33,7 +33,7 @@ export interface AuthorPromptOutput {
 export interface AuthorEditInput {
   /** The user's typed command, e.g. "make it night time". */
   command: string;
-  /** The image prompt that produced the page being edited — the edit rewrites this. */
+  /** The image prompt that produced the page being edited - the edit rewrites this. */
   parentAuthoredPrompt: string;
   parentTitle?: string;
   webSearchSummary?: string;
@@ -101,7 +101,7 @@ export interface ImageGenResult {
    *
    * Needed because both the prompt hash and the node row are built from `modelId` *before*
    * generation runs (pipeline/generate.ts), so without this a fallback silently credits a model
-   * that never drew anything — already true today whenever Ark's quota fallback fires. Callers
+   * that never drew anything - already true today whenever Ark's quota fallback fires. Callers
    * record `usedModelId ?? modelId`.
    */
   usedModelId?: string;
@@ -109,29 +109,29 @@ export interface ImageGenResult {
 
 export interface ImageProvider {
   readonly modelId: string;
-  /** Short provider identifier (e.g. "ark", "fal", "mock") — part of the prompt-hash cache key, distinct from modelId so a provider swap invalidates the cache even if a model id string happens to collide. */
+  /** Short provider identifier (e.g. "ark", "fal", "mock") - part of the prompt-hash cache key, distinct from modelId so a provider swap invalidates the cache even if a model id string happens to collide. */
   readonly providerId: string;
   generate(input: ImageGenInput): Promise<ImageGenResult>;
 }
 
 // --- Video provider (idle-loop background animation) ---
 export interface VideoGenInput {
-  /** Content-only motion prompt (the VISUAL IDENTITY content/style split applies here too — no art-style words baked in by callers). */
+  /** Content-only motion prompt (the VISUAL IDENTITY content/style split applies here too - no art-style words baked in by callers). */
   prompt: string;
   aspectRatio: AspectRatio;
-  /** First frame — for the idle loop this is the page's own rendered image (data: URL). */
+  /** First frame - for the idle loop this is the page's own rendered image (data: URL). */
   firstFrameDataUrl: string;
-  /** Last frame — reserved for the optional Phase 5 transition-morph task; providers without first-last-frame support may ignore it. */
+  /** Last frame - reserved for the optional Phase 5 transition-morph task; providers without first-last-frame support may ignore it. */
   lastFrameDataUrl?: string;
   durationSeconds: number;
   /** Dev default 480p ("never 1080p in this session"). */
   resolution: "480p" | "720p" | "1080p";
   /** Overrides the provider's configured model for this one call. Used so morphs (which need
    *  first-last-frame `flf2v` support) can run on a different model than the idle loop (single-frame
-   *  `i2v`) — e.g. an idle loop on a fast i2v-only model while morph uses a flf2v-capable one. When
+   *  `i2v`) - e.g. an idle loop on a fast i2v-only model while morph uses a flf2v-capable one. When
    *  absent, the provider uses its own configured model. */
   modelOverride?: string;
-  /** Whether the model must hold the camera still. Default (unset/true) locks it — right for the
+  /** Whether the model must hold the camera still. Default (unset/true) locks it - right for the
    *  ambient idle loop and any clip meant to sit still. A morph sets this false so the transition can
    *  actually move the camera (dive/push toward the tapped spot) instead of a locked-off crossfade. */
   cameraFixed?: boolean;
@@ -152,7 +152,7 @@ export interface VideoProvider {
 // --- Web search provider (stub interface, `none` only in Phase 1) ---
 export interface SearchResult {
   summary: string;
-  /** True when `summary` didn't actually come from a web search — the provider fell back to
+  /** True when `summary` didn't actually come from a web search - the provider fell back to
    *  model-knowledge-only text after every search-tool attempt failed or silently produced no
    *  results (see providers/search/llm.ts). Omitted (not just false) when the search genuinely
    *  ran, so a caller can tell "known good" from "never checked" from "checked and degraded". */

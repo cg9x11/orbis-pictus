@@ -17,7 +17,7 @@ export interface GenerationState {
   previewImageUrl?: string;
   node?: Node;
   error?: string;
-  /** Machine-readable reason for `error`, when the server's `error` event carried one — e.g. "quota"
+  /** Machine-readable reason for `error`, when the server's `error` event carried one - e.g. "quota"
    *  drives the quota-specific error banner. Unset for a network-level failure (the stream's own
    *  .catch below), since those never reach the server's structured error event at all. */
   errorCode?: GenerateErrorCode;
@@ -81,7 +81,7 @@ export function useGenerationStream() {
   // Abort the in-flight stream, not just clear the UI state. Callers reset() when the user
   // navigates away mid-generation (e.g. a breadcrumb click); without the abort the orphaned SSE
   // keeps running and its eventual `complete` would resolve start()'s promise, firing the caller's
-  // append() against the page the user already moved to — truncating the trail and yanking them
+  // append() against the page the user already moved to - truncating the trail and yanking them
   // forward. The aborted stream's own `.catch` sees `signal.aborted` and stays silent.
   const reset = useCallback(() => {
     abortRef.current?.abort();

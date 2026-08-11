@@ -7,7 +7,7 @@ import { writeReversedMorph } from "../pipeline/morphStorage.js";
 /**
  * One-off backfill: writes the reversed copy of every morph already on disk, so stepping back up to
  * a parent replays the transition on pages generated before reverse morphs existed.
- * Without it those pages crossfade back forever — the reverse clip is only written at generation
+ * Without it those pages crossfade back forever - the reverse clip is only written at generation
  * time, and nothing regenerates a morph that is already `ready`.
  *
  * Costs no video quota: each one is a local ffmpeg re-encode of a clip that already exists. Needs
@@ -24,7 +24,7 @@ const imagesDir = path.resolve(process.cwd(), strConfig("IMAGES_DIR", (c) => c.s
 const force = process.argv.includes("--force");
 
 if (!fs.existsSync(imagesDir)) {
-  console.error(`No images directory at ${imagesDir} — nothing to do.`);
+  console.error(`No images directory at ${imagesDir} - nothing to do.`);
   process.exit(1);
 }
 

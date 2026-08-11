@@ -41,7 +41,7 @@ export function useSessionTrail(initial: Node[] = []) {
    * Swaps a DIFFERENT node into the current position, keeping the trail length, index, AND any
    * forward history intact. Used to move between VERSIONS of one page: a version is a lateral change
    * of the same page, not a new step in the exploration, so it takes the current slot instead of
-   * extending the trail — which keeps the breadcrumb from showing the same page twice. Unlike
+   * extending the trail - which keeps the breadcrumb from showing the same page twice. Unlike
    * `append`, it does NOT truncate forward history: switching versions is a lateral peek, so stepping
    * back to look at another version must not throw away the forward steps you already walked.
    */

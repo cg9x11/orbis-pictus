@@ -4,14 +4,14 @@ const STORAGE_KEY = "orbis_model_settings:v1";
 
 /**
  * The settings panel's choices. Same shape as the request's override block, so what is stored is
- * exactly what is sent — no mapping in between.
+ * exactly what is sent - no mapping in between.
  *
  * Every field is optional and an absent one means "use whatever the server is configured with", so
  * an empty object reproduces the app's behaviour before the panel existed.
  */
 export type ModelPrefs = ModelOverrides;
 
-/** Reads the saved choices. Any problem — no storage, bad JSON, a shape from an older version —
+/** Reads the saved choices. Any problem - no storage, bad JSON, a shape from an older version -
  *  yields an empty object, which simply means "server defaults". Never throws. */
 export function readModelPrefs(): ModelPrefs {
   try {

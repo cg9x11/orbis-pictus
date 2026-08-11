@@ -51,7 +51,7 @@ test("backs off using the provided schedule, capping at the last interval once e
   assert.deepEqual(waits, [10, 20, 20, 20]);
 });
 
-test("throws a timeout error once maxAttempts is exhausted — never hangs", async () => {
+test("throws a timeout error once maxAttempts is exhausted - never hangs", async () => {
   await assert.rejects(
     () => pollUntilDone(async () => ({ done: false }), { maxAttempts: 3, intervalsMs: [1], sleep: noWait }),
     /timed out/i,

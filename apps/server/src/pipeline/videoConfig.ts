@@ -1,4 +1,4 @@
-/** Guards — video quota burns far faster than images, so every knob defaults safe. */
+/** Guards - video quota burns far faster than images, so every knob defaults safe. */
 
 import { boolConfig, intConfig, strConfig } from "../config/index.js";
 
@@ -20,7 +20,7 @@ function isResolution(raw: string | undefined): raw is VideoResolution {
 }
 
 /**
- * Dev default 480p — never 1080p in this session.
+ * Dev default 480p - never 1080p in this session.
  *
  * `override` is the UI picker's value for one request. Anything outside the accepted set falls
  * through to the configured value instead of reaching the provider, matching how the image

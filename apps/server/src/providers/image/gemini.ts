@@ -68,7 +68,7 @@ export class GeminiImageProvider implements ImageProvider {
       // Verified empirically 2026-08-08: an unknown model answers 404 with
       // `{"error":{"code":404,"message":"models/<id> is not found for API version v1beta, or is not
       // supported for generateContent…","status":"NOT_FOUND"}}`. Note this also covers a real model
-      // that simply cannot do generateContent — the remedy is the same either way.
+      // that simply cannot do generateContent - the remedy is the same either way.
       if (res.status === 404) {
         throw new UnknownModelError(`Gemini does not recognise image model "${this.modelId}". ${body}`);
       }
@@ -95,7 +95,7 @@ export class GeminiImageProvider implements ImageProvider {
 }
 
 /** Sizes Gemini accepts. Exported so the settings catalog can build its dropdown from this one
- *  list rather than repeating it — note not every model supports every size (the Lite model is 1K
+ *  list rather than repeating it - note not every model supports every size (the Lite model is 1K
  *  only), which the API enforces and this list deliberately does not. */
 export const GEMINI_IMAGE_SIZES = ["512", "1K", "2K", "4K"] as const;
 

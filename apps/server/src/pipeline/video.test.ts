@@ -175,7 +175,7 @@ test("VIDEO_MAX_PER_SESSION caps generations per session_id, across distinct nod
   const nodes = ["cap-a", "cap-b", "cap-c"].map((id) => makeNode(id, sessionId, imagesDir));
   for (const node of nodes) insertNode(node, { normalizedSubject: "n" });
 
-  // VIDEO_MAX_PER_SESSION=2 (set at the top of this file) — the third node in the same session must be skipped.
+  // VIDEO_MAX_PER_SESSION=2 (set at the top of this file) - the third node in the same session must be skipped.
   for (const node of nodes) pipeline.maybeStartIdleLoop(node, makeProviders(video), imagesDir);
   await flush();
 
@@ -309,7 +309,7 @@ test("startNow: VIDEO_ENABLED=false reports 'disabled' and starts nothing", asyn
 // as "no clip will ever exist here". That makes the ORDER inside runGenerate load-bearing: the
 // background generation has to be kicked off, and the node re-read, before `complete` is emitted.
 // Emit first and the payload says null forever, so a page that is actively generating a clip would
-// never pick it up — the exact silent-wait bug this field was added to remove.
+// never pick it up - the exact silent-wait bug this field was added to remove.
 test("the `complete` event already reports video_status pending when a clip is on its way", async () => {
   const { runGenerate } = await import("./generate.js");
   const imagesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orbis-video-complete-"));

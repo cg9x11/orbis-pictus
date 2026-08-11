@@ -12,7 +12,7 @@ export interface GenerationProgressProps {
 }
 
 /** A page takes tens of seconds, so the elapsed count only appears once the wait is long enough to
- *  need reassurance — showing "1s" immediately would make every generation feel slow. */
+ *  need reassurance - showing "1s" immediately would make every generation feel slow. */
 const ELAPSED_AFTER_SECONDS = 8;
 
 function label(stage: GenerationStage | undefined, tapSubject: string | undefined, pageTitle: string | undefined): string {
@@ -32,7 +32,7 @@ function label(stage: GenerationStage | undefined, tapSubject: string | undefine
 
 /**
  * Replaces a single static "Generating…" pill with the phase the server is actually in. Every
- * value here already travels over the existing SSE stream — the client used to receive
+ * value here already travels over the existing SSE stream - the client used to receive
  * and discard it. Nothing about this speeds a generation up; it just stops a 30-60 second wait from
  * looking like a frozen page.
  */

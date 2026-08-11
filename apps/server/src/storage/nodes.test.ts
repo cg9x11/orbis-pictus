@@ -196,7 +196,7 @@ test("listGalleryPage returns nodes newest first (created_at DESC)", () => {
 // earlier one lacked), so the gallery no longer dedups by page_title: two same-titled ROOTS each
 // get their own card. The old dedup collapsed a just-created page into an older same-titled one,
 // which made the new page look like it had vanished from the list. (A same-titled *child* is still
-// excluded — but by the root-only filter, not by any title rule; see the tap-children test below.)
+// excluded - but by the root-only filter, not by any title rule; see the tap-children test below.)
 test("listGalleryPage lists every root, keeping two roots that share a page_title (no title dedup)", () => {
   const older = makeNode({ id: "takoyaki-older", parent_id: null, page_title: "Takoyaki", created_at: "2026-01-01T00:00:00.000Z" });
   insertNode(older, { normalizedSubject: "takoyaki" });
@@ -212,7 +212,7 @@ test("listGalleryPage lists every root, keeping two roots that share a page_titl
 
 // The gallery offers starting points, so it shows only the opening page of an exploration. A tap
 // child is a mid-exploration page with a title of its own ("Roadway Deck"), which the page_title
-// dedup above would happily let through — it has to be excluded by being a child, not by title.
+// dedup above would happily let through - it has to be excluded by being a child, not by title.
 // Two taps landing under one visual marker are the same click as far as findTapCacheHit is
 // concerned, so drawing both would put two dots on one target.
 test("listTapCache collapses points that fall under the same tap marker", () => {
@@ -254,7 +254,7 @@ test("getHistory returns the ancestor chain root -> parent, excluding the node i
 });
 
 // A parent_id cycle must never make getHistory loop forever (node:sqlite is synchronous, so a
-// spin would hang the whole event loop — a trivial DoS). The route layer refuses to store such a
+// spin would hang the whole event loop - a trivial DoS). The route layer refuses to store such a
 // row, but the walk itself has to be self-protecting regardless of how a bad row got there.
 test("getHistory terminates on a self-parent cycle instead of looping forever", () => {
   // Bypass the route guard by writing a self-referential row directly, as corrupt/legacy data would.
@@ -350,7 +350,7 @@ test("listGalleryPage walks every root exactly once across pages, with no repeat
   }
 
   const walked = drainGallery(2, (id) => id.startsWith("walk-"));
-  // Newest first, and each of the seven appears once — the property that offset pagination loses.
+  // Newest first, and each of the seven appears once - the property that offset pagination loses.
   assert.deepEqual(walked, ["walk-6", "walk-5", "walk-4", "walk-3", "walk-2", "walk-1", "walk-0"]);
 });
 

@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { Hono } from "hono";
 import {
   AspectRatioSchema,
+  DEMO_ROOT_ID,
   groupIdOf,
   ModelOverridesSchema,
   NodesCreateRequestSchema,
@@ -14,8 +15,10 @@ import {
 } from "@orbis/shared";
 import {
   addImageVariant,
+  collectSubtreeIds,
   countGroupVersions,
   decodeGalleryCursor,
+  deleteSubtreeByIds,
   findChildrenBySubject,
   getHistory,
   getMorphInfo,
@@ -24,11 +27,13 @@ import {
   insertNode,
   listGalleryPage,
   listVersions,
+  referencedImageFolders,
   resolveGroupDefault,
   setDefaultVersion,
 } from "../storage/nodes.js";
 import { listTapCache } from "../storage/tapCache.js";
 import { saveImageVariantResized } from "../pipeline/imageStorage.js";
+import { deleteNodeDirs } from "../pipeline/nodeFiles.js";
 import { getMorphReverseUrl } from "../pipeline/morphStorage.js";
 import { normalizeSubject } from "../pipeline/normalize.js";
 import { buildImagePrompt } from "../pipeline/artStyle.js";
@@ -68,7 +73,7 @@ function toClipOptions(o: ModelOverrides): { resolution?: string; durationSecond
   return { resolution: o.video_resolution, durationSeconds: o.video_duration_seconds };
 }
 
-/** The branch control's list view of one version — a thin projection of a Node. The thumbnail is the
+/** The branch control's list view of one version - a thin projection of a Node. The thumbnail is the
  *  first available aspect-ratio variant, since a version may not have the ratio the client shows. */
 function toVersionSummary(node: Node): VersionSummary {
   return {
@@ -129,15 +134,15 @@ export function nodesRoute(
       version: 1,
     };
     // No providerId available on this generic persistence request, so this node is never
-    // offered for prompt-hash reuse — only the generate pipeline populates it.
+    // offered for prompt-hash reuse - only the generate pipeline populates it.
     insertNode(node, { normalizedSubject: normalizeSubject(node.query), promptHash: null });
     return c.json({ node }, 201);
   });
 
-  // Landing-page example gallery — a page of already-generated nodes, zero new generations.
+  // Landing-page example gallery - a page of already-generated nodes, zero new generations.
   // `?limit=all` returns every gallery-eligible page with no cap; any other value is clamped to
   // MAX_GALLERY_LIMIT. The uncapped form exists because the cap is a presentation choice, not a
-  // safety one, and a self-hosted instance may legitimately want the whole set — but it does read
+  // safety one, and a self-hosted instance may legitimately want the whole set - but it does read
   // every matching row, so prefer a number for a public deployment whose database can grow without
   // bound.
   //
@@ -168,7 +173,7 @@ export function nodesRoute(
     }
 
     const { nodes, nextCursor } = listGalleryPage({ limit, cursor });
-    // Per-card version count for the branch badge. One COUNT per card — fine at limit <= 24, backed
+    // Per-card version count for the branch badge. One COUNT per card - fine at limit <= 24, backed
     // by nodes_version_group_idx (see PLAN-versions.md, finding 12).
     const version_counts: Record<string, number> = {};
     for (const n of nodes) version_counts[n.id] = countGroupVersions(groupIdOf(n));
@@ -176,7 +181,7 @@ export function nodesRoute(
   });
 
   // User-uploaded photo becomes a root node (parent_id null), titled by the VLM.
-  // Gated behind UPLOAD_ENABLED (default off) — enforced here as well as by hiding the button, so a
+  // Gated behind UPLOAD_ENABLED (default off) - enforced here as well as by hiding the button, so a
   // stale client or a direct API call can't upload when the feature is turned off.
   app.post("/upload", async (c) => {
     if (!isUploadEnabled()) return c.json({ error: "Photo upload is disabled" }, 403);
@@ -197,8 +202,8 @@ export function nodesRoute(
 
     const providers = resolveProviders();
     const id = crypto.randomUUID().replace(/-/g, "");
-    // The VLM title and the image resize+write are independent — the write needs only the id and the
-    // decoded bytes, not the title — so overlap them rather than paying the resize latency serially
+    // The VLM title and the image resize+write are independent - the write needs only the id and the
+    // decoded bytes, not the title - so overlap them rather than paying the resize latency serially
     // after the multi-second VLM call.
     const [{ title, description }, imageUrl] = await Promise.all([
       providers.llm.titleImage(image),
@@ -215,7 +220,7 @@ export function nodesRoute(
       image_model: "upload",
       // No provenance: an uploaded photo was not drawn by any model, so there is nothing to
       // reproduce. Left empty rather than set to a sentinel, because the variant route keys off
-      // `image_provider` being non-empty — a sentinel would be fed back as a real provider name.
+      // `image_provider` being non-empty - a sentinel would be fed back as a real provider name.
       // (`image_model: "upload"` above is pre-existing and stays for display purposes only.)
       image_provider: "",
       art_style: "",
@@ -236,7 +241,7 @@ export function nodesRoute(
   // existing child page: a tap-cache row on its own says nothing the user can act on.
   //
   // `mode` travels with the list because the same coordinates mean different things to the client.
-  // Under "reuse" a marker is a free shortcut to the one child. Under "variant" it is a disclosure —
+  // Under "reuse" a marker is a free shortcut to the one child. Under "variant" it is a disclosure -
   // the spot is known, but drawing again costs money, so the client opens a panel instead of
   // navigating. Under "off" the list is always empty: nothing is cached, and rows left behind by an
   // earlier run in another mode must not resurface as markers for a mode that ignores them.
@@ -278,7 +283,7 @@ export function nodesRoute(
   });
 
   // Idle-loop video polling: 404 until the background clip is ready, whether
-  // it's still pending, failed, or was never attempted — the client just keeps polling with
+  // it's still pending, failed, or was never attempted - the client just keeps polling with
   // backoff and gives up on its own after a while, so no separate "failed" signal is needed here.
   app.get("/:id/video", (c) => {
     const id = c.req.param("id");
@@ -327,7 +332,7 @@ export function nodesRoute(
     }
   });
 
-  // Transition-morph polling: 404 until the pre-generated clip is ready — same
+  // Transition-morph polling: 404 until the pre-generated clip is ready - same
   // shape and reasoning as /video above. Morphs are never generated on demand, so a 404 here just
   // means "use the instant crossfade", not "come back later and block on it". The `status` field on
   // the not-ready branch lets the first-step-morph gate (useOrbisController) tell "still pending,
@@ -343,11 +348,11 @@ export function nodesRoute(
     return c.json({ ready: true, morph_url: info.url, reverse_url: getMorphReverseUrl(imagesDir, id) });
   });
 
-  // On-demand morph generation — the counterpart to POST /:id/video above, and for the same reason:
+  // On-demand morph generation - the counterpart to POST /:id/video above, and for the same reason:
   // the automatic path only fires the instant a child is created, and only while Live video is on,
   // so a child made with it off (or reopened from a cached tap marker, which never runs the generate
-  // pipeline) had no way to ever get one. Same guards as the automatic path — MORPH_ENABLED and the
-  // per-session cap still apply — with a `failed` node retryable here because this is a deliberate
+  // pipeline) had no way to ever get one. Same guards as the automatic path - MORPH_ENABLED and the
+  // per-session cap still apply - with a `failed` node retryable here because this is a deliberate
   // action. A root page answers 422: there is no parent to morph from.
   app.post("/:id/morph", async (c) => {
     const id = c.req.param("id");
@@ -387,7 +392,7 @@ export function nodesRoute(
     return c.json(versionsPayload(node));
   });
 
-  // Makes this version the group's default — the one the gallery card opens (the star action). The
+  // Makes this version the group's default - the one the gallery card opens (the star action). The
   // storage layer clears the old default in the same transaction. Returns the fresh list, so the
   // client updates its star state without a second request.
   app.post("/:id/default", (c) => {
@@ -405,6 +410,46 @@ export function nodesRoute(
     return c.json({ node, history });
   });
 
+  // Hard-deletes a gallery card's whole subtree: every version of this node's group, every
+  // descendant reached by tapping, and every version of every descendant - see
+  // storage/nodes.ts's deleteSubtreeByIds. No per-user ownership check: this app has no cloud or
+  // self-hosted multi-user deployment, so whoever runs it owns everything in their own database.
+  //
+  // The one guard that DOES apply protects the app itself, not a user: DEMO_ROOT_ID is the node
+  // the web app boots "/" into. Deleting it (or a descendant of it, reachable by a direct API call
+  // even though the UI hides no such button) would break the home page for good - refused with 403
+  // rather than a 5xx from the demo failing to hydrate afterwards.
+  app.delete("/:id", (c) => {
+    const id = c.req.param("id");
+    const node = getNode(id);
+    if (!node) return c.json({ error: "Not found" }, 404);
+
+    // Compute the subtree ONCE and reuse it for both the guard and the delete - the id set the
+    // guard tests is exactly the set deleteSubtreeByIds removes.
+    //
+    // Two demo guards, because the delete's blast radius reaches the demo two different ways.
+    // The subtree-membership check covers everything the delete would actually remove - the
+    // target itself, and crucially any VERSION SIBLING of the demo root (same version_group_id,
+    // no ancestors, not the demo id - the one shape an ancestor check can never see). The
+    // ancestor check covers the reverse direction: a demo DESCENDANT is not in its own subtree's
+    // sweep of the demo root, but deleting it still guts the demo tree from under the home page.
+    const wouldDelete = collectSubtreeIds(id);
+    const touchesDemo = wouldDelete.includes(DEMO_ROOT_ID) || getHistory(id).some((ancestor) => ancestor.id === DEMO_ROOT_ID);
+    if (touchesDemo) {
+      return c.json({ error: "This page is part of the built-in demo and can't be deleted" }, 403);
+    }
+
+    const deletedIds = deleteSubtreeByIds(wouldDelete);
+    // Runs AFTER the DB commit inside deleteSubtreeByIds, never before: a rolled-back transaction must
+    // never be able to leave deleted files on disk. The referenced-folder set is built post-delete
+    // too, so it only sees rows that actually survived - a folder is kept only when a SURVIVING
+    // page's image_variants still points into it (the prompt-hash cache can make a newer node's
+    // image live in an older node's folder; see storage/nodes.ts's referencedImageFolders).
+    const referenced = referencedImageFolders();
+    deleteNodeDirs(imagesDir, deletedIds, (nodeId) => referenced.has(nodeId));
+    return c.json({ deleted: deletedIds.length });
+  });
+
   // Lazily generates and caches a missing aspect-ratio variant of an existing node.
   app.get("/:id/variant", async (c) => {
     const id = c.req.param("id");
@@ -420,7 +465,7 @@ export function nodesRoute(
       // Drawn from the page's OWN record, not the server's current settings.
       //
       // Two bugs lived here. `authored_prompt` is the content-only prompt, so sending it raw meant
-      // a variant was drawn with no art-style, composition or framing block at all — a visibly
+      // a variant was drawn with no art-style, composition or framing block at all - a visibly
       // different picture from the page it belongs to. And the provider/model came from whatever
       // the server was set to at the time the variant was first requested, which is now something
       // the user can change mid-session.
@@ -437,16 +482,16 @@ export function nodesRoute(
       // A stored model id is a claim about the past, and the past expires: providers retire model
       // names, and the id recorded when the page was drawn may no longer exist by the time someone
       // rotates the page to another ratio. Unwrapped, that raised UnknownModelError out of a plain
-      // GET and turned a working page into a 500 — worse than the behaviour this provenance replaced.
+      // GET and turned a working page into a 500 - worse than the behaviour this provenance replaced.
       //
       // Same rule as routes/generate.ts: wrap only when a model was actually named, because with no
       // model there is nothing to fall back FROM. `withModelFallback`'s own identity check then
       // skips the retry when the stored model IS the configured one, so no request is paid twice.
-      // The notice can only be logged here — this is a JSON GET, with no stream to write to.
+      // The notice can only be logged here - this is a JSON GET, with no stream to write to.
       const resolvedImage = resolveProviders(provenance).image;
       const image = provenance.imageModel
         ? withModelFallback(resolvedImage, () => resolveProviders({}).image, (n) =>
-            console.warn(`[variant] node ${id}: model "${n.requested}" was rejected — drew with "${n.used}" (${n.reason})`),
+            console.warn(`[variant] node ${id}: model "${n.requested}" was rejected - drew with "${n.used}" (${n.reason})`),
           )
         : resolvedImage;
 

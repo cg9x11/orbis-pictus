@@ -1,7 +1,7 @@
 import type { VideoGenInput, VideoGenResult, VideoProvider } from "../types.js";
 
 /**
- * A genuinely valid, tiny (1.7KB, 1s, 64x36) MP4 clip — embedded as base64 so it ships correctly
+ * A genuinely valid, tiny (1.7KB, 1s, 64x36) MP4 clip - embedded as base64 so it ships correctly
  * from both `tsx` (dev, runs src/ directly) and the built `dist/` (tsc doesn't copy non-.ts
  * assets) with no build-step changes, mirroring image/png.ts's dependency-free mock approach.
  * Content is irrelevant (a solid color); it exists so a real <video> element can actually play
@@ -12,7 +12,7 @@ const MOCK_MP4_BASE64 =
 
 let cachedBytes: Buffer | null = null;
 
-/** Deterministic placeholder clip, no network calls — used when VIDEO_ENABLED is on but no video key is configured. */
+/** Deterministic placeholder clip, no network calls - used when VIDEO_ENABLED is on but no video key is configured. */
 export class MockVideoProvider implements VideoProvider {
   readonly modelId = "mock-video";
   readonly providerId = "mock";

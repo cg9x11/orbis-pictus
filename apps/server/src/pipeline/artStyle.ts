@@ -69,7 +69,7 @@ function parseArtStyle(source: string): ParsedArtStyle {
 
 // Hot-reload the prompt file when it changes on disk, so tuning art-style.md takes effect with no
 // server restart (dev iteration; the md isn't imported, so `tsx watch` won't restart on its edits).
-// Stat at most once per second — building a prompt reads a few sections, so this costs one stat.
+// Stat at most once per second - building a prompt reads a few sections, so this costs one stat.
 let cached: ParsedArtStyle | undefined;
 let cachedMtimeMs = 0;
 let lastStatMs = 0;
@@ -97,14 +97,14 @@ export function isCompositionName(raw: string | undefined | null): raw is Compos
   return (COMPOSITION_NAMES as string[]).includes(raw ?? "");
 }
 
-/** The style used when a request doesn't name one — `ART_STYLE` env / `artStyle` in config.yml,
+/** The style used when a request doesn't name one - `ART_STYLE` env / `artStyle` in config.yml,
  *  or felt. */
 export function getDefaultArtStyleName(): ArtStyleName {
   const raw = strConfig("ART_STYLE", (c) => c.artStyle, "felt");
   return isArtStyleName(raw) ? raw : "felt";
 }
 
-/** The composition used when a request doesn't name one — `COMPOSITION` env / `composition` in
+/** The composition used when a request doesn't name one - `COMPOSITION` env / `composition` in
  *  config.yml, or diorama (the app's original look, kept as the default so existing behaviour is
  *  unchanged). */
 export function getDefaultCompositionName(): CompositionName {
@@ -113,15 +113,15 @@ export function getDefaultCompositionName(): CompositionName {
 }
 
 /** The View the settings panel starts on: the operator's `COMPOSITION` (env / config.yml) when set,
- *  otherwise "auto". Unlike getDefaultCompositionName — the concrete server-side FALLBACK, which is
- *  always a real composition — this may be the "auto" sentinel and is the value the client sends
+ *  otherwise "auto". Unlike getDefaultCompositionName - the concrete server-side FALLBACK, which is
+ *  always a real composition - this may be the "auto" sentinel and is the value the client sends
  *  back. So setting `COMPOSITION=flat` makes the UI start on Flat again, not silently on Auto. */
 export function getConfiguredView(): string {
   return strConfig("COMPOSITION", (c) => c.composition, AUTO_COMPOSITION);
 }
 
 /** The style a request will actually be drawn in: the one it asked for when that is recognised,
- *  otherwise the server default. Exported so a generation can RECORD what it really used — a page
+ *  otherwise the server default. Exported so a generation can RECORD what it really used - a page
  *  stores this, and its aspect-ratio variants are later drawn from the stored value so they match
  *  the page instead of whatever the server is set to by then. */
 export function resolveArtStyleName(raw?: string): ArtStyleName {
@@ -137,7 +137,7 @@ export function resolveCompositionName(raw?: string): CompositionName {
  *  so the style and the camera reinforce each other instead of fighting: a handmade felt-diorama look
  *  wants the diorama view, a flat print wants the flat view, an editorial architectural plate wants
  *  the isometric view. tiltshift owns its own camera (getArtStyleBlock skips the composition for it),
- *  so its entry is a placeholder that never reaches the prompt — the client shows "built-in" for it
+ *  so its entry is a placeholder that never reaches the prompt - the client shows "built-in" for it
  *  instead (see VIEW_LOCKED_STYLES). */
 export const AUTO_VIEW: Record<ArtStyleName, CompositionName> = {
   felt: "diorama",
@@ -161,7 +161,7 @@ export function isViewLocked(style: ArtStyleName): boolean {
 /** The composition a page is actually drawn in, from its style and the requested View. The View may
  *  be a concrete composition, or "auto" (the default) which defers to AUTO_VIEW for the style; an
  *  unrecognised View falls back to the server default, like resolveCompositionName. Both the built
- *  prompt and the stored provenance use THIS, so a page never stores "auto" — it stores the concrete
+ *  prompt and the stored provenance use THIS, so a page never stores "auto" - it stores the concrete
  *  view it was drawn in, which keeps aspect-ratio re-draws consistent. */
 export function resolveCompositionForStyle(style?: string, composition?: string): CompositionName {
   if (composition === AUTO_COMPOSITION) return AUTO_VIEW[resolveArtStyleName(style)];
@@ -169,7 +169,7 @@ export function resolveCompositionForStyle(style?: string, composition?: string)
 }
 
 /** Human label taken from a section's own "## <Keyword>: …" heading, so a picker can never drift
- *  out of sync with the prompt text it selects — there is one source of truth, art-style.md. */
+ *  out of sync with the prompt text it selects - there is one source of truth, art-style.md. */
 function headingLabel(section: string, keyword: string, fallback: string): string {
   const heading = new RegExp(`^##\\s*${keyword}:\\s*(.+)$`, "m").exec(section)?.[1]?.trim();
   const text = heading ?? fallback;
@@ -187,7 +187,7 @@ export function listCompositions(): { name: CompositionName; label: string }[] {
 }
 
 /**
- * Layout furniture + one composition block + one style block — the text
+ * Layout furniture + one composition block + one style block - the text
  * wrapped into every image prompt. An unknown or absent `style`/`composition` falls back to the
  * server default rather than erroring: a bad value should render the house look, never break a
  * generation.
@@ -198,10 +198,10 @@ export function getArtStyleBlock(style?: string, composition?: string, provider?
   const { layout, compositions, styles, styleVariants } = sections();
   // A style may ship a per-provider variant (e.g. tiltshift@gemini): different image models read the
   // same intent from differently-worded prompts, so the block is tuned per provider. A provider with
-  // no variant — or a request that names none — falls back to the base style text.
+  // no variant - or a request that names none - falls back to the base style text.
   const styleText = (provider !== undefined && styleVariants[styleName][provider]) || styles[styleName];
-  // A view-locked style (e.g. tilt-shift) fixes its own camera — a real high-angle lens with natural
-  // perspective — so it skips the craft compositions (flat / isometric / diorama), whose parallel or
+  // A view-locked style (e.g. tilt-shift) fixes its own camera - a real high-angle lens with natural
+  // perspective - so it skips the craft compositions (flat / isometric / diorama), whose parallel or
   // flat projections have no focal plane for the blur to sit on; pairing them fought the effect in
   // testing. The whole look lives in the style block. Rule lives in VIEW_LOCKED_STYLES, read here.
   if (isViewLocked(styleName)) return `${layout}\n\n${styleText}`;
@@ -230,13 +230,13 @@ const FRAMING =
   "below, with its title, callout labels and footer caption drawn as an integral part of the artwork.";
 
 /** Appended to FRAMING only when a reference image accompanies the request (tap/edit), so continuity
- *  is asked for explicitly — the opposite of asking for an "entirely new composition", because our
+ *  is asked for explicitly - the opposite of asking for an "entirely new composition", because our
  *  tap/edit flows deliberately keep the parent scene. */
 const REFERENCE_REUSE =
   " A reference image is provided: keep its overall scene, layout and rendering as the base, and apply " +
   "the content described below on top of it so the result reads as the same place.";
 
-/** Quality / integration directives, sent just before the content — the closer, which
+/** Quality / integration directives, sent just before the content - the closer, which
  *  measurably lifts composition and legibility. Positive phrasing replaces the old Seedream-era
  *  defensive text-locking. */
 const QUALITY =
@@ -248,7 +248,7 @@ const QUALITY =
  * Wraps a content-only prompt (authored by page-author.md / edit-author.md) in the art style and
  * framing to form the full image prompt. Order is framing -> art style -> quality -> `Content: …`.
  * Because the style text ends up inside the built prompt, the prompt-hash image cache (layer 3)
- * keys on it automatically — switching style can never serve back an image drawn in the
+ * keys on it automatically - switching style can never serve back an image drawn in the
  * previous one.
  */
 export function buildImagePrompt(contentPrompt: string, style?: string, opts?: BuildImagePromptOptions): string {

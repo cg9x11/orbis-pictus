@@ -29,7 +29,7 @@ function useConfig(yamlText: string | null): void {
   __resetConfigCacheForTests();
 }
 
-// Env vars the tests toggle — cleared before each use so a leaked value can't mask a bug.
+// Env vars the tests toggle - cleared before each use so a leaked value can't mask a bug.
 const ENVS = ["CFG_STR", "CFG_BOOL", "CFG_INT"];
 function clearEnv(): void {
   for (const k of ENVS) delete process.env[k];

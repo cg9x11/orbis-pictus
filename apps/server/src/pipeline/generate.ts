@@ -59,7 +59,7 @@ interface ModeContext {
   // versions of a page share one exploration parent and stay out of each other's breadcrumb.
   nodeParentId: string | null;
   // Edit only: the group the new version joins, and the version it was edited from. Undefined for a
-  // non-edit mode — a fresh page is its own group (the storage layer fills the group with its id).
+  // non-edit mode - a fresh page is its own group (the storage layer fills the group with its id).
   versionGroupId: string | undefined;
   editedFromId: string | undefined;
 }
@@ -135,7 +135,7 @@ async function resolveTapContext(
 
   // Layer 2: subject-level child dedup. Navigation to an existing child is instant, and it starts
   // no generation. The lookup finds the PRIMARY child of the subject (edit versions are excluded), so
-  // resolve it to that group's current default — otherwise a repeat tap on a subject the user edited
+  // resolve it to that group's current default - otherwise a repeat tap on a subject the user edited
   // and re-defaulted would open the old primary, not their chosen version.
   if (tapDedup === "reuse") {
     const existingChild = findChildBySubject(parentNodeId, normalizeSubject(subject));
@@ -184,11 +184,11 @@ function buildSearchQuery(topic: string, parentTitle: string | undefined): strin
 /**
  * The shape a tap/edit child must be drawn at: its parent page's own shape, so every node in a scene
  * shares one aspect ratio (see plans/PLAN-ratio-lock.md). Without this, a tap's normalized
- * coordinates — and the morph marker later drawn from them — could map to a different-shaped image
+ * coordinates - and the morph marker later drawn from them - could map to a different-shaped image
  * than the one tapped.
  *
  * Prefers the requested shape when the parent actually has that variant (the normal case: the UI
- * shows the parent at that shape), otherwise falls back to the parent's own shape — ignoring a client
+ * shows the parent at that shape), otherwise falls back to the parent's own shape - ignoring a client
  * that asked for one the parent does not have. If the parent can't be loaded, the request stands.
  */
 function inheritedRatio(parent: Node | null | undefined, requested: AspectRatio): AspectRatio {
@@ -244,7 +244,7 @@ export async function runGenerate(
       // This log line ties that cause to a specific generation.
       webSearchDegraded = true;
       console.warn(
-        `[orbis] web search degraded to model-knowledge-only for topic "${topic}" — dropping summary; page will be written from general knowledge`,
+        `[orbis] web search degraded to model-knowledge-only for topic "${topic}" - dropping summary; page will be written from general knowledge`,
       );
     } else {
       webSearchSummary = searchResult?.summary;
@@ -283,14 +283,14 @@ export async function runGenerate(
   // reference as the base.
   // Resolve the View once. The request may name a concrete composition or "auto" (the default), which
   // maps to the style's best-paired view. Both the prompt and the stored provenance below use this
-  // concrete value, so a page never stores "auto" — it stores the view it was actually drawn in.
+  // concrete value, so a page never stores "auto" - it stores the view it was actually drawn in.
   const view = resolveCompositionForStyle(req.art_style, req.composition);
   const imagePrompt = buildImagePrompt(authoredPrompt, req.art_style, {
     reference: req.mode === "search" ? "none" : "reuse",
     composition: view,
     // Per-model prompt dialect: the provider about to draw picks its own style variant (e.g.
     // tiltshift@gemini vs tiltshift@ark). Uses providerId (the requested provider), matching the
-    // prompt-hash key below, which also keys on providerId — so each model caches its own wording.
+    // prompt-hash key below, which also keys on providerId - so each model caches its own wording.
     provider: ctx.providers.image.providerId,
   });
 
@@ -324,7 +324,7 @@ export async function runGenerate(
     const search = !req.web_search
       ? "off"
       : webSearchDegraded
-        ? "on (DEGRADED — summary dropped, page written from general knowledge)"
+        ? "on (DEGRADED - summary dropped, page written from general knowledge)"
         : webSearchSummary
           ? "on"
           : "on (no summary returned)";
@@ -403,8 +403,8 @@ export async function runGenerate(
     // drew.
     image_provider: ctx.providers.image.providerId,
     art_style: resolveArtStyleName(req.art_style),
-    // A view-locked style (e.g. tilt-shift) draws with no composition block, so record "" — "no
-    // view" (the schema's meaning for empty) — not the AUTO_VIEW placeholder, which was never used.
+    // A view-locked style (e.g. tilt-shift) draws with no composition block, so record "" - "no
+    // view" (the schema's meaning for empty) - not the AUTO_VIEW placeholder, which was never used.
     composition: isViewLocked(resolveArtStyleName(req.art_style)) ? "" : view,
     prompt_author_model: ctx.providers.llm.modelId,
     authored_prompt: authoredPrompt,

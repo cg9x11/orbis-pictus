@@ -3,11 +3,11 @@ import type { AspectRatio } from "@orbis/shared";
 import { TapRipple } from "./TapRipple";
 import { classNames } from "../lib/classNames";
 
-// Must match the `.page-video` opacity transition duration in styles.css — this is how long the
+// Must match the `.page-video` opacity transition duration in styles.css - this is how long the
 // morph clip takes to fade out after setMorphVisible(false), before it's safe to unmount it.
 const MORPH_FADE_OUT_MS = 500;
 
-// Must match the `.page-image-outgoing` animation duration in styles.css — how long the page being
+// Must match the `.page-image-outgoing` animation duration in styles.css - how long the page being
 // left stays mounted while it fades away. Short on purpose: this is the fallback for every move an
 // AI morph clip cannot cover (a breadcrumb jump of more than one step spans several parent/child
 // pairs, so no single clip could represent it), and going back should feel immediate.
@@ -24,7 +24,7 @@ interface PageImageProps {
   videoUrl?: string | null;
   /** A ready transition-morph clip to play once over the already-current image, or null. */
   morphUrl?: string | null;
-  /** A transition is under way — its clip is being looked up, or is playing. While this is true the
+  /** A transition is under way - its clip is being looked up, or is playing. While this is true the
    *  page being left stays painted over the destination, so the destination is never glimpsed before
    *  the clip that is supposed to lead into it. */
   morphActive?: boolean;
@@ -34,13 +34,13 @@ interface PageImageProps {
   /** What the loading overlay shows. Falls back to a plain word when the caller has nothing richer
    *  (e.g. an aspect-ratio re-render, which runs over plain HTTP with no event stream). */
   loadingContent?: ReactNode;
-  /** Overlay pinned to the image's own coordinate space — the already-explored tap markers. */
+  /** Overlay pinned to the image's own coordinate space - the already-explored tap markers. */
   markers?: ReactNode;
-  /** Overlay pinned to the image's own coordinate space — the branch control listing this page's
+  /** Overlay pinned to the image's own coordinate space - the branch control listing this page's
    *  edit versions (see components/PageVersions.tsx). Only the control itself is interactive. */
   versions?: ReactNode;
   /** A background idle-loop clip is being generated for this page. Unlike
-   *  `loading`, the page is already finished and stays fully interactive — the indicator only says
+   *  `loading`, the page is already finished and stays fully interactive - the indicator only says
    *  "a clip is coming", it must never block a tap. */
   videoGenerating?: boolean;
   /** First-step animation flow: navigation is being held while this page's clips finish generating,
@@ -111,7 +111,7 @@ export function PageImage({
 
   // Safety valve for the window before the clip is on screen: if it never becomes playable (a broken
   // file, a fetch that resolves to nothing), release the held page rather than sitting on it forever.
-  // Only armed while waiting — once the clip is visible, its own `ended`/`error` handlers take over.
+  // Only armed while waiting - once the clip is visible, its own `ended`/`error` handlers take over.
   useEffect(() => {
     if (!outgoingUrl || !morphActive || morphVisible) return;
     const timer = setTimeout(() => setOutgoingUrl(null), MORPH_WAIT_MAX_MS);
@@ -160,7 +160,7 @@ export function PageImage({
             // Deliberately rendered after the idle-loop clip and before the morph: these are all
             // absolutely positioned with auto z-index, so DOM order is paint order. The destination's
             // own loop starts the moment we arrive, and sitting above it is the only way this layer
-            // actually covers the destination — above the <img> alone would leave the loop showing
+            // actually covers the destination - above the <img> alone would leave the loop showing
             // through. The morph still comes last, so it plays over the top of everything.
             // The destination <img> stays mounted underneath throughout, so the browser keeps it
             // decoded and revealing it costs nothing.
@@ -194,7 +194,7 @@ export function PageImage({
               onEnded={() => {
                 // Drop the held page here, not after the fade: this clip's last frame IS the
                 // destination, and it is still fully opaque at this instant, so swapping what sits
-                // underneath is invisible — and by the time the clip fades out, the destination is
+                // underneath is invisible - and by the time the clip fades out, the destination is
                 // already the thing behind it.
                 setOutgoingUrl(null);
                 setMorphVisible(false);

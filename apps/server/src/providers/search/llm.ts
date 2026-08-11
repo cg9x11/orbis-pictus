@@ -9,7 +9,7 @@ const SEARCH_SYSTEM =
 
 /**
  * Anthropic server-side web_search tool type ids, newest first. The provider tries each until
- * one actually produces a `web_search_tool_result` block — not merely until one is *accepted*:
+ * one actually produces a `web_search_tool_result` block - not merely until one is *accepted*:
  * a proxy can accept a tool type, run it through some other mechanism (observed: a
  * code-execution sandbox calling an internal web_search() helper), and silently fail without
  * ever throwing, leaving the model to answer from training knowledge alone.
@@ -67,17 +67,17 @@ export class LlmSearchProvider implements SearchProvider {
           this.workingToolType = toolType;
           return { summary: this.extractSummary(message) };
         }
-        // Accepted but produced no real result block (soft failure) — fall through to the next tool type.
+        // Accepted but produced no real result block (soft failure) - fall through to the next tool type.
       } catch {
-        // Rejected outright — fall through to the next tool type.
+        // Rejected outright - fall through to the next tool type.
       }
     }
 
     // Nothing produced a verified web_search_tool_result. Degrade to whatever text the last
-    // attempt returned (model-knowledge-only), and say so loudly — never silently accept this.
+    // attempt returned (model-knowledge-only), and say so loudly - never silently accept this.
     this.logNoWebSearch(
       lastMessage
-        ? `proxy accepted tool type "${lastToolType}" but never returned a web_search_tool_result block — summary is from model knowledge only.`
+        ? `proxy accepted tool type "${lastToolType}" but never returned a web_search_tool_result block - summary is from model knowledge only.`
         : `proxy rejected the web_search tool (tried ${toolTypesToTry.join(", ")}).`,
     );
     if (!lastMessage) return null;

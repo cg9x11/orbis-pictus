@@ -10,7 +10,7 @@ export interface ModelRate {
 
 /**
  * Published per-model token rates for the token-billed image models we support, as of 2026-08.
- * Providers that bill per-image and return no token usage (fal, ark) are intentionally absent —
+ * Providers that bill per-image and return no token usage (fal, ark) are intentionally absent -
  * there's nothing to compute from. These feed only the optional DEBUG_IMAGE_PROMPT cost estimate;
  * the real charge always comes from the provider's own billing, so keep this current but don't
  * treat it as authoritative. OpenAI input uses the text-input rate (image-input, when a reference
@@ -36,7 +36,7 @@ export interface CostEstimate {
 }
 
 /** Estimates the USD cost of one generation from reported token usage and the model's published
- *  rates. Returns null when the model isn't in the table or no usage was reported — the caller then
+ *  rates. Returns null when the model isn't in the table or no usage was reported - the caller then
  *  logs "n/a" rather than a misleading $0.0000. */
 export function estimateImageCost(modelId: string, usage: ImageUsage | undefined): CostEstimate | null {
   const rate = IMAGE_MODEL_RATES[modelId];

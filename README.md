@@ -6,7 +6,7 @@ You type anything, and the app draws a page in real time. You click anything ins
 the app draws a new page about the thing you clicked. There is no markup and there are no links. The
 app draws every pixel on demand.
 
-![Demo: the landing page, a generated page, a tap with a page-transition morph, and breadcrumb navigation](docs/demo.gif)
+[![Demo: the landing page, a generated page, a tap with a page-transition morph, and breadcrumb navigation - click to watch the video](docs/demo-poster.jpg)](docs/demo.mp4)
 
 This project is an **independent, open-source homage** to [flipbook.page](https://flipbook.page). The
 flipbook.page team did not build it, endorse it, or approve it. It exists because one idea was
@@ -60,9 +60,9 @@ The **Configuration** section below lists the environment variables for each rol
 `POST /api/generate`. The endpoint streams back `start → [tap_subject] → preview → complete`, or
 `error`. Three request modes share this one endpoint:
 
-- `search` — the user typed a query.
-- `tap` — the user clicked a point on the current page.
-- `edit` — the user typed a command over an open page ("make it night time").
+- `search` - the user typed a query.
+- `tap` - the user clicked a point on the current page.
+- `edit` - the user typed a command over an open page ("make it night time").
 
 **The tap trick.** There is no API for click coordinates. When you tap the image, the client draws
 the *current page* onto a canvas. It paints a marker at the exact click point: a red circle with a
@@ -97,11 +97,11 @@ is garbled text, or a fabricated subtitle under a title.
 
 **Three cache layers.** The app applies all three on every tap, and all three are optional.
 
-1. **Coordinate-grid VLM cache** — the app quantizes clicks to a coarse grid, one grid per page. A
+1. **Coordinate-grid VLM cache** - the app quantizes clicks to a coarse grid, one grid per page. A
    nearby repeat click reuses the subject that the vision model already named, and skips that call.
-2. **Subject-level child dedup** — once the subject is known, the app reuses an existing child node
+2. **Subject-level child dedup** - once the subject is known, the app reuses an existing child node
    under the same parent with the same normalized subject. Navigation is instant and costs nothing.
-3. **Prompt-hash image cache** — repeated searches often produce byte-identical prompt text. In that
+3. **Prompt-hash image cache** - repeated searches often produce byte-identical prompt text. In that
    case the app serves the earlier image instead of a new one.
 
 `TAP_DEDUP` selects which layers run:
@@ -176,10 +176,29 @@ between two versions is a one-step move, so the page-transition morph plays betw
 This project needs Node 22.5 or later. It uses the built-in `node:sqlite` module, which is still
 experimental at that version. The warning that the server prints at startup is expected and harmless.
 
+> **You need one real LLM credential before this is worth running.** Prompt authoring and tap vision
+> (naming whatever you clicked on) both go through `LLM_PROVIDER`, and without a key there it silently
+> falls back to a canned mock (`apps/server/src/providers/llm/mock.ts`) - every page gets the same
+> generic 4-panel template, and every tap resolves to "Mock Subject". No error, no warning - the app
+> just runs and does nothing interesting. Pick one before you start:
+>
+> - **Anthropic** (`LLM_PROVIDER=anthropic`, the default once `LLM_API_KEY` is set) - with a real
+>   Anthropic API key, setting `LLM_API_KEY` alone is enough: the base URL and model ids default to
+>   Anthropic's API (`claude-sonnet-5` / `claude-haiku-4-5`). An Anthropic-compatible proxy (for
+>   example [9router](https://9router.com)) works too, but then set `LLM_BASE_URL` to the proxy
+>   *and* the model ids to the proxy's own (e.g. `cc/claude-sonnet-5`) - proxy model names are
+>   proxy-specific.
+> - **Gemini** (`LLM_PROVIDER=gemini`) - a Google `GEMINI_API_KEY`. Handles prompt authoring and tap
+>   vision the same as Anthropic does.
+>
+> Put the key in `.env`; see the Configuration table below for the exact variable names. The server
+> prints a `resolved providers:` table at every startup - if the `llm:` line there says `MOCK`,
+> your key is not wired up, whatever else looks fine.
+
 ```bash
 npm install
 cp .env.example .env                # secrets (API keys) go here
-cp config.example.yml config.yml    # everything else (providers, models, flags) — optional
+cp config.example.yml config.yml    # everything else (providers, models, flags) - optional
 npm run dev:server                  # http://localhost:8787
 npm run dev:web                     # http://localhost:5173
 ```
@@ -213,11 +232,11 @@ and no file edit. The **⚙ Models** button in the toolbar opens the panel, and 
 [Choosing models from the UI](#choosing-models-from-the-ui) describes it. Every other value resolves
 from the environment, then `config.yml`, then the built-in default.
 
-- **`config.yml`** (non-secret, gitignored — copy it from `config.example.yml`): provider selection,
+- **`config.yml`** (non-secret, gitignored - copy it from `config.example.yml`): provider selection,
   model names, feature flags, and tunable values. The structure is nested, which keeps it manageable
   as the number of providers grows. This file is optional. Without it, every value falls back to the
   environment or to the default.
-- **`.env`** (secrets, gitignored — copy it from `.env.example`): API keys, plus any environment
+- **`.env`** (secrets, gitignored - copy it from `.env.example`): API keys, plus any environment
   override that you want to force. Because the environment wins, a deployment can override one
   `config.yml` value with no file edit.
 
@@ -227,28 +246,28 @@ inside `config.yml`.
 
 | Env override | Purpose | Values |
 |---|---|---|
-| `LLM_PROVIDER` | Prompt authoring + tap vision model | `anthropic` (Anthropic Messages API — works with a real Anthropic key **or** any Anthropic-compatible proxy through `LLM_BASE_URL`) · `gemini` · `mock` (default when no key is set) |
-| `LLM_API_KEY`, `LLM_BASE_URL` | Credentials and endpoint for the `anthropic` provider | `LLM_BASE_URL` has no `/v1` suffix. The SDK appends `/v1/messages` itself |
-| `PROMPT_AUTHOR_MODEL`, `TAP_VLM_MODEL` | Which models to call through that provider | Any model id that your endpoint serves. The VLM model must accept image input |
-| `GEMINI_API_KEY` | Credentials for the `gemini` provider | — |
+| `LLM_PROVIDER` | Prompt authoring + tap vision model | `anthropic` (Anthropic Messages API - works with a real Anthropic key **or** any Anthropic-compatible proxy through `LLM_BASE_URL`) · `gemini` · `mock` (default when no key is set) |
+| `LLM_API_KEY`, `LLM_BASE_URL` | Credentials and endpoint for the `anthropic` provider | `LLM_BASE_URL` defaults to `https://api.anthropic.com` and has no `/v1` suffix (the SDK appends `/v1/messages` itself). Set it only for an Anthropic-compatible proxy |
+| `PROMPT_AUTHOR_MODEL`, `TAP_VLM_MODEL` | Which models to call through that provider | Default `claude-sonnet-5` / `claude-haiku-4-5`. Any model id that your endpoint serves works; a proxy's ids are proxy-specific (e.g. `cc/claude-sonnet-5`). The VLM model must accept image input |
+| `GEMINI_API_KEY` | Credentials for the `gemini` provider | - |
 | `IMAGE_PROVIDER` | Image generation | `fal` (fal.ai) · `ark` (BytePlus Ark / Seedream) · `gemini` (Google "nano banana") · `openai` (gpt-image) · `mock` (default when no key is set) |
-| `ARK_API_KEY`, `ARK_BASE_URL` | Credentials and endpoint for `ark` | — |
+| `ARK_API_KEY`, `ARK_BASE_URL` | Credentials and endpoint for `ark` | - |
 | `ARK_IMAGE_MODEL`, `ARK_IMAGE_MODEL_FALLBACK` | Primary model, plus an automatic fallback for quota errors | For example `seedream-4-5-251128` and `seedream-4-0-250828` |
-| `FAL_KEY`, `IMAGE_MODEL` | Credentials and model for `fal` | — |
+| `FAL_KEY`, `IMAGE_MODEL` | Credentials and model for `fal` | - |
 | `GEMINI_API_KEY`, `GEMINI_IMAGE_MODEL` | Credentials and model for `gemini` image | For example `gemini-3.1-flash-lite-image` · `gemini-3.1-flash-image` · `gemini-3-pro-image` |
 | `OPENAI_API_KEY`, `OPENAI_IMAGE_MODEL`, `OPENAI_IMAGE_QUALITY` | Credentials, model, and quality for `openai` image | For example `gpt-image-1.5`. Quality is `low`, `medium`, or `high` |
 | `SEARCH_PROVIDER` | Optional web search grounding for page content | `llm` (uses the server-side web-search tool of the Anthropic-compatible provider) · `none` |
-| `SEARCH_MODEL` | Model for the search | — |
+| `SEARCH_MODEL` | Model for the search | - |
 | `ART_STYLE` | Fixed visual style for every page | `felt` (default) · `papercut` · `riso` · `pixel` · `editorial` · `tiltshift` |
 | `COMPOSITION` | View for every page, independent of `ART_STYLE` | `auto` (default; pairs each style with its best view) · `flat` · `isometric` · `diorama` |
 | `TAP_DEDUP` | Tap caching mode (see above) | `reuse` (default) · `variant` · `off` |
 | `VIDEO_ENABLED` | Master switch for idle-loop video | `false` (default) |
-| `VIDEO_PROVIDER` | Video generation | `ark` (BytePlus Seedance) · `mock` (default even when `ARK_API_KEY` is set — video is opt-in separately from images) |
-| `ARK_VIDEO_MODEL`, `VIDEO_RESOLUTION`, `VIDEO_DURATION_SECONDS`, `VIDEO_MAX_PER_SESSION` | Video tuning, plus a hard per-session cap | — |
+| `VIDEO_PROVIDER` | Video generation | `ark` (BytePlus Seedance) · `mock` (default even when `ARK_API_KEY` is set - video is opt-in separately from images) |
+| `ARK_VIDEO_MODEL`, `VIDEO_RESOLUTION`, `VIDEO_DURATION_SECONDS`, `VIDEO_MAX_PER_SESSION` | Video tuning, plus a hard per-session cap | - |
 | `MORPH_ENABLED` | Master switch for page-transition morphs | `false` (default) |
-| `MORPH_MAX_PER_SESSION` | Hard per-session cap on morph generations. Reuses `VIDEO_PROVIDER`, `ARK_VIDEO_MODEL`, `VIDEO_RESOLUTION`, and `VIDEO_DURATION_SECONDS` above | — |
+| `MORPH_MAX_PER_SESSION` | Hard per-session cap on morph generations. Reuses `VIDEO_PROVIDER`, `ARK_VIDEO_MODEL`, `VIDEO_RESOLUTION`, and `VIDEO_DURATION_SECONDS` above | - |
 | `MORPH_REVERSE` | Re-encode each morph backwards, so that one step back replays it in reverse. Needs `ffmpeg` on PATH. Costs no video quota. Off means that back-navigation crossfades | `true` (default) |
-| `PORT`, `DATABASE_URL`, `IMAGES_DIR` | Server port, SQLite file path, and disk path for generated images | — |
+| `PORT`, `DATABASE_URL`, `IMAGES_DIR` | Server port, SQLite file path, and disk path for generated images | - |
 
 ### Choosing models from the UI
 
@@ -315,7 +334,7 @@ image. For that reason each one has a hard per-session cap: `VIDEO_MAX_PER_SESSI
   This happens even when the prompt spells the name in plain letters, because the model
   "auto-corrects" it back to an accented spelling. The workaround is aggressive: the prompt spells
   these proper nouns in plain ASCII and adds an anti-example that names the accented variants to
-  avoid. This helps measurably, but it is not airtight — a higher-tier image model draws these names
+  avoid. This helps measurably, but it is not airtight - a higher-tier image model draws these names
   correctly with no workaround.
 - **Dense pages with 7 or 8 callouts can still merge or drop a label on a weaker image model.** Two
   adjacent callouts sometimes blend into one garbled plaque. A label sometimes goes missing while its

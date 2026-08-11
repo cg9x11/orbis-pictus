@@ -24,7 +24,7 @@ test("isTransientStatus treats 5xx and 408 as transient", () => {
   assert.equal(isTransientStatus(408), true);
 });
 
-test("isTransientStatus deliberately excludes 429 — a caller whose 429 means quota/rate-limit needs it to surface immediately, not vanish into blind retry", () => {
+test("isTransientStatus deliberately excludes 429 - a caller whose 429 means quota/rate-limit needs it to surface immediately, not vanish into blind retry", () => {
   assert.equal(isTransientStatus(429), false);
 });
 
@@ -49,7 +49,7 @@ test("fetchWithRetry retries a transient 503 and returns the eventual success", 
   });
 });
 
-test("fetchWithRetry does not retry a non-transient 400 — returns it on the first attempt", async () => {
+test("fetchWithRetry does not retry a non-transient 400 - returns it on the first attempt", async () => {
   let fetchCount = 0;
   const original = globalThis.fetch;
   globalThis.fetch = async () => {

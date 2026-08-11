@@ -27,7 +27,7 @@ function withFetch(
 
 test("fal: an unknown model surfaces as UnknownModelError, so the fallback can catch it", async () => {
   // Captured verbatim from the live fal.ai API on 2026-08-08 by requesting a nonexistent model.
-  // Note the wording: "Application", never "model" — matching on the word "model" would miss it,
+  // Note the wording: "Application", never "model" - matching on the word "model" would miss it,
   // which is why the 404 status is the signal here.
   await withFetch({ status: 404, body: { detail: "Application 'does-not-exist-9' not found" } }, async (calls) => {
     const provider = new FalImageProvider("k", "fal-ai/does-not-exist-9");

@@ -8,7 +8,7 @@ import type {
   TitleImageOutput,
 } from "../types.js";
 
-/** Deterministic canned responses — no network calls. Used when GEMINI_API_KEY is absent. */
+/** Deterministic canned responses - no network calls. Used when GEMINI_API_KEY is absent. */
 export class MockLlmProvider implements LlmProvider {
   readonly modelId = "mock-llm";
 

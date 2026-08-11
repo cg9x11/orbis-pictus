@@ -130,13 +130,13 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
               onChange={setVideoLoopEnabled}
               disabled={busy}
               // Once the poll has the clip in hand it is ready, whatever the node payload said when
-              // the page loaded — that snapshot is never refreshed, so it would otherwise read
+              // the page loaded - that snapshot is never refreshed, so it would otherwise read
               // "generating…" forever on a page whose loop is already playing.
               status={idleLoopVideoUrl ? "ready" : current?.video_status}
             />
           )}
           {/* On-demand path: a distinct, explicit action shown only when Live video
-              is on and this page is missing a clip — turning the toggle's honest "none on this page"
+              is on and this page is missing a clip - turning the toggle's honest "none on this page"
               into something the user can act on, without conflating the global on/off toggle's
               meaning. Covers both clips, so the label names the outcome rather than just the video. */}
           {canGenerateVideo && (
@@ -245,11 +245,11 @@ export function OrbisApp({ initialNodeId }: { initialNodeId?: string }) {
         </div>
       )}
     </BrowserFrame>
-    {/* Sits directly under the mocked browser frame on every view — before the demo's intro/gallery
-        below — so it reads as a caption on the browser, not a footer pinned to the page bottom. It
+    {/* Sits directly under the mocked browser frame on every view - before the demo's intro/gallery
+        below - so it reads as a caption on the browser, not a footer pinned to the page bottom. It
         states the plain fact that the whole app is AI-generated. */}
     <p className="app-disclaimer">
-      Everything here is AI-generated. Images and text may be inaccurate or entirely made up — please don't
+      Everything here is AI-generated. Images and text may be inaccurate or entirely made up - please don't
       rely on it as fact.
     </p>
     {/* The intro text and gallery live BELOW the browser during the read-only demo. Once a real

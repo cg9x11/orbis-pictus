@@ -19,7 +19,7 @@ export interface ModelFallbackNotice {
  * that the prompt-hash cache then serves.
  *
  * Deliberately narrow: ONLY `UnknownModelError` is caught. A quota failure, a network error, or a
- * malformed response all propagate untouched — retrying those on a different model would spend
+ * malformed response all propagate untouched - retrying those on a different model would spend
  * budget on a request that was never going to work for a reason the model can't fix.
  *
  * `buildDefault` is lazy so the default provider is only constructed on the failure path, and is a

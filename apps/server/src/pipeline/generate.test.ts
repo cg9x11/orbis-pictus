@@ -30,7 +30,7 @@ class SpyImageProvider implements ImageProvider {
   readonly modelId = "spy-image";
   readonly providerId = "spy";
   lastInput: ImageGenInput | undefined;
-  /** How many times the provider was actually asked to draw — the only honest way to tell a real
+  /** How many times the provider was actually asked to draw - the only honest way to tell a real
    *  generation from a cache hit, since both return a usable image URL. */
   calls = 0;
 
@@ -237,7 +237,7 @@ test("edit mode: the built image prompt includes the house style and passes the 
   assert.doesNotMatch(image.lastInput!.prompt, NUMERAL_BADGE_INSTRUCTION);
 
   // An edit has no topic of its own: the node's query/topic must inherit the parent's ("Ha Noi
-  // street food"), never the edit command itself ("make it night time") — otherwise a web search
+  // street food"), never the edit command itself ("make it night time") - otherwise a web search
   // (when enabled) would search for the edit instruction, and the persisted query would be it too.
   assert.equal(node.query, parent.query);
   assert.notEqual(node.query, "make it night time");
@@ -293,8 +293,8 @@ test("edit mode (peer model): the version attaches to the edited page's PARENT, 
     () => {},
   );
 
-  // The edited page is peer-child (parent peer-root). The new version attaches to peer-root — the
-  // edited page's OWN parent — NOT to peer-child, so the two versions are peers, not a chain.
+  // The edited page is peer-child (parent peer-root). The new version attaches to peer-root - the
+  // edited page's OWN parent - NOT to peer-child, so the two versions are peers, not a chain.
   assert.equal(node.parent_id, "peer-root");
   assert.equal(node.edited_from_id, "peer-child");
   assert.equal(node.version_group_id, "peer-child"); // joins peer-child's group
@@ -519,7 +519,7 @@ test("tap reuse: a repeat tap on an edited subject opens the group's DEFAULT ver
 
 // The tap panel's "Draw a new version" button is the user choosing to spend. If layer 3 could still
 // answer it, the button would sometimes return the identical picture and look broken. The mock LLM
-// is deterministic, so a repeat tap authors a byte-identical prompt — exactly the collision that
+// is deterministic, so a repeat tap authors a byte-identical prompt - exactly the collision that
 // makes this reachable in production, reproduced here without depending on model temperature.
 test("tap mode: force_new_image bypasses the layer-3 prompt-hash cache", async () => {
   const previousMode = process.env.TAP_DEDUP;

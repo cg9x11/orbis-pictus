@@ -16,7 +16,7 @@ const imagesDir = path.join(tmpDir, "images");
 const { insertNode, insertVersionAsDefault } = await import("../storage/nodes.js");
 const { nodesRoute } = await import("./nodes.js");
 
-// These endpoints read/write the database only — no providers or pipelines involved.
+// These endpoints read/write the database only - no providers or pipelines involved.
 const noProviders = () => ({}) as unknown as Providers;
 function app() {
   return nodesRoute(noProviders, imagesDir, {} as unknown as VideoPipeline, {} as unknown as MorphPipeline);

@@ -11,11 +11,11 @@ export const db = new DatabaseSync(dbPath);
 db.exec("PRAGMA journal_mode = WAL;");
 
 /** Adds a column to an existing table if it isn't already there. SQLite has no
- *  `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so this checks PRAGMA table_info first —
+ *  `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so this checks PRAGMA table_info first -
  *  needed because dev databases created before Phase 3 lack the cache-layer columns.
  *
  *  `table`/`column`/`columnDdl` are interpolated directly into SQL text because SQLite can't bind
- *  identifiers as query parameters — only values. This is safe only because every call site below
+ *  identifiers as query parameters - only values. This is safe only because every call site below
  *  passes a hardcoded literal; never pass a request-derived string here. */
 function ensureColumn(table: string, column: string, columnDdl: string): void {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
@@ -97,7 +97,7 @@ export function migrate(): void {
   // Provenance: which provider drew the page, and in which art style/composition. Needed so a
   // lazily-generated aspect-ratio variant can be drawn to match the page it belongs to, rather than
   // with whatever the server is configured with at the time. Empty means "written before this
-  // existed" — the variant route then falls back to the server's current settings.
+  // existed" - the variant route then falls back to the server's current settings.
   ensureColumn("nodes", "image_provider", "image_provider TEXT NOT NULL DEFAULT ''");
   ensureColumn("nodes", "art_style", "art_style TEXT NOT NULL DEFAULT ''");
   ensureColumn("nodes", "composition", "composition TEXT NOT NULL DEFAULT ''");

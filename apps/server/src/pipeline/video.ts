@@ -19,7 +19,7 @@ function pickImageVariant(node: Node): { ratio: AspectRatio; url: string } | nul
 export interface VideoPipeline {
   /**
    * Fire-and-forget: kicks off background idle-loop generation for `node` if the feature is on
-   * and every guard passes. Never awaited by callers — a page must never wait
+   * and every guard passes. Never awaited by callers - a page must never wait
    * on video. Safe to call for every completed page unconditionally; all gating happens inside.
    */
   maybeStartIdleLoop(node: Node, providers: Providers, imagesDir: string, options?: ClipOptions): void;
@@ -30,7 +30,7 @@ export interface VideoPipeline {
   startIdleLoopNow(node: Node, providers: Providers, imagesDir: string, options?: ClipOptions): StartNowResult;
 }
 
-/** Factory (not a bare singleton) so tests can get isolated in-flight/session-cap state — see video.test.ts. */
+/** Factory (not a bare singleton) so tests can get isolated in-flight/session-cap state - see video.test.ts. */
 export function createVideoPipeline(): VideoPipeline {
   const pipeline = createBackgroundClipPipeline({
     label: "idle-loop video generation",
@@ -57,5 +57,5 @@ export function createVideoPipeline(): VideoPipeline {
   return { maybeStartIdleLoop: pipeline.maybeStart, startIdleLoopNow: pipeline.startNow };
 }
 
-/** The real app's single shared instance — routes import this. */
+/** The real app's single shared instance - routes import this. */
 export const videoPipeline = createVideoPipeline();

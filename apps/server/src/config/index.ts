@@ -20,13 +20,13 @@ export function resolveConfigPath(): string {
 
 /**
  * Hybrid configuration source. Non-secret settings live in an optional `config.yml` (structured,
- * easy to manage many providers — see config.example.yml); secrets (API keys) stay in the
+ * easy to manage many providers - see config.example.yml); secrets (API keys) stay in the
  * environment only. Every setting resolves with a fixed precedence:
  *
  *     environment variable  >  config.yml value  >  built-in default
  *
  * Environment-first is deliberate: it matches 12-factor deployment (a host injects overrides via env
- * without editing files) AND keeps the existing test suite working unchanged — tests set
+ * without editing files) AND keeps the existing test suite working unchanged - tests set
  * `process.env.*` before importing, so env continues to win and no `config.yml` is present in CI.
  *
  * Values are resolved per call (env is read live), so nothing here caches an env value; only the
@@ -42,7 +42,7 @@ const STAT_THROTTLE_MS = 1000;
 // --- Change reporting -----------------------------------------------------------------------
 // The loader is lazy: an edit is noticed on the first config read after it, not at the moment of
 // the save. So these lines mark when the new values actually went live, which is the fact an
-// operator needs in order to line the change up against a request. The first load stays silent —
+// operator needs in order to line the change up against a request. The first load stays silent -
 // only a change after the process started is news.
 
 let reloadedFromMtimeMs: number | null = null; // mtime the cache held when a change was detected
@@ -71,7 +71,7 @@ function reportReload(filePath: string): void {
 
   // "Gone" is decided FIRST, before `wasInvalid`. An operator who saves a broken config and then
   // deletes it satisfies both conditions, and answering with "valid again ... the new values are
-  // live" describes a file that no longer exists — the opposite of what happened.
+  // live" describes a file that no longer exists - the opposite of what happened.
   if (cachedMtimeMs === 0) {
     if (hadFile) {
       console.log(`[orbis] config file removed (${filePath}). Environment values and defaults now apply.`);
@@ -131,7 +131,7 @@ function fileConfig(): FileConfig {
   if (cachedFile === undefined) {
     lastStatMs = now;
     // Stat BEFORE reading, and stamp the cache with that value. Statting afterwards pairs the bytes
-    // we read with an mtime that may already belong to a NEWER save — an editor that writes a file
+    // we read with an mtime that may already belong to a NEWER save - an editor that writes a file
     // in several steps can land one between the two calls. The check above then compares against
     // that newer mtime forever, so the edit is never noticed and stays lost until a restart.
     // Stamping with the pre-read mtime is self-correcting: if a save did land during the read, the

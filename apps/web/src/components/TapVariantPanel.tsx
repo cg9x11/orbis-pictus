@@ -30,7 +30,7 @@ interface TapVariantPanelProps {
 export function TapVariantPanel({ tap, onOpen, onDrawNew, onClose, busy, readOnly = false }: TapVariantPanelProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
-  // The panel interrupts a tap, so Escape must undo that interruption — without it, the only way out
+  // The panel interrupts a tap, so Escape must undo that interruption - without it, the only way out
   // is the close button, which strands a user who tapped by accident. No outside-click here: the
   // backdrop below already handles that via its onClick. The hook reads `onClose` through a ref, so
   // this does not re-subscribe on the frequent controller re-renders (ripple clear, idle-loop poll).

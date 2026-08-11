@@ -52,7 +52,7 @@ function makeNode(overrides: Partial<Node> = {}): Node {
 }
 
 /**
- * Seeds `count` roots dated inside `year`, and returns their ids newest first — the order the
+ * Seeds `count` roots dated inside `year`, and returns their ids newest first - the order the
  * gallery must produce.
  *
  * Every test in this file shares one database. Each caller therefore gets its own year, so that

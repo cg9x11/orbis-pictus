@@ -15,7 +15,7 @@ test("parseJsonLoose strips a plain ``` fence (no language tag)", () => {
 });
 
 // Reproduces the real failure seen with web_search enabled: the model adds commentary after the
-// closing fence despite the system prompt saying "no commentary" — the old anchored-fence regex
+// closing fence despite the system prompt saying "no commentary" - the old anchored-fence regex
 // required the fence to span the entire trimmed string, so trailing text broke it entirely.
 test("parseJsonLoose recovers JSON when the model adds trailing commentary after the fence", () => {
   const text = '```json\n{"a":1}\n```\n\nLet me know if you would like any changes!';
@@ -28,7 +28,7 @@ test("parseJsonLoose recovers JSON when the model adds leading commentary before
 });
 
 test("parseJsonLoose recovers an unfenced JSON object surrounded by prose", () => {
-  const text = "Sure, here you go: {\"a\":1} — hope that helps!";
+  const text = "Sure, here you go: {\"a\":1} - hope that helps!";
   assert.deepEqual(parseJsonLoose(text), { a: 1 });
 });
 

@@ -15,7 +15,7 @@ export default defineConfig({
         changeOrigin: true,
       },
       // `/n/:id` is intentionally NOT proxied to the Hono server in dev. That route exists so that,
-      // in production, link-unfurling bots get server-rendered OG meta tags (see index.ts) — but the
+      // in production, link-unfurling bots get server-rendered OG meta tags (see index.ts) - but the
       // server hands back a plain HTML shell, without Vite's dev-time HTML transform. Proxying it
       // here meant a real browser loading /n/:id (a deep link, or a refresh while on a node page)
       // received a shell missing Vite's client and @vitejs/plugin-react's React Refresh preamble, so

@@ -48,7 +48,7 @@ test("an unrecognized ART_STYLE value falls back to felt", () => {
   }
 });
 
-// The picker lets a style be chosen per request, so it must win over the server's env default —
+// The picker lets a style be chosen per request, so it must win over the server's env default -
 // otherwise switching style in the UI would silently keep rendering the old look.
 test("an explicit style argument overrides the ART_STYLE env", () => {
   const prev = process.env.ART_STYLE;
@@ -111,25 +111,25 @@ test("getArtStyleBlock selects the requested composition block", () => {
   // "isometric" is the third pole: axonometric projection without the miniature-diorama framing.
   // Anchored on the section heading rather than a phrase from its prose: this block is the app's
   // main visual lever and gets reworded often, and a prose marker turned every tuning pass into a
-  // test edit — which says nothing about whether the selector picked the right block.
+  // test edit - which says nothing about whether the selector picked the right block.
   const isometric = getArtStyleBlock("felt", "isometric");
   assert.match(isometric, /## Composition: isometric diagram/i);
   assert.doesNotMatch(isometric, /isometric three-quarter aerial view/);
 });
 
 // Tilt-shift owns its own viewpoint: it must carry the photographic-camera language and drop the
-// craft composition block entirely, no matter which composition is requested — an isometric or flat
+// craft composition block entirely, no matter which composition is requested - an isometric or flat
 // projection has no focal plane for the blur and fought the effect in testing.
 test("tilt-shift style skips the composition block and brings its own camera", () => {
   const tilt = getArtStyleBlock("tiltshift", "diorama");
   assert.match(tilt, /shallow depth of field/);
   assert.match(tilt, /real\s+camera lens and natural perspective/i);
-  // Guard the Seedream fix: the blur is described as optical depth of field, never a flat "band" —
+  // Guard the Seedream fix: the blur is described as optical depth of field, never a flat "band" -
   // the mechanical band wording made Seedream paint literal grey bars across the frame.
   assert.match(tilt, /never a flat band, bar, or darkened strip/);
   assert.doesNotMatch(tilt, /isometric three-quarter aerial view/);
   assert.doesNotMatch(tilt, /## Composition:/);
-  // Even an explicit flat request is ignored — the style block is self-contained.
+  // Even an explicit flat request is ignored - the style block is self-contained.
   assert.doesNotMatch(getArtStyleBlock("tiltshift", "flat"), /flat, front-on educational infographic/i);
 });
 
